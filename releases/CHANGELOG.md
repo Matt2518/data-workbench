@@ -2,6 +2,10 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.2] — 2026-05-05
+_Release notes: (edit this line before committing)_
+- Build: 101.4 KB, 12 plugin(s)
+
 ## \[v0.2] — 2026-05-05
 
 * *Release notes: PapaParse CSV fix, focus loss fix, push\_to\_viz fix, SET\_TYPES node, type metadata system, passthroughCopy.*Build: 98.8 KB, 12 plugin(s)
