@@ -929,15 +929,21 @@ window.DWB = (() => {
   const _hms = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
 
   function parseCSV(text) {
-    if (window.Papa) {
-      const r = Papa.parse(text.trim(), { header: false, skipEmptyLines: true });
-      if (!r.data.length) return { headers: [], rows: [] };
-      return { headers: r.data[0].map(String), rows: r.data.slice(1) };
+    const result = Papa.parse(text, {
+      header: false,
+      skipEmptyLines: true,
+      trimHeaders: false
+    });
+    if (!result.data || result.data.length < 1) {
+      return { headers: [], rows: [] };
     }
-    const lines = text.trim().split(/\r?\n/);
-    if (!lines.length) return { headers: [], rows: [] };
-    const parse = s => s.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-    return { headers: parse(lines[0]), rows: lines.slice(1).map(parse) };
+    if (result.errors && result.errors.length > 0) {
+      const msgs = result.errors.slice(0, 3).map(e => e.message).join('; ');
+      log(`CSV parse warnings: ${msgs}`, 'warn');
+    }
+    const headers = result.data[0].map(h => String(h).trim());
+    const rows    = result.data.slice(1);
+    return { headers, rows };
   }
 
   function generateOptions(headers, selected) {
