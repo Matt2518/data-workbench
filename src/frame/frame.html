@@ -420,6 +420,20 @@
     }
     .node-star.starred { color: var(--accent-gold); opacity: 1; }
 
+    .node-del {
+      background: none;
+      border: none;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 2px;
+      color: var(--text-faint);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .node-card:hover .node-del { opacity: 1; }
+    .node-del:hover { color: var(--danger); }
+
     .status-dot {
       width: 8px;
       height: 8px;
@@ -510,8 +524,7 @@
       color: #4a7099;
     }
     #console-clear:hover { color: #7ea3c4; }
-    #console-arrow { margin-left: auto; color: #4a7099; transition: transform 0.2s; }
-    #console-panel.collapsed #console-arrow { transform: rotate(-90deg); }
+    #console-arrow { margin-left: auto; color: #4a7099; }
 
     #console-log {
       height: var(--console-h);
@@ -820,12 +833,12 @@
     </div>
   </div>
 
-  <!-- CONSOLE (collapsible) -->
-  <div id="console-panel">
+  <!-- CONSOLE (collapsible, starts minimized) -->
+  <div id="console-panel" class="collapsed">
     <div id="console-header" onclick="DWB.togglePanel('console-panel')">
       <span class="label">Console</span>
       <button id="console-clear" onclick="event.stopPropagation();DWB.clearConsole()">Clear</button>
-      <span id="console-arrow">▾</span>
+      <span id="console-arrow">▲</span>
     </div>
     <div id="console-log"></div>
   </div>
@@ -1040,7 +1053,13 @@ window.DWB = (() => {
 
   // ---- Panel collapse ----
   function togglePanel(id) {
-    document.getElementById(id)?.classList.toggle('collapsed');
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('collapsed');
+    if (id === 'console-panel') {
+      const arrow = document.getElementById('console-arrow');
+      if (arrow) arrow.textContent = el.classList.contains('collapsed') ? '▲' : '▼';
+    }
   }
 
   // ---- Mode ----
@@ -1179,6 +1198,9 @@ window.DWB = (() => {
           onclick="event.stopPropagation();DWB._toggleStar('${node.id}')"
           title="${node.isStarred?'Unstar':'Star'}">★</button>
         <span class="status-dot ${node.status}"></span>
+        <button class="node-del"
+          onclick="event.stopPropagation();DWB.deleteNode('${node.id}')"
+          title="Delete node">×</button>
       </div>
       <button class="add-btn" onclick="DWB.openPicker(${realIdx})">＋</button>`;
     });
@@ -1198,6 +1220,32 @@ window.DWB = (() => {
   function _toggleStar(nodeId) {
     const node = pipeline.nodes.find(n => n.id === nodeId);
     if (node) { node.isStarred = !node.isStarred; renderTrack(); }
+  }
+
+  function deleteNode(nodeId) {
+    const idx = pipeline.nodes.findIndex(n => n.id === nodeId);
+    if (idx < 0) return;
+    const node = pipeline.nodes[idx];
+    const def  = _typeDefs[node.type] || {};
+
+    if (node.output !== null) {
+      if (!confirm(`Delete "${node.customName || def.title}"?`)) return;
+    }
+
+    const wasActive = pipeline.activeNodeId === nodeId;
+    pipeline.nodes.splice(idx, 1);
+    if (wasActive) pipeline.activeNodeId = null;
+
+    renderTrack();
+    renderActiveNode();
+
+    if (pipeline.nodes.length === 0) {
+      renderDataInspector(null);
+    } else if (idx < pipeline.nodes.length) {
+      runFrom(pipeline.nodes[idx].id);
+    }
+
+    log(`Deleted: ${node.customName || def.title}`);
   }
 
   // ---- Quick View ----
@@ -1454,7 +1502,7 @@ window.DWB = (() => {
     // execution
     runFrom, renderActiveNode, renderDataInspector,
     // node mgmt
-    addNode, selectNode, renderTrack,
+    addNode, selectNode, renderTrack, deleteNode,
     _toggleStar,
     // stash
     getStash, setStash, listStashes, _deleteStash,
