@@ -1,0 +1,2494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Workbench</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+
+  <style>
+    /* === CSS VARIABLES (Spec §7.2) === */
+    :root {
+      --navy-midnight: #002244;
+      --navy-sailor:   #005EB8;
+      --navy-gold:     #C5B230;
+      --navy-light:    #EAF2FB;
+
+      --bg-main:       #f8fafc;
+      --bg-surface:    #ffffff;
+      --bg-raised:     #f1f5f9;
+      --border:        #e2e8f0;
+      --border-strong: #94a3b8;
+      --text-main:     #1e293b;
+      --text-muted:    #64748b;
+      --text-faint:    #94a3b8;
+
+      --accent:        var(--navy-sailor);
+      --accent-light:  var(--navy-light);
+      --accent-gold:   var(--navy-gold);
+
+      --success: #059669;
+      --warning: #f59e0b;
+      --danger:  #dc2626;
+      --info:    #0ea5e9;
+
+      --likert-strong-pos:   #1d4ed8;
+      --likert-pos:          #3b82f6;
+      --likert-somewhat-pos: #93c5fd;
+      --likert-neutral:      #94a3b8;
+      --likert-somewhat-neg: #fdba74;
+      --likert-neg:          #f97316;
+      --likert-strong-neg:   #c2410c;
+
+      --topbar-h:    48px;
+      --sidebar-w:   268px;
+      --console-h:   168px;
+      --config-h:    200px;
+    }
+
+    [data-theme="dark"] {
+      --bg-main:       #0a1628;
+      --bg-surface:    #0f2040;
+      --bg-raised:     #1a3056;
+      --border:        #1e3a5f;
+      --border-strong: #2d5a8e;
+      --text-main:     #e2eaf4;
+      --text-muted:    #7ea3c4;
+      --text-faint:    #4a7099;
+    }
+
+    /* === RESET === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      background: var(--bg-main);
+      color: var(--text-main);
+    }
+
+    button { cursor: pointer; font-family: inherit; font-size: inherit; }
+
+    input, select, textarea {
+      font-family: inherit;
+      font-size: inherit;
+      color: var(--text-main);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+    }
+
+    /* === TOP BAR === */
+    #top-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      height: var(--topbar-h);
+      background: var(--navy-midnight);
+      border-bottom: 2px solid var(--navy-sailor);
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .app-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: #fff;
+      white-space: nowrap;
+      margin-right: 6px;
+    }
+
+    .mode-toggle {
+      display: flex;
+      gap: 2px;
+      background: rgba(0,0,0,0.35);
+      border-radius: 6px;
+      padding: 3px;
+    }
+    .mode-btn {
+      padding: 4px 13px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn.active { background: var(--navy-sailor); color: #fff; }
+    .mode-btn:hover:not(.active) { background: rgba(255,255,255,0.1); color: #e2eaf4; }
+
+    #active-dataset-indicator {
+      padding: 3px 10px;
+      background: rgba(0,0,0,0.25);
+      border-radius: 4px;
+      font-size: 11px;
+      color: #7ea3c4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 300px;
+      min-width: 120px;
+    }
+    #active-dataset-indicator.has-data { color: var(--navy-gold); }
+
+    .flex-spacer { flex: 1; }
+
+    .tb-btn {
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: #c8d8e8;
+      font-size: 11px;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .tb-btn:hover { background: rgba(255,255,255,0.16); color: #fff; }
+    #theme-toggle { padding: 4px 8px; font-size: 15px; line-height: 1; }
+
+    /* === MODE PANELS === */
+    .mode-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .mode-panel.hidden { display: none !important; }
+
+    /* === PIPELINE MODE BODY === */
+    #pipeline-body {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #pipeline-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    /* --- Config Panel --- */
+    #config-panel {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(var(--config-h) + 32px);
+      transition: max-height 0.22s ease;
+      overflow: hidden;
+    }
+    #config-panel.collapsed { max-height: 32px; }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      height: 32px;
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      flex-shrink: 0;
+    }
+    .panel-header:hover { background: var(--accent-light); color: var(--accent); }
+    .panel-header .arrow { margin-left: auto; transition: transform 0.2s; font-style: normal; }
+    .collapsed .panel-header .arrow { transform: rotate(-90deg); }
+
+    #config-body {
+      height: var(--config-h);
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .config-empty {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-faint);
+      font-size: 12px;
+    }
+
+    /* --- Data Inspector --- */
+    #data-inspector {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-main);
+    }
+
+    #inspector-meta {
+      padding: 5px 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #inspector-table-wrap {
+      flex: 1;
+      overflow: auto;
+    }
+
+    .inspector-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: var(--text-faint);
+      gap: 8px;
+      font-size: 12px;
+    }
+    .inspector-empty .ei-icon { font-size: 32px; }
+
+    .data-table {
+      border-collapse: collapse;
+      font-size: 12px;
+      min-width: 100%;
+      white-space: nowrap;
+    }
+    .data-table th {
+      position: sticky;
+      top: 0;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      padding: 0;
+      z-index: 2;
+      vertical-align: top;
+    }
+    .col-header-name {
+      padding: 6px 8px 4px;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-main);
+    }
+    .vdp {
+      border-top: 1px solid var(--border);
+      padding: 3px 8px 5px;
+      background: var(--bg-surface);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .vdp-stats { display: flex; gap: 8px; margin-bottom: 3px; }
+    .vdp-bar-track {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .vdp-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    .data-table td {
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      color: var(--text-main);
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .data-table tr:nth-child(even) td { background: var(--bg-raised); }
+    .row-num-cell {
+      color: var(--text-faint);
+      font-size: 10px;
+      text-align: right;
+      padding: 3px 6px;
+      user-select: none;
+      width: 40px;
+    }
+
+    /* === PIPELINE SIDEBAR === */
+    #pipeline-sidebar {
+      width: var(--sidebar-w);
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      height: 32px;
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      flex-shrink: 0;
+      gap: 6px;
+    }
+
+    #qv-toggle {
+      margin-left: auto;
+      padding: 2px 7px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    #qv-toggle.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+    #node-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+    .add-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(100% - 16px);
+      margin: 2px 8px;
+      padding: 4px;
+      background: transparent;
+      border: 1px dashed var(--border-strong);
+      border-radius: 4px;
+      color: var(--text-faint);
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+    .add-btn:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+    .node-card {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 9px;
+      margin: 1px 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.1s;
+    }
+    .node-card:hover { background: var(--bg-raised); }
+    .node-card.selected { background: var(--accent-light); border-color: var(--accent); }
+
+    .node-icon { font-size: 17px; flex-shrink: 0; }
+
+    .node-info { flex: 1; min-width: 0; }
+    .node-name {
+      font-weight: 600;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .node-type-sub { font-size: 10px; color: var(--text-muted); }
+
+    .node-star {
+      background: none;
+      border: none;
+      font-size: 12px;
+      padding: 0 2px;
+      color: var(--text-faint);
+      opacity: 0.5;
+    }
+    .node-star.starred { color: var(--accent-gold); opacity: 1; }
+
+    .node-del {
+      background: none;
+      border: none;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 2px;
+      color: var(--text-faint);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .node-card:hover .node-del { opacity: 1; }
+    .node-del:hover { color: var(--danger); }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.idle    { background: var(--text-faint); }
+    .status-dot.ok      { background: var(--success); }
+    .status-dot.error   { background: var(--danger); }
+    .status-dot.running { background: var(--warning); animation: pulse 0.8s infinite; }
+    @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.4 } }
+
+    /* --- Stash Panel --- */
+    #stash-panel {
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      max-height: 200px;
+      overflow: hidden;
+      transition: max-height 0.2s;
+    }
+    #stash-panel.collapsed { max-height: 32px; }
+
+    #stash-list { overflow-y: auto; flex: 1; }
+
+    .stash-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      border-bottom: 1px solid var(--border);
+    }
+    .stash-item:hover { background: var(--bg-raised); }
+    .stash-name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stash-ts { font-size: 10px; color: var(--text-faint); white-space: nowrap; }
+    .stash-actions { display: flex; gap: 3px; }
+    .stash-act {
+      padding: 1px 5px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .stash-act:hover { background: var(--accent-light); color: var(--accent); }
+    .stash-empty { padding: 8px 10px; font-size: 11px; color: var(--text-faint); }
+
+    /* === CONSOLE === */
+    #console-panel {
+      flex-shrink: 0;
+      background: #080e1c;
+      border-top: 1px solid #1e3a5f;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(var(--console-h) + 28px);
+      overflow: hidden;
+      transition: max-height 0.22s ease;
+    }
+    #console-panel.collapsed { max-height: 28px; }
+
+    #console-header {
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      height: 28px;
+      background: #0c1628;
+      border-bottom: 1px solid #1e3a5f;
+      cursor: pointer;
+      user-select: none;
+      flex-shrink: 0;
+      gap: 6px;
+    }
+    #console-header span.label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #4a7099;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    #console-clear {
+      padding: 1px 6px;
+      background: transparent;
+      border: 1px solid #1e3a5f;
+      border-radius: 3px;
+      font-size: 10px;
+      color: #4a7099;
+    }
+    #console-clear:hover { color: #7ea3c4; }
+    #console-arrow { margin-left: auto; color: #4a7099; }
+
+    #console-log {
+      height: var(--console-h);
+      overflow-y: auto;
+      padding: 5px 10px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 11px;
+    }
+    #console-panel.collapsed #console-log { display: none; }
+
+    .log-line { padding: 1px 0; line-height: 1.55; }
+    .log-ts { color: #2d5a8e; margin-right: 6px; }
+    .log-line.info    .log-msg { color: #7ea3c4; }
+    .log-line.error   .log-msg { color: #f87171; }
+    .log-line.warn    .log-msg { color: #fbbf24; }
+    .log-line.success .log-msg { color: #34d399; }
+
+    /* === VIZ MODE === */
+    #viz-mode { overflow: hidden; }
+
+    #viz-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .viz-btn {
+      padding: 5px 12px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .viz-btn:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+    .viz-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #viz-dataset-label { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+    #viz-body { flex: 1; overflow: auto; position: relative; }
+
+    /* Drop zone */
+    #viz-dropzone {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #viz-dropzone.hidden { display: none; }
+
+    .dz-box {
+      border: 2px dashed var(--border-strong);
+      border-radius: 14px;
+      padding: 52px 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      background: var(--bg-surface);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      text-align: center;
+    }
+    .dz-box:hover, .dz-box.dragover {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+    .dz-icon  { font-size: 48px; }
+    .dz-title { font-size: 18px; font-weight: 700; color: var(--text-main); }
+    .dz-sub   { font-size: 13px; color: var(--text-muted); max-width: 340px; }
+    .dz-browse {
+      margin-top: 4px;
+      padding: 8px 22px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .dz-browse:hover { opacity: 0.88; }
+
+    #viz-dashboard { padding: 16px; min-height: 100%; }
+
+    /* === NODE PICKER MODAL === */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.hidden { display: none; }
+
+    .modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #node-picker { width: 480px; max-height: 72vh; }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .modal-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: var(--text-muted);
+      padding: 0 2px;
+    }
+    .modal-close:hover { color: var(--text-main); }
+
+    #picker-search {
+      margin: 10px 14px;
+      width: calc(100% - 28px);
+      padding: 7px 10px;
+    }
+    #picker-list { overflow-y: auto; flex: 1; padding: 0 8px 8px; }
+
+    .picker-cat {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      padding: 8px 8px 3px;
+    }
+    .picker-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .picker-item:hover { background: var(--bg-raised); }
+    .picker-item-icon { font-size: 20px; flex-shrink: 0; }
+    .picker-item-title { font-weight: 600; font-size: 13px; }
+    .picker-item-desc  { font-size: 11px; color: var(--text-muted); }
+
+    /* Workflow modal */
+    #wf-modal { width: 420px; padding: 0; }
+    #wf-modal .modal-header { padding: 14px 16px; }
+    #wf-modal-body { padding: 12px 16px 16px; }
+
+    .wf-list {
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      margin-bottom: 12px;
+    }
+    .wf-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 12px;
+      gap: 8px;
+    }
+    .wf-item:last-child { border-bottom: none; }
+    .wf-item:hover { background: var(--bg-raised); }
+    .wf-item-name { flex: 1; font-weight: 600; }
+    .wf-item-date { font-size: 10px; color: var(--text-faint); white-space: nowrap; }
+    .wf-item-del {
+      padding: 1px 5px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+    .wf-item-del:hover { color: var(--danger); border-color: var(--danger); }
+
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
+
+    .btn-primary {
+      padding: 6px 16px;
+      background: var(--accent);
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-secondary {
+      padding: 6px 14px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text-main);
+      font-size: 12px;
+    }
+    .btn-secondary:hover { background: var(--border); }
+
+    /* === SCROLLBARS === */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+  <span class="app-title">⚓ Data Workbench</span>
+
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="btn-pm" onclick="DWB.setMode('pipeline')">⚙ Pipeline</button>
+    <button class="mode-btn"        id="btn-vm" onclick="DWB.setMode('viz')">📊 Visualize</button>
+  </div>
+
+  <div id="active-dataset-indicator">No active dataset</div>
+  <div class="flex-spacer"></div>
+
+  <button class="tb-btn" onclick="DWB.saveWorkflow()">💾 Save</button>
+  <button class="tb-btn" onclick="DWB.showLoadModal()">📂 Load</button>
+  <button class="tb-btn" onclick="DWB.exportWorkflow()">⬇ Export</button>
+  <label  class="tb-btn" style="cursor:pointer">⬆ Import
+    <input type="file" accept=".json" style="display:none" onchange="DWB._importWorkflowFile(this)">
+  </label>
+
+  <button class="tb-btn" id="theme-toggle" onclick="DWB.toggleTheme()">🌙</button>
+</div>
+
+<!-- ============================================================
+     PIPELINE MODE
+     ============================================================ -->
+<div id="pipeline-mode" class="mode-panel">
+
+  <div id="pipeline-body">
+
+    <!-- MAIN: config + inspector -->
+    <div id="pipeline-main">
+
+      <!-- Config Panel (collapsible) -->
+      <div id="config-panel">
+        <div class="panel-header" onclick="DWB.togglePanel('config-panel')">
+          <span id="config-title">Node Config</span>
+          <i class="arrow">▾</i>
+        </div>
+        <div id="config-body">
+          <div class="config-empty">Select a node to configure it.</div>
+        </div>
+      </div>
+
+      <!-- Data Inspector -->
+      <div id="data-inspector">
+        <div id="inspector-meta">No data loaded</div>
+        <div id="inspector-table-wrap">
+          <div class="inspector-empty">
+            <span class="ei-icon">📋</span>
+            <span>Run a node to see data here.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- PIPELINE TRACK SIDEBAR -->
+    <div id="pipeline-sidebar">
+
+      <div id="sidebar-header">
+        Pipeline
+        <button id="qv-toggle" onclick="DWB.toggleQuickView()" title="Show starred nodes only">⭐ Quick View</button>
+      </div>
+
+      <div id="node-list">
+        <!-- rendered by JS -->
+      </div>
+
+      <!-- Stash Panel -->
+      <div id="stash-panel">
+        <div class="panel-header" onclick="DWB.togglePanel('stash-panel')">
+          <span>Stashes</span>
+          <i class="arrow">▾</i>
+        </div>
+        <div id="stash-list">
+          <div class="stash-empty">No stashes yet.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CONSOLE (collapsible, starts minimized) -->
+  <div id="console-panel" class="collapsed">
+    <div id="console-header" onclick="DWB.togglePanel('console-panel')">
+      <span class="label">Console</span>
+      <button id="console-clear" onclick="event.stopPropagation();DWB.clearConsole()">Clear</button>
+      <span id="console-arrow">▲</span>
+    </div>
+    <div id="console-log"></div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     VIZ MODE
+     ============================================================ -->
+<div id="viz-mode" class="mode-panel hidden">
+
+  <div id="viz-toolbar">
+    <button class="viz-btn" id="btn-add-chart" disabled>＋ Add Chart</button>
+    <button class="viz-btn" id="btn-layout"    disabled>⊞ Layout</button>
+    <button class="viz-btn" id="btn-ppt"       disabled>📤 Export PPT</button>
+    <span id="viz-dataset-label">No active dataset</span>
+  </div>
+
+  <div id="viz-body">
+    <div id="viz-dropzone">
+      <div class="dz-box" id="dz-box"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="DWB._vizDrop(event)">
+        <span class="dz-icon">📊</span>
+        <span class="dz-title">No active dataset</span>
+        <span class="dz-sub">Drop a CSV here, or promote data from the Pipeline tab.<br>Charts appear instantly.</span>
+        <label class="dz-browse">Browse CSV…
+          <input type="file" accept=".csv" style="display:none" onchange="DWB._vizFileInput(this)">
+        </label>
+      </div>
+    </div>
+    <div id="viz-dashboard"></div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     NODE PICKER MODAL
+     ============================================================ -->
+<div id="picker-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.closePicker()">
+  <div id="node-picker" class="modal">
+    <div class="modal-header">
+      Add Node
+      <button class="modal-close" onclick="DWB.closePicker()">✕</button>
+    </div>
+    <input type="text" id="picker-search" placeholder="Search nodes…" oninput="DWB._filterPicker(this.value)">
+    <div id="picker-list"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     WORKFLOW MODAL
+     ============================================================ -->
+<div id="wf-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.closeWfModal()">
+  <div id="wf-modal" class="modal">
+    <div class="modal-header">
+      Load Workflow
+      <button class="modal-close" onclick="DWB.closeWfModal()">✕</button>
+    </div>
+    <div id="wf-modal-body">
+      <div class="wf-list" id="wf-list"></div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="DWB.closeWfModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+//  CORE ENGINE  (Spec §5.3)
+// ================================================================
+window.DWB = (() => {
+  'use strict';
+
+  // ---- Internal state ----
+  const _typeDefs = {};
+  const pipeline  = { nodes: [], activeNodeId: null };
+  const stashes   = {};
+  let activeDataset = null;
+  let _mode      = 'pipeline';
+  let _quickView = false;
+  let _insertIdx = 0;
+
+  // ---- Utilities ----
+  const _uid = () => 'n' + Math.random().toString(36).slice(2, 9);
+  const _hms = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+  function parseCSV(text) {
+    if (window.Papa) {
+      const r = Papa.parse(text.trim(), { header: false, skipEmptyLines: true });
+      if (!r.data.length) return { headers: [], rows: [] };
+      return { headers: r.data[0].map(String), rows: r.data.slice(1) };
+    }
+    const lines = text.trim().split(/\r?\n/);
+    if (!lines.length) return { headers: [], rows: [] };
+    const parse = s => s.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    return { headers: parse(lines[0]), rows: lines.slice(1).map(parse) };
+  }
+
+  function generateOptions(headers, selected) {
+    return headers.map(h =>
+      `<option value="${h}"${h === selected ? ' selected' : ''}>${h}</option>`
+    ).join('');
+  }
+
+  function toObjects(data) {
+    if (!data?.headers?.length) return [];
+    return data.rows.map(row =>
+      Object.fromEntries(data.headers.map((h, i) => [h, row[i] ?? '']))
+    );
+  }
+
+  function fromObjects(arr, headers) {
+    const hdrs = headers || (arr[0] ? Object.keys(arr[0]) : []);
+    return { headers: hdrs, rows: arr.map(o => hdrs.map(h => o[h] ?? '')) };
+  }
+
+  // ---- Console ----
+  function log(msg, level) {
+    const el = document.getElementById('console-log');
+    if (!el) return;
+    const cls = level === true || level === 'error' ? 'error'
+              : level === 'warn'    ? 'warn'
+              : level === 'success' ? 'success'
+              : 'info';
+    const line = document.createElement('div');
+    line.className = `log-line ${cls}`;
+    line.innerHTML = `<span class="log-ts">${_hms()}</span><span class="log-msg">${String(msg)}</span>`;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function clearConsole() {
+    const el = document.getElementById('console-log');
+    if (el) el.innerHTML = '';
+  }
+
+  // ---- Stash ----
+  function getStash(name) { return stashes[name] || null; }
+
+  function setStash(name, data, nodeId) {
+    stashes[name] = { name, data, timestamp: new Date(), nodeId: nodeId || null };
+    _renderStashes();
+    log(`Stashed "${name}" — ${data.rows.length} rows`);
+  }
+
+  function listStashes() { return Object.keys(stashes); }
+
+  function _deleteStash(name) {
+    delete stashes[name];
+    _renderStashes();
+    log(`Stash "${name}" deleted`);
+  }
+
+  function _renderStashes() {
+    const el = document.getElementById('stash-list');
+    const names = Object.keys(stashes);
+    if (!names.length) { el.innerHTML = '<div class="stash-empty">No stashes yet.</div>'; return; }
+    el.innerHTML = names.map(name => {
+      const s = stashes[name];
+      const ts = s.timestamp instanceof Date
+        ? s.timestamp.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
+      return `<div class="stash-item">
+        <span class="stash-name" title="${name}">${name}</span>
+        <span class="stash-ts">${ts}</span>
+        <div class="stash-actions">
+          <button class="stash-act" onclick="DWB.promoteToActive('${name}',DWB.getStash('${name}').data)" title="Promote to active">▲</button>
+          <button class="stash-act" onclick="DWB._deleteStash('${name}')" title="Delete">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ---- Active Dataset ----
+  function promoteToActive(name, data) {
+    activeDataset = {
+      name, data,
+      objects: toObjects(data),
+      rowCount: data.rows.length,
+      promotedFrom: null,
+      timestamp: new Date()
+    };
+    const ind = document.getElementById('active-dataset-indicator');
+    ind.textContent = `Active: ${name} · ${data.rows.length.toLocaleString()} rows`;
+    ind.classList.add('has-data');
+    const vl = document.getElementById('viz-dataset-label');
+    if (vl) vl.textContent = `Dataset: ${name} · ${data.rows.length.toLocaleString()} rows`;
+    ['btn-add-chart','btn-layout','btn-ppt'].forEach(id => {
+      const b = document.getElementById(id); if (b) b.disabled = false;
+    });
+    document.getElementById('viz-dropzone')?.classList.add('hidden');
+    log(`Promoted "${name}" to active dataset (${data.rows.length} rows)`, 'success');
+  }
+
+  // ---- Theme ----
+  function toggleTheme() {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const next = dark ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('dwb_theme', next);
+    document.getElementById('theme-toggle').textContent = next === 'dark' ? '☀️' : '🌙';
+  }
+
+  function _applyTheme() {
+    const t = localStorage.getItem('dwb_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', t);
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+  }
+
+  // ---- Panel collapse ----
+  function togglePanel(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('collapsed');
+    if (id === 'console-panel') {
+      const arrow = document.getElementById('console-arrow');
+      if (arrow) arrow.textContent = el.classList.contains('collapsed') ? '▲' : '▼';
+    }
+  }
+
+  // ---- Mode ----
+  function setMode(mode) {
+    _mode = mode;
+    document.getElementById('pipeline-mode').classList.toggle('hidden', mode !== 'pipeline');
+    document.getElementById('viz-mode').classList.toggle('hidden', mode !== 'viz');
+    document.getElementById('btn-pm').classList.toggle('active', mode === 'pipeline');
+    document.getElementById('btn-vm').classList.toggle('active', mode === 'viz');
+  }
+
+  // ---- Node registration ----
+  function register(type, def) {
+    _typeDefs[type] = def;
+    log(`Registered: ${type}`);
+  }
+
+  // ---- Pipeline: node CRUD ----
+  function _mkNode(type) {
+    const def = _typeDefs[type];
+    return {
+      id: _uid(), type,
+      customName: def?.title || type,
+      isStarred: false,
+      status: 'idle',
+      config: JSON.parse(JSON.stringify(def?.defaultConfig || {})),
+      output: null, errorMsg: null
+    };
+  }
+
+  function addNode(type, atIdx) {
+    const node = _mkNode(type);
+    pipeline.nodes.splice(atIdx, 0, node);
+    renderTrack();
+    selectNode(node.id);
+    log(`Added: ${_typeDefs[type]?.title || type}`);
+  }
+
+  function selectNode(id) {
+    pipeline.activeNodeId = id;
+    renderTrack();
+    renderActiveNode();
+    // Show output in inspector if node has run
+    const node = pipeline.nodes.find(n => n.id === id);
+    if (node?.output) renderDataInspector(node.output);
+  }
+
+  // ---- Pipeline execution ----
+  function runFrom(nodeId) {
+    const startIdx = nodeId
+      ? pipeline.nodes.findIndex(n => n.id === nodeId)
+      : 0;
+    if (startIdx < 0) { log(`Node ${nodeId} not found`, 'error'); return; }
+
+    let input = startIdx > 0 ? (pipeline.nodes[startIdx - 1].output || null) : null;
+
+    for (let i = startIdx; i < pipeline.nodes.length; i++) {
+      const node = pipeline.nodes[i];
+      const def  = _typeDefs[node.type];
+      if (!def) { log(`Unknown type: ${node.type}`, 'error'); break; }
+
+      node.status = 'running';
+      _updateCard(node.id);
+
+      try {
+        def.execute(node, input);
+        node.status = 'ok';
+        input = node.output || null;
+        log(`✓ ${node.customName || def.title}`, 'success');
+      } catch (e) {
+        node.status = 'error';
+        node.errorMsg = e.message;
+        _updateCard(node.id);
+        log(`✗ ${node.customName || def.title}: ${e.message}`, 'error');
+        break;
+      }
+      _updateCard(node.id);
+    }
+
+    // Show active node's output (or last node's)
+    const active = pipeline.nodes.find(n => n.id === pipeline.activeNodeId);
+    const target = (active?.output ? active : pipeline.nodes[pipeline.nodes.length - 1]);
+    if (target?.output) renderDataInspector(target.output);
+  }
+
+  // ---- Config panel ----
+  function renderActiveNode() {
+    const node = pipeline.nodes.find(n => n.id === pipeline.activeNodeId);
+    const body  = document.getElementById('config-body');
+    const title = document.getElementById('config-title');
+
+    if (!node) {
+      body.innerHTML  = '<div class="config-empty">Select a node to configure it.</div>';
+      title.textContent = 'Node Config';
+      return;
+    }
+    const def = _typeDefs[node.type];
+    title.textContent = `${def?.icon || ''} ${node.customName}`;
+    document.getElementById('config-panel').classList.remove('collapsed');
+
+    const idx = pipeline.nodes.indexOf(node);
+    const prevData = idx > 0 ? (pipeline.nodes[idx - 1].output || null) : null;
+
+    if (def?.renderConfig) {
+      def.renderConfig(node, prevData);
+    } else {
+      body.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text-muted)">
+        Type: <strong>${node.type}</strong><br>No config UI for this node.
+      </div>`;
+    }
+  }
+
+  // ---- Pipeline track ----
+  function renderTrack() {
+    const list  = document.getElementById('node-list');
+    const nodes = _quickView ? pipeline.nodes.filter(n => n.isStarred) : pipeline.nodes;
+
+    let html = `<button class="add-btn" onclick="DWB.openPicker(0)">＋ Add Node</button>`;
+
+    if (_quickView && !nodes.length) {
+      html += `<div style="padding:12px;text-align:center;font-size:11px;color:var(--text-faint)">No starred nodes.</div>`;
+    }
+
+    nodes.forEach(node => {
+      const def = _typeDefs[node.type] || {};
+      const realIdx = pipeline.nodes.indexOf(node) + 1;
+      const sel = node.id === pipeline.activeNodeId ? ' selected' : '';
+      html += `
+      <div class="node-card${sel}" data-nid="${node.id}" onclick="DWB.selectNode('${node.id}')">
+        <span class="node-icon">${def.icon || '⬜'}</span>
+        <div class="node-info">
+          <div class="node-name">${node.customName}</div>
+          <div class="node-type-sub">${def.title || node.type}</div>
+        </div>
+        <button class="node-star${node.isStarred?' starred':''}"
+          onclick="event.stopPropagation();DWB._toggleStar('${node.id}')"
+          title="${node.isStarred?'Unstar':'Star'}">★</button>
+        <span class="status-dot ${node.status}"></span>
+        <button class="node-del"
+          onclick="event.stopPropagation();DWB.deleteNode('${node.id}')"
+          title="Delete node">×</button>
+      </div>
+      <button class="add-btn" onclick="DWB.openPicker(${realIdx})">＋</button>`;
+    });
+
+    list.innerHTML = html;
+  }
+
+  function _updateCard(nodeId) {
+    const node = pipeline.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const card = document.querySelector(`[data-nid="${nodeId}"]`);
+    if (!card) { renderTrack(); return; }
+    const dot = card.querySelector('.status-dot');
+    if (dot) dot.className = `status-dot ${node.status}`;
+  }
+
+  function _toggleStar(nodeId) {
+    const node = pipeline.nodes.find(n => n.id === nodeId);
+    if (node) { node.isStarred = !node.isStarred; renderTrack(); }
+  }
+
+  function deleteNode(nodeId) {
+    const idx = pipeline.nodes.findIndex(n => n.id === nodeId);
+    if (idx < 0) return;
+    const node = pipeline.nodes[idx];
+    const def  = _typeDefs[node.type] || {};
+
+    if (node.output !== null) {
+      if (!confirm(`Delete "${node.customName || def.title}"?`)) return;
+    }
+
+    const wasActive = pipeline.activeNodeId === nodeId;
+    pipeline.nodes.splice(idx, 1);
+    if (wasActive) pipeline.activeNodeId = null;
+
+    renderTrack();
+    renderActiveNode();
+
+    if (pipeline.nodes.length === 0) {
+      renderDataInspector(null);
+    } else if (idx < pipeline.nodes.length) {
+      runFrom(pipeline.nodes[idx].id);
+    }
+
+    log(`Deleted: ${node.customName || def.title}`);
+  }
+
+  // ---- Quick View ----
+  function toggleQuickView() {
+    _quickView = !_quickView;
+    document.getElementById('qv-toggle').classList.toggle('on', _quickView);
+    renderTrack();
+  }
+
+  // ---- Node picker ----
+  function openPicker(idx) {
+    _insertIdx = idx;
+    _renderPickerList('');
+    document.getElementById('picker-overlay').classList.remove('hidden');
+    const s = document.getElementById('picker-search');
+    s.value = ''; s.focus();
+  }
+
+  function closePicker() {
+    document.getElementById('picker-overlay').classList.add('hidden');
+  }
+
+  function _renderPickerList(q) {
+    const list = document.getElementById('picker-list');
+    const lq   = q.toLowerCase();
+    const byCat = {};
+    for (const [type, def] of Object.entries(_typeDefs)) {
+      if (!def.implemented) continue;
+      if (lq && !def.title.toLowerCase().includes(lq) && !(def.desc||'').toLowerCase().includes(lq)) continue;
+      const cat = def.category || 'Other';
+      (byCat[cat] = byCat[cat] || []).push({ type, def });
+    }
+    if (!Object.keys(byCat).length) {
+      list.innerHTML = `<div style="padding:16px;color:var(--text-faint);font-size:12px">No nodes match.</div>`;
+      return;
+    }
+    list.innerHTML = Object.entries(byCat).map(([cat, items]) =>
+      `<div class="picker-cat">${cat}</div>` +
+      items.map(({ type, def }) =>
+        `<div class="picker-item" onclick="DWB._pickNode('${type}')">
+          <span class="picker-item-icon">${def.icon || '⬜'}</span>
+          <div>
+            <div class="picker-item-title">${def.title}</div>
+            <div class="picker-item-desc">${def.desc || ''}</div>
+          </div>
+        </div>`
+      ).join('')
+    ).join('');
+  }
+
+  function _filterPicker(q) { _renderPickerList(q); }
+
+  function _pickNode(type) {
+    closePicker();
+    addNode(type, _insertIdx);
+  }
+
+  // ---- Data Inspector ----
+  function renderDataInspector(data) {
+    const wrap = document.getElementById('inspector-table-wrap');
+    const meta = document.getElementById('inspector-meta');
+
+    if (!data?.headers?.length) {
+      wrap.innerHTML = `<div class="inspector-empty">
+        <span class="ei-icon">📋</span><span>No data to display.</span>
+      </div>`;
+      meta.textContent = 'No data';
+      return;
+    }
+
+    const MAX = 200;
+    const display = data.rows.slice(0, MAX);
+    meta.textContent = `Showing ${display.length.toLocaleString()} of ${data.rows.length.toLocaleString()} rows · ${data.headers.length} columns`;
+
+    // VDP stats
+    const stats = data.headers.map((_, ci) => {
+      const vals   = data.rows.map(r => r[ci] ?? '');
+      const filled = vals.filter(v => v !== '');
+      const unique = new Set(filled).size;
+      const freq   = {};
+      filled.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+      const top = Object.values(freq).sort((a,b) => b-a)[0] || 0;
+      const topPct = filled.length ? Math.round((top / filled.length) * 100) : 0;
+      return { total: data.rows.length, filled: filled.length, unique, topPct };
+    });
+
+    let html = `<table class="data-table"><thead><tr>
+      <th><div style="padding:6px 8px;font-size:11px;color:var(--text-faint)">#</div>
+          <div class="vdp"><div class="vdp-stats"><span>row</span></div></div></th>`;
+
+    data.headers.forEach((h, ci) => {
+      const s = stats[ci];
+      html += `<th>
+        <div class="col-header-name" title="${h}">${h}</div>
+        <div class="vdp">
+          <div class="vdp-stats">
+            <span title="Non-empty values">${s.filled.toLocaleString()} vals</span>
+            <span title="Unique values">${s.unique.toLocaleString()} uniq</span>
+          </div>
+          <div class="vdp-bar-track">
+            <div class="vdp-bar-fill" style="width:${s.topPct}%" title="Top value: ${s.topPct}% of filled"></div>
+          </div>
+        </div>
+      </th>`;
+    });
+
+    html += '</tr></thead><tbody>';
+    display.forEach((row, ri) => {
+      html += `<tr><td class="row-num-cell">${ri + 1}</td>`;
+      data.headers.forEach((_, ci) => {
+        const v = String(row[ci] ?? '');
+        html += `<td title="${v.replace(/"/g,'&quot;')}">${v}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+
+  // ---- Viz CSV drop ----
+  function _vizDrop(event) {
+    event.preventDefault();
+    document.getElementById('dz-box').classList.remove('dragover');
+    const f = event.dataTransfer.files[0];
+    if (f) _loadVizCSV(f);
+  }
+
+  function _vizFileInput(input) {
+    if (input.files[0]) _loadVizCSV(input.files[0]);
+  }
+
+  function _loadVizCSV(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const data = parseCSV(e.target.result);
+      const label = file.name.replace(/\.csv$/i, '');
+      // Silently create INGEST + PUSH_TO_VIZ nodes (Spec §10)
+      const ingest = { id: _uid(), type: 'INGEST', customName: file.name, isStarred: false,
+        status: 'ok', config: { fileName: file.name }, output: data, errorMsg: null };
+      const push   = { id: _uid(), type: 'PUSH_TO_VIZ', customName: label, isStarred: false,
+        status: 'ok', config: { label }, output: data, errorMsg: null };
+      pipeline.nodes.push(ingest, push);
+      renderTrack();
+      promoteToActive(label, data);
+    };
+    reader.readAsText(file);
+  }
+
+  // ---- Workflow ----
+  function _serialize(name) {
+    return {
+      version: '1.0', name,
+      savedAt: new Date().toISOString(),
+      nodes: pipeline.nodes.map(n => ({
+        id: n.id, type: n.type, customName: n.customName,
+        isStarred: n.isStarred,
+        config: Object.fromEntries(Object.entries(n.config).filter(([k]) => k !== 'fileData'))
+      })),
+      stashNames: Object.keys(stashes)
+    };
+  }
+
+  function _apply(wf) {
+    pipeline.nodes = (wf.nodes || []).map(n =>
+      ({ ...n, status: 'idle', output: null, errorMsg: null })
+    );
+    pipeline.activeNodeId = null;
+    renderTrack();
+    renderActiveNode();
+    log(`Workflow "${wf.name}" applied (${pipeline.nodes.length} nodes)`, 'success');
+  }
+
+  function saveWorkflow() {
+    const name = prompt('Workflow name:', `workflow_${new Date().toISOString().slice(0,10)}`);
+    if (!name) return;
+    const store = JSON.parse(localStorage.getItem('dwb_workflows') || '{}');
+    store[name] = _serialize(name);
+    localStorage.setItem('dwb_workflows', JSON.stringify(store));
+    log(`Saved workflow "${name}"`, 'success');
+  }
+
+  function showLoadModal() {
+    const store = JSON.parse(localStorage.getItem('dwb_workflows') || '{}');
+    const names = Object.keys(store);
+    const list = document.getElementById('wf-list');
+    list.innerHTML = names.length
+      ? names.map(n => {
+          const wf = store[n];
+          const dt = wf.savedAt ? new Date(wf.savedAt).toLocaleString() : '';
+          return `<div class="wf-item">
+            <span class="wf-item-name" onclick="DWB._loadWf('${n}');DWB.closeWfModal()">${n}</span>
+            <span class="wf-item-date">${dt}</span>
+            <button class="wf-item-del" onclick="DWB._delWf('${n}')">✕</button>
+          </div>`;
+        }).join('')
+      : '<div class="wf-item" style="color:var(--text-faint)">No saved workflows.</div>';
+    document.getElementById('wf-overlay').classList.remove('hidden');
+  }
+
+  function closeWfModal() { document.getElementById('wf-overlay').classList.add('hidden'); }
+
+  function _loadWf(name) {
+    const store = JSON.parse(localStorage.getItem('dwb_workflows') || '{}');
+    if (store[name]) _apply(store[name]);
+  }
+
+  function _delWf(name) {
+    const store = JSON.parse(localStorage.getItem('dwb_workflows') || '{}');
+    delete store[name];
+    localStorage.setItem('dwb_workflows', JSON.stringify(store));
+    showLoadModal();
+  }
+
+  function exportWorkflow() {
+    const name = prompt('Export as:', `workflow_${new Date().toISOString().slice(0,10)}`);
+    if (!name) return;
+    const blob = new Blob([JSON.stringify(_serialize(name), null, 2)], { type: 'application/json' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${name}.json` });
+    a.click();
+    log(`Exported "${name}.json"`, 'success');
+  }
+
+  function _importWorkflowFile(input) {
+    const f = input.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { _apply(JSON.parse(e.target.result)); }
+      catch(err) { log(`Import failed: ${err.message}`, 'error'); }
+    };
+    reader.readAsText(f);
+  }
+
+  // ---- Init ----
+  function _init() {
+    _applyTheme();
+    renderTrack();
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closePicker(); closeWfModal(); }
+    });
+    log('Data Workbench ready.', 'success');
+  }
+
+  // ---- Public API (Spec §5.3) ----
+  return {
+    // state (readable)
+    get nodes()         { return _typeDefs; },
+    get pipeline()      { return pipeline; },
+    get stashes()       { return stashes; },
+    get activeDataset() { return activeDataset; },
+    // registration
+    register,
+    // utilities
+    parseCSV, generateOptions, toObjects, fromObjects,
+    // execution
+    runFrom, renderActiveNode, renderDataInspector,
+    // node mgmt
+    addNode, selectNode, renderTrack, deleteNode,
+    _toggleStar,
+    // stash
+    getStash, setStash, listStashes, _deleteStash,
+    // active dataset
+    promoteToActive,
+    // console
+    log, clearConsole,
+    // ui
+    togglePanel, toggleTheme, setMode, toggleQuickView,
+    openPicker, closePicker, _filterPicker, _pickNode,
+    saveWorkflow, showLoadModal, closeWfModal, exportWorkflow,
+    _loadWf, _delWf, _importWorkflowFile,
+    _vizDrop, _vizFileInput,
+    // init
+    _init
+  };
+})();
+
+DWB._init();
+</script>
+
+<script>
+/* injected by compiler/build.js */
+
+/* --- src\nodes\01_ingest.js --- */
+DWB.register('INGEST', {
+  title: 'Ingest CSV',
+  icon: '📁',
+  category: 'Input & Output',
+  desc: 'Load a CSV file into the pipeline.',
+  implemented: true,
+  defaultConfig: { fileData: null, fileName: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    const statusHtml = node.config.fileName
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Loaded: ${node.config.fileName}</div>`
+      : '';
+
+    const errorHtml = node.status === 'error'
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--danger)">${node.errorMsg || 'Error'}</div>`
+      : '';
+
+    body.innerHTML = `
+      <div id="ingest-dz-${node.id}"
+        style="border:2px dashed var(--border-strong);border-radius:6px;
+               padding:20px 12px;text-align:center;cursor:pointer;
+               transition:border-color 0.15s,background 0.15s">
+        <div style="font-size:28px;margin-bottom:6px">📁</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+          Drop a CSV file here, or click Browse
+        </div>
+        <label style="display:inline-block;padding:5px 16px;background:var(--accent);
+                      color:#fff;border-radius:4px;font-size:12px;cursor:pointer;
+                      border:none;font-family:inherit">
+          Browse…
+          <input type="file" accept=".csv" style="display:none" id="ingest-fi-${node.id}">
+        </label>
+      </div>
+      ${statusHtml}${errorHtml}`;
+
+    function handleFile(file) {
+      if (!file || !file.name.match(/\.csv$/i)) {
+        DWB.log('Please select a .csv file', 'warn');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = ev => {
+        node.config.fileData = ev.target.result;
+        node.config.fileName = file.name;
+        node.customName = file.name;
+        DWB.renderTrack();
+        DWB.runFrom(node.id);
+        DWB.renderActiveNode();
+      };
+      reader.readAsText(file);
+    }
+
+    const fi = document.getElementById(`ingest-fi-${node.id}`);
+    fi.addEventListener('change', e => handleFile(e.target.files[0]));
+
+    const dz = document.getElementById(`ingest-dz-${node.id}`);
+    dz.addEventListener('dragover', e => {
+      e.preventDefault();
+      dz.style.borderColor = 'var(--accent)';
+      dz.style.background  = 'var(--accent-light)';
+    });
+    dz.addEventListener('dragleave', () => {
+      dz.style.borderColor = 'var(--border-strong)';
+      dz.style.background  = '';
+    });
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.style.borderColor = 'var(--border-strong)';
+      dz.style.background  = '';
+      handleFile(e.dataTransfer.files[0]);
+    });
+  },
+
+  execute(node, inputData) {
+    if (!node.config.fileData) throw new Error('No file uploaded.');
+    const parsed = DWB.parseCSV(node.config.fileData);
+    if (parsed.headers.length === 0) throw new Error('CSV appears to be empty.');
+    node.output = parsed;
+    DWB.log(`Ingested ${node.config.fileName}: ${parsed.rows.length} rows, ${parsed.headers.length} columns`);
+  }
+});
+
+/* --- src\nodes\02_push_to_viz.js --- */
+DWB.register('PUSH_TO_VIZ', {
+  title: 'Push to Viz',
+  icon: '📊',
+  category: 'Input & Output',
+  desc: 'Promote current dataset to the Viz dashboard. Non-destructive — data passes through unchanged.',
+  implemented: true,
+  defaultConfig: { datasetName: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    const warn = !node.config.datasetName
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--warning)">⚠ Name required to push.</div>`
+      : '';
+
+    const status = node.output && node.config.datasetName
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Promoted as: ${node.config.datasetName}</div>`
+      : '';
+
+    const rows = prevData ? prevData.rows.length : null;
+    const cols = prevData ? prevData.headers.length : null;
+    const dataInfo = rows !== null
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--text-faint)">${rows.toLocaleString()} rows · ${cols} columns upstream</div>`
+      : `<div style="margin-top:8px;font-size:11px;color:var(--text-faint)">No upstream data yet.</div>`;
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Dataset Name</label>
+        <input type="text" id="pviz-name-${node.id}"
+          value="${node.config.datasetName}"
+          placeholder="e.g. final_results"
+          style="width:100%">
+        ${warn}${status}${dataInfo}
+        <button id="pviz-run-${node.id}"
+          style="margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;
+                 border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          ▶ Push to Viz
+        </button>
+      </div>`;
+
+    const input = document.getElementById(`pviz-name-${node.id}`);
+    input.addEventListener('input', () => {
+      node.config.datasetName = input.value.trim();
+      DWB.renderActiveNode();
+    });
+
+    document.getElementById(`pviz-run-${node.id}`).addEventListener('click', () => {
+      node.config.datasetName = input.value.trim();
+      DWB.runFrom(node.id);
+      DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No data to push.');
+    if (!node.config.datasetName) throw new Error('Dataset name is required.');
+    DWB.promoteToActive(node.config.datasetName, inputData);
+    node.output = { headers: [...inputData.headers], rows: inputData.rows.map(r => [...r]) };
+    DWB.log(`Pushed to Viz as: ${node.config.datasetName} (${inputData.rows.length} rows)`);
+  }
+});
+
+/* --- src\nodes\03_stash_save.js --- */
+DWB.register('STASH_SAVE', {
+  title: 'Save to Stash',
+  icon: '📌',
+  category: 'Input & Output',
+  desc: 'Save current dataset to a named stash. Non-destructive.',
+  implemented: true,
+  defaultConfig: { stashName: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const existing = DWB.listStashes();
+
+    const warn = !node.config.stashName
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--warning)">⚠ Name required.</div>`
+      : existing.includes(node.config.stashName)
+        ? `<div style="margin-top:8px;font-size:11px;color:var(--warning)">⚠ Will overwrite existing stash "${node.config.stashName}"</div>`
+        : '';
+
+    const status = node.output && node.config.stashName
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Stashed as: ${node.config.stashName}</div>`
+      : '';
+
+    const stashRef = existing.length
+      ? `<div style="margin-top:6px;font-size:11px;color:var(--text-faint)">Existing stashes: ${existing.join(', ')}</div>`
+      : `<div style="margin-top:6px;font-size:11px;color:var(--text-faint)">No stashes yet.</div>`;
+
+    const dataInfo = prevData
+      ? `<div style="margin-top:4px;font-size:11px;color:var(--text-faint)">${prevData.rows.length.toLocaleString()} rows · ${prevData.headers.length} columns to stash</div>`
+      : `<div style="margin-top:4px;font-size:11px;color:var(--text-faint)">No upstream data yet.</div>`;
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Stash Name</label>
+        <input type="text" id="stsh-name-${node.id}"
+          value="${node.config.stashName}"
+          placeholder="e.g. pre_match_snapshot"
+          style="width:100%">
+        ${warn}${status}${stashRef}${dataInfo}
+        <button id="stsh-run-${node.id}"
+          style="margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;
+                 border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          📌 Save to Stash
+        </button>
+      </div>`;
+
+    const input = document.getElementById(`stsh-name-${node.id}`);
+    input.addEventListener('input', () => {
+      node.config.stashName = input.value.trim();
+      DWB.renderActiveNode();
+    });
+
+    document.getElementById(`stsh-run-${node.id}`).addEventListener('click', () => {
+      node.config.stashName = input.value.trim();
+      DWB.runFrom(node.id);
+      DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No data to stash.');
+    if (!node.config.stashName) throw new Error('Stash name is required.');
+    DWB.setStash(node.config.stashName, inputData, node.id);
+    node.output = { headers: [...inputData.headers], rows: inputData.rows.map(r => [...r]) };
+    DWB.log(`Stashed as: ${node.config.stashName} (${inputData.rows.length} rows)`);
+  }
+});
+
+/* --- src\nodes\04_stash_restore.js --- */
+DWB.register('STASH_RESTORE', {
+  title: 'Restore from Stash',
+  icon: '📤',
+  category: 'Input & Output',
+  desc: 'Replace current pipeline data with a named stash. Ignores upstream input.',
+  implemented: true,
+  defaultConfig: { stashName: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const names = DWB.listStashes();
+
+    if (!names.length) {
+      body.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;
+                    justify-content:center;height:100%;gap:8px;color:var(--text-faint)">
+          <span style="font-size:28px">📤</span>
+          <span style="font-size:12px">No stashes saved yet.</span>
+          <span style="font-size:11px">Use a Stash Save node upstream to create one.</span>
+        </div>`;
+      return;
+    }
+
+    const stash = DWB.getStash(node.config.stashName);
+
+    let metaHtml = '';
+    if (stash) {
+      const ts = stash.timestamp instanceof Date
+        ? stash.timestamp.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+        : '';
+      metaHtml = `
+        <div style="margin-top:8px;padding:8px;background:var(--bg-raised);
+                    border-radius:4px;font-size:11px;color:var(--text-muted);line-height:1.7">
+          Rows: <strong>${stash.data.rows.length.toLocaleString()}</strong> ·
+          Columns: <strong>${stash.data.headers.length}</strong> ·
+          Saved: <strong>${ts}</strong>
+        </div>`;
+    }
+
+    const status = node.output && node.config.stashName
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Restored: ${node.config.stashName}</div>`
+      : '';
+
+    const options = [`<option value="">-- Select a stash --</option>`,
+      ...names.map(n =>
+        `<option value="${n}"${n === node.config.stashName ? ' selected' : ''}>${n}</option>`)
+    ].join('');
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Select Stash</label>
+        <select id="srest-sel-${node.id}" style="width:100%">${options}</select>
+        ${metaHtml}${status}
+        <div style="margin-top:4px;font-size:11px;color:var(--text-faint)">
+          ℹ This node replaces upstream data with the stash contents.
+        </div>
+      </div>`;
+
+    document.getElementById(`srest-sel-${node.id}`).addEventListener('change', e => {
+      node.config.stashName = e.target.value;
+      DWB.runFrom(node.id);
+      DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    // Source node — ignores inputData entirely
+    if (!node.config.stashName) throw new Error('No stash selected.');
+    const stash = DWB.getStash(node.config.stashName);
+    if (!stash) throw new Error(`Stash "${node.config.stashName}" not found. It may have been deleted.`);
+    node.output = {
+      headers: [...stash.data.headers],
+      rows: stash.data.rows.map(r => [...r])
+    };
+    DWB.log(`Restored stash: ${node.config.stashName} (${node.output.rows.length} rows)`);
+  }
+});
+
+/* --- src\nodes\05_export_csv.js --- */
+DWB.register('EXPORT_CSV', {
+  title: 'Export to CSV',
+  icon: '💾',
+  category: 'Input & Output',
+  desc: 'Download the current pipeline data as a CSV file.',
+  implemented: true,
+  defaultConfig: { fileName: 'export.csv' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const hasData = !!prevData;
+    const rows = hasData ? prevData.rows.length : 0;
+    const cols = hasData ? prevData.headers.length : 0;
+
+    const dataInfo = hasData
+      ? `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+           ${rows.toLocaleString()} rows × ${cols} columns ready to export
+         </div>`
+      : `<div style="margin-top:8px;font-size:12px;color:var(--text-faint)">
+           No data — run an upstream node first.
+         </div>`;
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Filename</label>
+        <input type="text" id="exp-fname-${node.id}"
+          value="${node.config.fileName}"
+          placeholder="export.csv"
+          style="width:100%">
+        ${dataInfo}
+        <button id="exp-dl-${node.id}" ${hasData ? '' : 'disabled'}
+          style="margin-top:8px;padding:8px 16px;font-size:13px;font-weight:600;
+                 background:${hasData ? 'var(--accent)' : 'var(--bg-raised)'};
+                 color:${hasData ? '#fff' : 'var(--text-faint)'};
+                 border:1px solid ${hasData ? 'transparent' : 'var(--border)'};
+                 border-radius:5px;cursor:${hasData ? 'pointer' : 'not-allowed'}">
+          ⬇ Download CSV
+        </button>
+      </div>`;
+
+    document.getElementById(`exp-fname-${node.id}`).addEventListener('input', e => {
+      node.config.fileName = e.target.value.trim() || 'export.csv';
+    });
+
+    if (hasData) {
+      document.getElementById(`exp-dl-${node.id}`).addEventListener('click', () => {
+        // Run execute to ensure node.output is set and pipeline state is current
+        DWB.runFrom(node.id);
+        const data = node.output;
+        if (!data) { DWB.log('Export failed — no output data', 'error'); return; }
+
+        const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const lines = [
+          data.headers.map(escape).join(','),
+          ...data.rows.map(row => row.map(escape).join(','))
+        ];
+        const csv  = lines.join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const fname = node.config.fileName.endsWith('.csv')
+          ? node.config.fileName
+          : node.config.fileName + '.csv';
+        const a = Object.assign(document.createElement('a'), { href: url, download: fname });
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        DWB.log(`Exported "${fname}" (${data.rows.length} rows, ${data.headers.length} columns)`, 'success');
+      });
+    }
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No data to export.');
+    node.output = { headers: [...inputData.headers], rows: inputData.rows.map(r => [...r]) };
+  }
+});
+
+/* --- src\nodes\06_filter.js --- */
+DWB.register('FILTER', {
+  title: 'Filter Rows',
+  icon: '🔍',
+  category: 'Row Operations',
+  desc: 'Keep only rows matching a condition.',
+  implemented: true,
+  defaultConfig: { colIndex: 0, operator: 'contains', value: '', caseSensitive: false },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    const hideValue = cfg.operator === 'is empty' || cfg.operator === 'is not empty';
+
+    const colOpts = prevData.headers.map((h, i) =>
+      `<option value="${i}"${i == cfg.colIndex ? ' selected' : ''}>${h}</option>`
+    ).join('');
+
+    const operators = [
+      'contains', 'not contains', 'equals', 'not equals',
+      'starts with', 'ends with', 'greater than', 'less than',
+      'is empty', 'is not empty'
+    ];
+    const opOpts = operators.map(op =>
+      `<option value="${op}"${op === cfg.operator ? ' selected' : ''}>${op}</option>`
+    ).join('');
+
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:8px;font-size:12px;color:var(--success)">✓ ${node.output.rows.length.toLocaleString()} rows kept of ${prevData.rows.length.toLocaleString()} total</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:8px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Column</label>
+          <select id="flt-col-${node.id}" style="width:100%">${colOpts}</select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Operator</label>
+          <select id="flt-op-${node.id}" style="width:100%">${opOpts}</select>
+        </div>
+        ${!hideValue ? `
+        <div id="flt-val-wrap-${node.id}">
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Value</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="flt-val-${node.id}" value="${cfg.value.replace(/"/g,'&quot;')}"
+              placeholder="Filter value…" style="flex:1">
+            <button id="flt-run-${node.id}"
+              style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+              Apply
+            </button>
+          </div>
+        </div>` : ''}
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer">
+          <input type="checkbox" id="flt-cs-${node.id}" ${cfg.caseSensitive ? 'checked' : ''}>
+          Case sensitive
+        </label>
+        ${status}
+      </div>`;
+
+    document.getElementById(`flt-col-${node.id}`).addEventListener('change', e => {
+      node.config.colIndex = parseInt(e.target.value, 10);
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    document.getElementById(`flt-op-${node.id}`).addEventListener('change', e => {
+      node.config.operator = e.target.value;
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    if (!hideValue) {
+      const valEl = document.getElementById(`flt-val-${node.id}`);
+      valEl.addEventListener('input', e => { node.config.value = e.target.value; });
+      document.getElementById(`flt-run-${node.id}`).addEventListener('click', () => {
+        node.config.value = valEl.value;
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    }
+
+    document.getElementById(`flt-cs-${node.id}`).addEventListener('change', e => {
+      node.config.caseSensitive = e.target.checked;
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { colIndex, operator, value, caseSensitive } = node.config;
+    const total = inputData.rows.length;
+
+    const filtered = inputData.rows.filter(row => {
+      let cell = String(row[colIndex] ?? '');
+
+      if (operator === 'is empty')     return cell.trim() === '';
+      if (operator === 'is not empty') return cell.trim() !== '';
+
+      let cmp = value;
+      if (!caseSensitive) { cell = cell.toLowerCase(); cmp = cmp.toLowerCase(); }
+
+      if (operator === 'greater than' || operator === 'less than') {
+        const cn = parseFloat(cell), vn = parseFloat(cmp);
+        if (isNaN(cn) || isNaN(vn)) return false;
+        return operator === 'greater than' ? cn > vn : cn < vn;
+      }
+
+      switch (operator) {
+        case 'contains':     return cell.includes(cmp);
+        case 'not contains': return !cell.includes(cmp);
+        case 'equals':       return cell === cmp;
+        case 'not equals':   return cell !== cmp;
+        case 'starts with':  return cell.startsWith(cmp);
+        case 'ends with':    return cell.endsWith(cmp);
+        default: return true;
+      }
+    });
+
+    node.output = { headers: [...inputData.headers], rows: filtered };
+    DWB.log(`Filter: kept ${filtered.length} of ${total} rows`);
+  }
+});
+
+/* --- src\nodes\07_sort.js --- */
+DWB.register('SORT', {
+  title: 'Sort Rows',
+  icon: '↕️',
+  category: 'Row Operations',
+  desc: 'Sort rows by one or more columns.',
+  implemented: true,
+  defaultConfig: { sorts: [{ colIndex: 0, direction: 'asc' }] },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    if (!cfg.sorts || !cfg.sorts.length) cfg.sorts = [{ colIndex: 0, direction: 'asc' }];
+
+    const sortRows = cfg.sorts.map((s, i) => {
+      const colOpts = prevData.headers.map((h, ci) =>
+        `<option value="${ci}"${ci == s.colIndex ? ' selected' : ''}>${h}</option>`
+      ).join('');
+      const canRemove = cfg.sorts.length > 1;
+      return `
+        <div style="display:flex;gap:6px;align-items:center" id="sort-row-${node.id}-${i}">
+          <select id="sort-col-${node.id}-${i}" style="flex:1">${colOpts}</select>
+          <button id="sort-dir-${node.id}-${i}"
+            style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;
+                   background:${s.direction === 'asc' ? 'var(--accent-light)' : 'var(--bg-raised)'};
+                   color:${s.direction === 'asc' ? 'var(--accent)' : 'var(--text-muted)'};
+                   font-size:12px;cursor:pointer;white-space:nowrap;min-width:62px">
+            ${s.direction === 'asc' ? '↑ Asc' : '↓ Desc'}
+          </button>
+          <button id="sort-del-${node.id}-${i}"
+            ${canRemove ? '' : 'disabled'}
+            style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;
+                   background:transparent;color:${canRemove ? 'var(--danger)' : 'var(--text-faint)'};
+                   font-size:12px;cursor:${canRemove ? 'pointer' : 'default'}">×</button>
+        </div>`;
+    }).join('');
+
+    const canAdd = cfg.sorts.length < 3;
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ ${node.output.rows.length.toLocaleString()} rows sorted</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted)">Sort Keys</div>
+        <div style="display:flex;flex-direction:column;gap:5px" id="sort-keys-${node.id}">${sortRows}</div>
+        ${canAdd ? `<button id="sort-add-${node.id}"
+          style="margin-top:2px;padding:5px;border:1px dashed var(--border-strong);border-radius:4px;
+                 background:transparent;color:var(--text-faint);font-size:11px;cursor:pointer;width:100%">
+          + Add Sort Key
+        </button>` : ''}
+        ${status}
+      </div>`;
+
+    // Attach handlers for each sort row
+    cfg.sorts.forEach((s, i) => {
+      document.getElementById(`sort-col-${node.id}-${i}`).addEventListener('change', e => {
+        cfg.sorts[i].colIndex = parseInt(e.target.value, 10);
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+
+      document.getElementById(`sort-dir-${node.id}-${i}`).addEventListener('click', () => {
+        cfg.sorts[i].direction = cfg.sorts[i].direction === 'asc' ? 'desc' : 'asc';
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+
+      const delBtn = document.getElementById(`sort-del-${node.id}-${i}`);
+      if (cfg.sorts.length > 1) {
+        delBtn.addEventListener('click', () => {
+          cfg.sorts.splice(i, 1);
+          DWB.runFrom(node.id); DWB.renderActiveNode();
+        });
+      }
+    });
+
+    if (canAdd) {
+      document.getElementById(`sort-add-${node.id}`).addEventListener('click', () => {
+        cfg.sorts.push({ colIndex: 0, direction: 'asc' });
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    }
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { sorts } = node.config;
+
+    const rows = [...inputData.rows];
+    rows.sort((a, b) => {
+      for (const { colIndex, direction } of sorts) {
+        const av = a[colIndex] ?? '', bv = b[colIndex] ?? '';
+        const an = parseFloat(av),    bn = parseFloat(bv);
+        const cmp = (!isNaN(an) && !isNaN(bn))
+          ? an - bn
+          : String(av).localeCompare(String(bv));
+        if (cmp !== 0) return direction === 'desc' ? -cmp : cmp;
+      }
+      return 0;
+    });
+
+    const desc = sorts.map(s =>
+      `${inputData.headers[s.colIndex] || s.colIndex} ${s.direction}`
+    ).join(', ');
+
+    node.output = { headers: [...inputData.headers], rows };
+    DWB.log(`Sorted by ${desc}`);
+  }
+});
+
+/* --- src\nodes\08_drop_columns.js --- */
+DWB.register('DROP_COLS', {
+  title: 'Drop Column(s)',
+  icon: '🗑️',
+  category: 'Column Operations',
+  desc: 'Remove one or more columns.',
+  implemented: true,
+  defaultConfig: { dropIndices: [] },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    const allDropped = cfg.dropIndices.length === prevData.headers.length;
+    const keepCount  = prevData.headers.length - cfg.dropIndices.length;
+
+    const warn = allDropped
+      ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">⚠ Cannot drop all columns.</div>`
+      : '';
+
+    const status = (node.output && node.status === 'ok' && !allDropped)
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Keeping ${node.output.headers.length} of ${prevData.headers.length} columns</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    const checks = prevData.headers.map((h, i) => {
+      const checked = cfg.dropIndices.includes(i);
+      return `
+        <label style="display:flex;align-items:center;gap:7px;padding:4px 2px;
+                      font-size:12px;cursor:pointer;color:${checked ? 'var(--danger)' : 'var(--text-main)'}">
+          <input type="checkbox" data-idx="${i}" ${checked ? 'checked' : ''}>
+          <span style="${checked ? 'text-decoration:line-through;color:var(--text-faint)' : ''}">${h}</span>
+        </label>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:2px">
+          Check columns to drop
+        </div>
+        <div id="drop-checks-${node.id}" style="max-height:130px;overflow-y:auto;
+             border:1px solid var(--border);border-radius:4px;padding:4px 8px">
+          ${checks}
+        </div>
+        ${warn}${status}
+      </div>`;
+
+    document.getElementById(`drop-checks-${node.id}`).addEventListener('change', e => {
+      if (e.target.type !== 'checkbox') return;
+      const idx = parseInt(e.target.dataset.idx, 10);
+      if (e.target.checked) {
+        if (!cfg.dropIndices.includes(idx)) cfg.dropIndices.push(idx);
+      } else {
+        cfg.dropIndices = cfg.dropIndices.filter(i => i !== idx);
+      }
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { dropIndices } = node.config;
+
+    if (dropIndices.length === inputData.headers.length) {
+      throw new Error('Cannot drop all columns.');
+    }
+
+    const keepIndices = inputData.headers.map((_, i) => i).filter(i => !dropIndices.includes(i));
+    node.output = {
+      headers: keepIndices.map(i => inputData.headers[i]),
+      rows:    inputData.rows.map(r => keepIndices.map(i => r[i]))
+    };
+
+    DWB.log(`Dropped ${dropIndices.length} columns, ${keepIndices.length} remaining`);
+  }
+});
+
+/* --- src\nodes\09_rename_column.js --- */
+DWB.register('RENAME_COL', {
+  title: 'Rename Column',
+  icon: '✏️',
+  category: 'Column Operations',
+  desc: 'Rename one or more column headers.',
+  implemented: true,
+  defaultConfig: { renames: {} },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    const renameCount = Object.values(cfg.renames).filter(v => v && v.trim()).length;
+
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ ${renameCount} column${renameCount !== 1 ? 's' : ''} renamed</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    const rows = prevData.headers.map((h, i) => {
+      const val = (cfg.renames[i] !== undefined ? cfg.renames[i] : '').replace(/"/g, '&quot;');
+      return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:center;
+                    padding:3px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+               title="${h}">${h}</div>
+          <input type="text" id="ren-inp-${node.id}-${i}"
+            value="${val}" placeholder="${h}"
+            style="width:100%;font-size:12px">
+        </div>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;
+                    font-size:10px;font-weight:700;color:var(--text-faint);
+                    text-transform:uppercase;letter-spacing:0.06em;padding:0 0 4px">
+          <span>Current Name</span><span>New Name</span>
+        </div>
+        <div id="ren-rows-${node.id}" style="max-height:130px;overflow-y:auto">${rows}</div>
+        ${status}
+        <button id="ren-run-${node.id}"
+          style="margin-top:6px;padding:6px 14px;background:var(--accent);color:#fff;
+                 border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          ✏️ Apply All
+        </button>
+      </div>`;
+
+    // oninput: update config only
+    prevData.headers.forEach((_, i) => {
+      const inp = document.getElementById(`ren-inp-${node.id}-${i}`);
+      if (!inp) return;
+      inp.addEventListener('input', () => {
+        const val = inp.value;
+        if (val) cfg.renames[i] = val;
+        else delete cfg.renames[i];
+      });
+    });
+
+    document.getElementById(`ren-run-${node.id}`).addEventListener('click', () => {
+      // Sync any pending values before running
+      prevData.headers.forEach((_, i) => {
+        const inp = document.getElementById(`ren-inp-${node.id}-${i}`);
+        if (!inp) return;
+        if (inp.value) cfg.renames[i] = inp.value;
+        else delete cfg.renames[i];
+      });
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { renames } = node.config;
+
+    const newHeaders = inputData.headers.map((h, i) => {
+      const r = renames[i];
+      return (r && r.trim()) ? r.trim() : h;
+    });
+
+    const renameCount = Object.values(renames).filter(v => v && v.trim()).length;
+    node.output = { headers: newHeaders, rows: inputData.rows.map(r => [...r]) };
+    DWB.log(`Renamed ${renameCount} column${renameCount !== 1 ? 's' : ''}`);
+  }
+});
+
+/* --- src\nodes\10_add_column.js --- */
+DWB.register('ADD_COL', {
+  title: 'Add Column',
+  icon: '➕',
+  category: 'Column Operations',
+  desc: 'Append a new column — blank, copied from another, or a static value.',
+  implemented: true,
+  defaultConfig: { newName: 'New_Column', mode: 'blank', sourceColIndex: 0, staticValue: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+
+    const modeOpts = ['blank', 'copy', 'static'].map(m =>
+      `<option value="${m}"${m === cfg.mode ? ' selected' : ''}>${
+        m === 'blank' ? 'Blank (empty)' : m === 'copy' ? 'Copy column' : 'Static value'
+      }</option>`
+    ).join('');
+
+    const copyPicker = (cfg.mode === 'copy') ? `
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Source Column</label>
+        <select id="addcol-src-${node.id}" style="width:100%">
+          ${prevData.headers.map((h, i) =>
+            `<option value="${i}"${i == cfg.sourceColIndex ? ' selected' : ''}>${h}</option>`
+          ).join('')}
+        </select>
+      </div>` : '';
+
+    const staticInput = (cfg.mode === 'static') ? `
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Static Value</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="addcol-static-${node.id}"
+            value="${cfg.staticValue.replace(/"/g,'&quot;')}"
+            placeholder="Value for every row…" style="flex:1">
+          <button id="addcol-srun-${node.id}"
+            style="padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+            Apply
+          </button>
+        </div>
+      </div>` : '';
+
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Added column: ${node.output.headers[node.output.headers.length - 1]}</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Column Name</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="addcol-name-${node.id}"
+              value="${cfg.newName.replace(/"/g,'&quot;')}"
+              placeholder="New_Column" style="flex:1">
+            <button id="addcol-nrun-${node.id}"
+              style="padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+              Apply
+            </button>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Mode</label>
+          <select id="addcol-mode-${node.id}" style="width:100%">${modeOpts}</select>
+        </div>
+        ${copyPicker}${staticInput}
+        ${status}
+      </div>`;
+
+    // Column name: oninput updates config, Apply button runs
+    const nameEl = document.getElementById(`addcol-name-${node.id}`);
+    nameEl.addEventListener('input', () => { cfg.newName = nameEl.value; });
+    document.getElementById(`addcol-nrun-${node.id}`).addEventListener('click', () => {
+      cfg.newName = nameEl.value;
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    // Mode: onchange → rebuild UI + run
+    document.getElementById(`addcol-mode-${node.id}`).addEventListener('change', e => {
+      cfg.mode = e.target.value;
+      DWB.renderActiveNode(); DWB.runFrom(node.id);
+    });
+
+    // Copy source picker
+    if (cfg.mode === 'copy') {
+      document.getElementById(`addcol-src-${node.id}`).addEventListener('change', e => {
+        cfg.sourceColIndex = parseInt(e.target.value, 10);
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    }
+
+    // Static value: oninput updates config, Apply button runs
+    if (cfg.mode === 'static') {
+      const staticEl = document.getElementById(`addcol-static-${node.id}`);
+      staticEl.addEventListener('input', () => { cfg.staticValue = staticEl.value; });
+      document.getElementById(`addcol-srun-${node.id}`).addEventListener('click', () => {
+        cfg.staticValue = staticEl.value;
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    }
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { newName, mode, sourceColIndex, staticValue } = node.config;
+    const name = (newName || '').trim() || 'Untitled';
+
+    const newRows = inputData.rows.map(r => {
+      let val = '';
+      if (mode === 'copy')   val = r[sourceColIndex] ?? '';
+      if (mode === 'static') val = staticValue;
+      return [...r, val];
+    });
+
+    node.output = { headers: [...inputData.headers, name], rows: newRows };
+    DWB.log(`Added column: ${name}`);
+  }
+});
+
+/* --- src\nodes\passthrough.js --- */
+DWB.register('PASSTHROUGH', {
+  title: 'Passthrough',
+  icon: '➡️',
+  category: 'Transform',
+  desc: 'Passes data through unchanged. Useful as a checkpoint.',
+  implemented: true,
+  defaultConfig: {},
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const rows = prevData ? prevData.rows.length : 0;
+    const cols = prevData ? prevData.headers.length : 0;
+    body.innerHTML = `
+      <div style="font-size:12px;color:var(--text-muted);padding:4px 0">
+        <p>No configuration — data passes through unchanged.</p>
+        <p style="margin-top:8px;color:var(--text-faint)">
+          Upstream: ${rows.toLocaleString()} rows · ${cols} columns
+        </p>
+        <button onclick="DWB.runFrom('${node.id}')"
+          style="margin-top:12px;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">
+          ▶ Run
+        </button>
+      </div>`;
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data');
+    node.output = { headers: [...inputData.headers], rows: inputData.rows.map(r => [...r]) };
+  }
+});
+</script>
+
+<script>
+(function() {
+  const n = Object.keys(DWB.nodes).length;
+  DWB.log(`${n} node plugin(s) loaded.`);
+})();
+</script>
+
+</body>
+</html>
