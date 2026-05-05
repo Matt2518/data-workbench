@@ -128,8 +128,51 @@ DWB.register('SET_TYPES', {
         ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
         : '';
 
+    // --- Diagnostic data ---
+    const diagTypes = DWB.inferTypes(prevData);
+    const diagRows = prevData.headers.map((h, ci) => {
+      const vals    = prevData.rows.map(r => String(r[ci] ?? '')).filter(v => v !== '');
+      const unique  = [...new Set(vals)];
+      const sample  = unique.slice(0, 5).map(v => v.length > 12 ? v.slice(0, 12) + '…' : v).join(', ');
+      return `<tr>
+        <td style="padding:2px 6px;color:var(--text-faint)">${ci}</td>
+        <td style="padding:2px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px" title="${h}">${h}</td>
+        <td style="padding:2px 6px;font-weight:600;color:${diagTypes[ci] === 'numeric' ? 'var(--info)' : 'var(--text-muted)'}">${diagTypes[ci]}</td>
+        <td style="padding:2px 6px;text-align:right">${unique.length}</td>
+        <td style="padding:2px 6px;color:var(--text-faint);font-size:10px">${sample || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const diagSection = `
+      <details open style="margin-bottom:8px;border:1px solid var(--border);border-radius:4px;overflow:hidden">
+        <summary style="padding:5px 8px;background:var(--bg-raised);font-size:11px;font-weight:600;
+                        color:var(--text-muted);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
+          🔍 Type Inference Diagnostic
+        </summary>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead>
+              <tr style="background:var(--bg-raised);font-size:10px;font-weight:700;
+                         color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em">
+                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">#</th>
+                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Column</th>
+                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Inferred</th>
+                <th style="padding:3px 6px;text-align:right;border-bottom:1px solid var(--border)">Unique</th>
+                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Sample Values</th>
+              </tr>
+            </thead>
+            <tbody>${diagRows}</tbody>
+          </table>
+        </div>
+        <div style="padding:5px 8px;font-size:10px;color:var(--text-faint);border-top:1px solid var(--border);
+                    font-style:italic">
+          This panel is for diagnostic purposes and will be removed after viz dashboard testing.
+        </div>
+      </details>`;
+
     body.innerHTML = `
       <div style="display:flex;flex-direction:column">
+        ${diagSection}
         <div style="display:grid;grid-template-columns:1fr 70px 80px;gap:6px;
                     font-size:10px;font-weight:700;color:var(--text-faint);text-transform:uppercase;
                     letter-spacing:0.06em;padding:0 0 4px;border-bottom:2px solid var(--border-strong)">
