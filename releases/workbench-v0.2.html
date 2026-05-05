@@ -191,15 +191,53 @@
     /* --- Config Panel --- */
     #config-panel {
       background: var(--bg-surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      max-height: calc(var(--config-h) + 32px);
-      transition: max-height 0.22s ease;
+      flex: 0 0 35%;
+      min-height: 120px;
+      overflow: hidden;
+      position: relative;
+      transition: flex-basis 0.2s ease;
+    }
+    #config-panel.collapsed {
+      flex-basis: 32px !important;
+      min-height: 0 !important;
       overflow: hidden;
     }
-    #config-panel.collapsed { max-height: 32px; }
+    #config-panel::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 20px;
+      background: linear-gradient(transparent, var(--bg-surface));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 1;
+    }
+    #config-panel.has-overflow::after { opacity: 1; }
+
+    /* --- Split Divider --- */
+    #split-divider {
+      flex: 0 0 6px;
+      background: var(--bg-raised);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      cursor: ns-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    #split-divider::before {
+      content: '· · ·';
+      font-size: 8px;
+      color: var(--border-strong);
+      letter-spacing: 3px;
+    }
+    #split-divider:hover { background: var(--accent-light); }
+    #config-panel.collapsed + #split-divider { display: none; }
 
     .panel-header {
       display: flex;
@@ -222,7 +260,7 @@
     .collapsed .panel-header .arrow { transform: rotate(-90deg); }
 
     #config-body {
-      height: var(--config-h);
+      flex: 1;
       overflow-y: auto;
       padding: 12px;
     }
@@ -238,11 +276,25 @@
     /* --- Data Inspector --- */
     #data-inspector {
       flex: 1;
+      min-height: 120px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
       background: var(--bg-main);
+      position: relative;
     }
+    #data-inspector::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 20px;
+      background: linear-gradient(transparent, var(--bg-main));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 1;
+    }
+    #data-inspector.has-overflow::after { opacity: 1; }
 
     #inspector-meta {
       padding: 5px 12px;
@@ -794,6 +846,9 @@
         </div>
       </div>
 
+      <!-- Resizable split divider -->
+      <div id="split-divider"></div>
+
       <!-- Data Inspector -->
       <div id="data-inspector">
         <div id="inspector-meta">No data loaded</div>
@@ -1032,11 +1087,67 @@ window.DWB = (() => {
   }
 
   function inferTypes(data) {
-    return data.headers.map((_, ci) => {
-      const sample = data.rows.slice(0, 200).map(r => r[ci] ?? '').filter(v => v !== '');
-      if (!sample.length) return 'text';
-      const numCount = sample.filter(v => !isNaN(parseFloat(v)) && isFinite(v)).length;
-      return numCount / sample.length > 0.8 ? 'numeric' : 'text';
+    const LIKERT_SCALES = [
+      ['strongly disagree','disagree','neutral','agree','strongly agree'],
+      ['strongly disagree','disagree','neither agree nor disagree','agree','strongly agree'],
+      ['never','rarely','sometimes','often','always'],
+      ['very dissatisfied','dissatisfied','neutral','satisfied','very satisfied'],
+      ['not at all','barely','neutral','somewhat','strongly'],
+      ['not at all','slightly','moderately','very','extremely'],
+      ['poor','fair','good','very good','excellent'],
+      ['1','2','3','4','5'],
+      ['1','2','3','4'],
+      ['yes','no'],
+      ['true','false'],
+      ['complete','incomplete'],
+      ['yes','no','n/a'],
+    ];
+
+    return data.headers.map((header, colIdx) => {
+      const values = data.rows
+        .map(r => String(r[colIdx] ?? '').trim())
+        .filter(v => v !== '');
+
+      if (values.length === 0) return 'text';
+
+      const uniqueVals  = [...new Set(values.map(v => v.toLowerCase()))];
+      const uniqueCount = uniqueVals.length;
+      const totalCount  = values.length;
+
+      // Likert: unique values are a subset of a known scale
+      for (const scale of LIKERT_SCALES) {
+        const inScale    = uniqueVals.filter(v => scale.includes(v));
+        const outOfScale = uniqueVals.filter(v => !scale.includes(v));
+        if (
+          inScale.length >= Math.min(2, scale.length) &&
+          outOfScale.length === 0 &&
+          uniqueCount <= scale.length
+        ) return 'likert';
+      }
+
+      // Number: >80% of non-empty values parse as finite float
+      const numericCount = values.filter(v => {
+        const cleaned = v.replace(/[$,%\s]/g, '');
+        return cleaned !== '' && isFinite(parseFloat(cleaned));
+      }).length;
+      if (numericCount / totalCount > 0.8) return 'number';
+
+      // Date: >80% parse as valid dates, value length > 4 chars
+      const dateCount = values.filter(v => {
+        if (v.length <= 4) return false;
+        const d = new Date(v);
+        return !isNaN(d.getTime());
+      }).length;
+      if (dateCount / totalCount > 0.8) return 'date';
+
+      // Categorical: uniqueCount <= 20 AND unique ratio <= 15%, not free text
+      if (uniqueCount <= 20 && uniqueCount / totalCount <= 0.15) {
+        const avgWords = values.reduce((sum, v) =>
+          sum + v.split(/\s+/).length, 0) / totalCount;
+        if (avgWords <= 4) return 'categorical';
+      }
+
+      return 'text';
     });
   }
 
@@ -1069,6 +1180,9 @@ window.DWB = (() => {
     });
     document.getElementById('viz-dropzone')?.classList.add('hidden');
     log(`Promoted "${name}" to active dataset (${data.rows.length} rows)`, 'success');
+    const tc = { number: 0, date: 0, categorical: 0, likert: 0, text: 0 };
+    columnTypes.forEach(t => { if (tc[t] !== undefined) tc[t]++; else tc.text++; });
+    log(`Type inference — number: ${tc.number}, date: ${tc.date}, categorical: ${tc.categorical}, likert: ${tc.likert}, text: ${tc.text}`);
   }
 
   function getColumnMeta(colIndex) {
@@ -1189,20 +1303,83 @@ window.DWB = (() => {
     if (target?.output) renderDataInspector(target.output);
   }
 
+  // ---- Split divider ----
+  function _initSplitDivider() {
+    const divider  = document.getElementById('split-divider');
+    const main     = document.getElementById('pipeline-main');
+    const cfgPanel = document.getElementById('config-panel');
+    if (!divider || !main || !cfgPanel) return;
+
+    function applyH(h) {
+      cfgPanel.style.flexBasis = h + 'px';
+    }
+
+    function clampH(raw) {
+      const rect = main.getBoundingClientRect();
+      return Math.max(120, Math.min(rect.height - 120 - 6, raw));
+    }
+
+    // Restore saved ratio
+    const savedRatio = parseFloat(localStorage.getItem('dwb_split_ratio') || '0.35');
+    requestAnimationFrame(() => {
+      const rect = main.getBoundingClientRect();
+      if (rect.height > 0) applyH(clampH(rect.height * savedRatio));
+    });
+
+    // Mouse drag
+    let dragging = false;
+    divider.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      dragging = true;
+      e.preventDefault();
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    function onMove(e) {
+      if (!dragging) return;
+      const h = clampH(e.clientY - main.getBoundingClientRect().top);
+      applyH(h);
+      localStorage.setItem('dwb_split_ratio', (h / main.getBoundingClientRect().height).toFixed(3));
+    }
+    function onUp() {
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+
+    // Touch drag
+    divider.addEventListener('touchstart', () => {
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+    }, { passive: true });
+    function onTouchMove(e) {
+      e.preventDefault();
+      const h = clampH(e.touches[0].clientY - main.getBoundingClientRect().top);
+      applyH(h);
+      localStorage.setItem('dwb_split_ratio', (h / main.getBoundingClientRect().height).toFixed(3));
+    }
+    function onTouchEnd() {
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    }
+  }
+
   // ---- Config panel ----
   function renderActiveNode() {
     const node = pipeline.nodes.find(n => n.id === pipeline.activeNodeId);
     const body  = document.getElementById('config-body');
     const title = document.getElementById('config-title');
+    const panel = document.getElementById('config-panel');
 
     if (!node) {
       body.innerHTML  = '<div class="config-empty">Select a node to configure it.</div>';
       title.textContent = 'Node Config';
+      panel.classList.remove('has-overflow');
       return;
     }
     const def = _typeDefs[node.type];
     title.textContent = `${def?.icon || ''} ${node.customName}`;
-    document.getElementById('config-panel').classList.remove('collapsed');
+    panel.classList.remove('collapsed');
 
     const idx = pipeline.nodes.indexOf(node);
     const prevData = idx > 0 ? (pipeline.nodes[idx - 1].output || null) : null;
@@ -1214,6 +1391,8 @@ window.DWB = (() => {
         Type: <strong>${node.type}</strong><br>No config UI for this node.
       </div>`;
     }
+
+    panel.classList.toggle('has-overflow', body.scrollHeight > body.clientHeight);
   }
 
   // ---- Pipeline track ----
@@ -1352,11 +1531,13 @@ window.DWB = (() => {
     const wrap = document.getElementById('inspector-table-wrap');
     const meta = document.getElementById('inspector-meta');
 
+    const insp = document.getElementById('data-inspector');
     if (!data?.headers?.length) {
       wrap.innerHTML = `<div class="inspector-empty">
         <span class="ei-icon">📋</span><span>No data to display.</span>
       </div>`;
       meta.textContent = 'No data';
+      insp?.classList.remove('has-overflow');
       return;
     }
 
@@ -1407,6 +1588,7 @@ window.DWB = (() => {
     });
     html += '</tbody></table>';
     wrap.innerHTML = html;
+    insp?.classList.toggle('has-overflow', wrap.scrollHeight > wrap.clientHeight);
   }
 
   // ---- Viz CSV drop ----
@@ -1525,6 +1707,7 @@ window.DWB = (() => {
   // ---- Init ----
   function _init() {
     _applyTheme();
+    _initSplitDivider();
     renderTrack();
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') { closePicker(); closeWfModal(); }
@@ -2525,6 +2708,14 @@ const LIKERT_TEMPLATES = {
   custom:       { label: 'Custom',            scale: [],                                                                                      midpoint: -1, positiveEnd: 'high' }
 };
 
+const TYPE_COLORS = {
+  number:      'var(--info)',
+  date:        'var(--success)',
+  categorical: '#7c3aed',
+  likert:      'var(--accent-gold)',
+  text:        'var(--text-faint)'
+};
+
 function _stAutoTemplate(data, ci) {
   const unique = new Set(data.rows.map(r => String(r[ci] ?? '')).filter(v => v !== ''));
   for (const [key, tmpl] of Object.entries(LIKERT_TEMPLATES)) {
@@ -2550,18 +2741,35 @@ DWB.register('SET_TYPES', {
       return;
     }
 
-    const cfg = node.config;
+    const cfg       = node.config;
     const baseTypes = prevData.columnTypes || DWB.inferTypes(prevData);
 
     const rows = prevData.headers.map((h, ci) => {
-      const inferred  = baseTypes[ci] || 'text';
-      const override  = cfg.overrides[ci] || '';
-      const active    = override || inferred;
-      const meta      = cfg.likertMeta[ci] || {};
+      const inferred = baseTypes[ci] || 'text';
+      const override = cfg.overrides[ci] || '';
+      const active   = override || inferred;
+      const meta     = cfg.likertMeta[ci] || {};
 
-      const typeOpts = ['', 'text', 'numeric', 'likert'].map(t =>
-        `<option value="${t}"${t === override ? ' selected' : ''}>${t === '' ? '(inferred)' : t}</option>`
-      ).join('');
+      // Sample values
+      const allVals = prevData.rows.map(r => String(r[ci] ?? '')).filter(v => v !== '');
+      const unique  = [...new Set(allVals)];
+      const sample  = unique.slice(0, 5).map(v => v.length > 12 ? v.slice(0, 12) + '…' : v).join(', ');
+      const sampleTitle = unique.join(', ');
+
+      // Type dropdown — Auto shows inferred type in label
+      const typeOpts = [
+        `<option value=""${!override ? ' selected' : ''}>Auto (${inferred})</option>`,
+        `<option disabled>────</option>`,
+        `<option value="text"${override === 'text' ? ' selected' : ''}>Text</option>`,
+        `<option value="number"${override === 'number' ? ' selected' : ''}>Number</option>`,
+        `<option value="date"${override === 'date' ? ' selected' : ''}>Date</option>`,
+        `<option value="categorical"${override === 'categorical' ? ' selected' : ''}>Categorical</option>`,
+        `<option value="likert"${override === 'likert' ? ' selected' : ''}>Likert</option>`,
+      ].join('');
+
+      const dotColor = TYPE_COLORS[active] || 'var(--text-faint)';
+      const hSafe    = h.replace(/"/g, '&quot;');
+      const hDisplay = h.length > 20 ? h.slice(0, 20) + '…' : h;
 
       let likertSection = '';
       if (active === 'likert') {
@@ -2613,7 +2821,7 @@ DWB.register('SET_TYPES', {
           : '';
 
         likertSection = `
-          <div style="background:var(--bg-raised);border-radius:4px;padding:8px;margin:4px 0 6px">
+          <div style="background:var(--bg-raised);border-radius:4px;padding:8px;margin:2px 0 6px 24px">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
               <label style="font-size:11px;font-weight:600;color:var(--text-muted);white-space:nowrap">Template:</label>
               <select id="st-tmpl-${node.id}-${ci}" style="flex:1;font-size:11px">${tmplOpts}</select>
@@ -2630,12 +2838,19 @@ DWB.register('SET_TYPES', {
       }
 
       return `
-        <div style="display:grid;grid-template-columns:1fr 70px 80px;gap:6px;align-items:start;
-                    padding:4px 0;border-bottom:1px solid var(--border)">
-          <div style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-top:4px"
-               title="${h}">${h}</div>
-          <div style="font-size:10px;color:var(--text-faint);padding-top:6px;text-align:center">${inferred}</div>
-          <select id="st-type-${node.id}-${ci}" data-ci="${ci}" style="font-size:11px">${typeOpts}</select>
+        <div style="display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 150px;
+                    gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text-faint);text-align:right">${ci}</div>
+          <div style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+               title="${hSafe}">${hDisplay}</div>
+          <div style="font-size:10px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+               title="${sampleTitle.replace(/"/g,'&quot;')}">${sample || '—'}</div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;
+                         background:${dotColor};display:inline-block"></span>
+            <select id="st-type-${node.id}-${ci}" data-ci="${ci}"
+              style="flex:1;font-size:11px">${typeOpts}</select>
+          </div>
         </div>
         ${likertSection}`;
     }).join('');
@@ -2646,57 +2861,14 @@ DWB.register('SET_TYPES', {
         ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
         : '';
 
-    // --- Diagnostic data ---
-    const diagTypes = DWB.inferTypes(prevData);
-    const diagRows = prevData.headers.map((h, ci) => {
-      const vals    = prevData.rows.map(r => String(r[ci] ?? '')).filter(v => v !== '');
-      const unique  = [...new Set(vals)];
-      const sample  = unique.slice(0, 5).map(v => v.length > 12 ? v.slice(0, 12) + '…' : v).join(', ');
-      return `<tr>
-        <td style="padding:2px 6px;color:var(--text-faint)">${ci}</td>
-        <td style="padding:2px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px" title="${h}">${h}</td>
-        <td style="padding:2px 6px;font-weight:600;color:${diagTypes[ci] === 'numeric' ? 'var(--info)' : 'var(--text-muted)'}">${diagTypes[ci]}</td>
-        <td style="padding:2px 6px;text-align:right">${unique.length}</td>
-        <td style="padding:2px 6px;color:var(--text-faint);font-size:10px">${sample || '—'}</td>
-      </tr>`;
-    }).join('');
-
-    const diagSection = `
-      <details open style="margin-bottom:8px;border:1px solid var(--border);border-radius:4px;overflow:hidden">
-        <summary style="padding:5px 8px;background:var(--bg-raised);font-size:11px;font-weight:600;
-                        color:var(--text-muted);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
-          🔍 Type Inference Diagnostic
-        </summary>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:11px">
-            <thead>
-              <tr style="background:var(--bg-raised);font-size:10px;font-weight:700;
-                         color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em">
-                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">#</th>
-                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Column</th>
-                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Inferred</th>
-                <th style="padding:3px 6px;text-align:right;border-bottom:1px solid var(--border)">Unique</th>
-                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Sample Values</th>
-              </tr>
-            </thead>
-            <tbody>${diagRows}</tbody>
-          </table>
-        </div>
-        <div style="padding:5px 8px;font-size:10px;color:var(--text-faint);border-top:1px solid var(--border);
-                    font-style:italic">
-          This panel is for diagnostic purposes and will be removed after viz dashboard testing.
-        </div>
-      </details>`;
-
     body.innerHTML = `
       <div style="display:flex;flex-direction:column">
-        ${diagSection}
-        <div style="display:grid;grid-template-columns:1fr 70px 80px;gap:6px;
-                    font-size:10px;font-weight:700;color:var(--text-faint);text-transform:uppercase;
+        <div style="display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 150px;
+                    gap:6px;font-size:10px;font-weight:700;color:var(--text-faint);text-transform:uppercase;
                     letter-spacing:0.06em;padding:0 0 4px;border-bottom:2px solid var(--border-strong)">
-          <span>Column</span><span style="text-align:center">Inferred</span><span>Override</span>
+          <span>#</span><span>Column</span><span>Sample Values</span><span style="padding-left:13px">Type</span>
         </div>
-        <div style="overflow-y:auto;max-height:110px">${rows}</div>
+        <div style="overflow-y:auto">${rows}</div>
         ${status}
         <button id="st-run-${node.id}"
           style="margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;
@@ -2737,7 +2909,7 @@ DWB.register('SET_TYPES', {
         });
       }
 
-      // Midpoint — updates config without re-render (no structural change)
+      // Midpoint — updates config without re-render
       const midSel = document.getElementById(`st-mid-${node.id}-${ci}`);
       if (midSel) {
         midSel.addEventListener('change', e => {
@@ -2750,9 +2922,9 @@ DWB.register('SET_TYPES', {
     // Scale reorder buttons — direct listeners on each newly created element
     body.querySelectorAll('.st-ord-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const ci  = parseInt(btn.dataset.ci, 10);
-        const si  = parseInt(btn.dataset.si, 10);
-        const dir = btn.dataset.dir;
+        const ci   = parseInt(btn.dataset.ci, 10);
+        const si   = parseInt(btn.dataset.si, 10);
+        const dir  = btn.dataset.dir;
         const meta = cfg.likertMeta[ci];
         if (!meta?.scale) return;
         const swap = dir === 'up' ? si - 1 : si + 1;
@@ -2797,9 +2969,9 @@ DWB.register('SET_TYPES', {
     out.columnTypeMeta = columnTypeMeta;
     node.output = out;
 
-    const n = { text: 0, numeric: 0, likert: 0 };
+    const n = { number: 0, date: 0, categorical: 0, likert: 0, text: 0 };
     columnTypes.forEach(t => { if (n[t] !== undefined) n[t]++; else n.text++; });
-    DWB.log(`Set types: ${n.numeric} numeric, ${n.likert} likert, ${n.text} text`);
+    DWB.log(`Set types: ${n.number} number, ${n.date} date, ${n.categorical} categorical, ${n.likert} likert, ${n.text} text`);
   }
 });
 
