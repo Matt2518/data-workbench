@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DataWorkbench</title>
+
+  <!-- ECharts 5 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+
+  <!-- PptxGenJS (placeholder — swap version/URL as needed) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+    }
+
+    #top-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      height: 44px;
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+
+    #top-bar .app-title {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: #a78bfa;
+    }
+
+    #top-bar .app-subtitle {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    #canvas {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      /* pipeline nodes will render here */
+    }
+
+    #canvas .empty-hint {
+      margin: auto;
+      text-align: center;
+      color: #334155;
+      font-size: 13px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    #status-bar {
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      height: 28px;
+      background: #1a1d27;
+      border-top: 1px solid #2d3148;
+      font-size: 11px;
+      color: #475569;
+      flex-shrink: 0;
+    }
+
+    #status-bar #status-text { margin-right: auto; }
+  </style>
+</head>
+<body>
+
+  <div id="top-bar">
+    <span class="app-title">DataWorkbench</span>
+    <span class="app-subtitle">data pipeline + visualization</span>
+  </div>
+
+  <div id="canvas">
+    <div class="empty-hint">No nodes loaded. Add a node to begin.</div>
+  </div>
+
+  <div id="status-bar">
+    <span id="status-text">Ready</span>
+    <span id="node-count">0 nodes registered</span>
+  </div>
+
+  <script>
+    // Node registry — plugins register themselves here
+    window.DWB = {
+      nodes: {},
+      register(type, def) {
+        this.nodes[type] = def;
+        document.getElementById('node-count').textContent =
+          Object.keys(this.nodes).length + ' node(s) registered';
+        console.log('[DWB] registered node:', type);
+      }
+    };
+  </script>
+
+  <!-- {{NODES}} -->
+
+  <script>
+    // Post-load init
+    document.getElementById('status-text').textContent =
+      'Loaded — ' + new Date().toLocaleTimeString();
+  </script>
+
+</body>
+</html>
