@@ -7,6 +7,14 @@ const LIKERT_TEMPLATES = {
   custom:       { label: 'Custom',            scale: [],                                                                                      midpoint: -1, positiveEnd: 'high' }
 };
 
+const TYPE_COLORS = {
+  number:      'var(--info)',
+  date:        'var(--success)',
+  categorical: '#7c3aed',
+  likert:      'var(--accent-gold)',
+  text:        'var(--text-faint)'
+};
+
 function _stAutoTemplate(data, ci) {
   const unique = new Set(data.rows.map(r => String(r[ci] ?? '')).filter(v => v !== ''));
   for (const [key, tmpl] of Object.entries(LIKERT_TEMPLATES)) {
@@ -32,18 +40,35 @@ DWB.register('SET_TYPES', {
       return;
     }
 
-    const cfg = node.config;
+    const cfg       = node.config;
     const baseTypes = prevData.columnTypes || DWB.inferTypes(prevData);
 
     const rows = prevData.headers.map((h, ci) => {
-      const inferred  = baseTypes[ci] || 'text';
-      const override  = cfg.overrides[ci] || '';
-      const active    = override || inferred;
-      const meta      = cfg.likertMeta[ci] || {};
+      const inferred = baseTypes[ci] || 'text';
+      const override = cfg.overrides[ci] || '';
+      const active   = override || inferred;
+      const meta     = cfg.likertMeta[ci] || {};
 
-      const typeOpts = ['', 'text', 'numeric', 'likert'].map(t =>
-        `<option value="${t}"${t === override ? ' selected' : ''}>${t === '' ? '(inferred)' : t}</option>`
-      ).join('');
+      // Sample values
+      const allVals = prevData.rows.map(r => String(r[ci] ?? '')).filter(v => v !== '');
+      const unique  = [...new Set(allVals)];
+      const sample  = unique.slice(0, 5).map(v => v.length > 12 ? v.slice(0, 12) + '…' : v).join(', ');
+      const sampleTitle = unique.join(', ');
+
+      // Type dropdown — Auto shows inferred type in label
+      const typeOpts = [
+        `<option value=""${!override ? ' selected' : ''}>Auto (${inferred})</option>`,
+        `<option disabled>────</option>`,
+        `<option value="text"${override === 'text' ? ' selected' : ''}>Text</option>`,
+        `<option value="number"${override === 'number' ? ' selected' : ''}>Number</option>`,
+        `<option value="date"${override === 'date' ? ' selected' : ''}>Date</option>`,
+        `<option value="categorical"${override === 'categorical' ? ' selected' : ''}>Categorical</option>`,
+        `<option value="likert"${override === 'likert' ? ' selected' : ''}>Likert</option>`,
+      ].join('');
+
+      const dotColor = TYPE_COLORS[active] || 'var(--text-faint)';
+      const hSafe    = h.replace(/"/g, '&quot;');
+      const hDisplay = h.length > 20 ? h.slice(0, 20) + '…' : h;
 
       let likertSection = '';
       if (active === 'likert') {
@@ -95,7 +120,7 @@ DWB.register('SET_TYPES', {
           : '';
 
         likertSection = `
-          <div style="background:var(--bg-raised);border-radius:4px;padding:8px;margin:4px 0 6px">
+          <div style="background:var(--bg-raised);border-radius:4px;padding:8px;margin:2px 0 6px 24px">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
               <label style="font-size:11px;font-weight:600;color:var(--text-muted);white-space:nowrap">Template:</label>
               <select id="st-tmpl-${node.id}-${ci}" style="flex:1;font-size:11px">${tmplOpts}</select>
@@ -112,12 +137,19 @@ DWB.register('SET_TYPES', {
       }
 
       return `
-        <div style="display:grid;grid-template-columns:1fr 70px 80px;gap:6px;align-items:start;
-                    padding:4px 0;border-bottom:1px solid var(--border)">
-          <div style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-top:4px"
-               title="${h}">${h}</div>
-          <div style="font-size:10px;color:var(--text-faint);padding-top:6px;text-align:center">${inferred}</div>
-          <select id="st-type-${node.id}-${ci}" data-ci="${ci}" style="font-size:11px">${typeOpts}</select>
+        <div style="display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 150px;
+                    gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text-faint);text-align:right">${ci}</div>
+          <div style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+               title="${hSafe}">${hDisplay}</div>
+          <div style="font-size:10px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+               title="${sampleTitle.replace(/"/g,'&quot;')}">${sample || '—'}</div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;
+                         background:${dotColor};display:inline-block"></span>
+            <select id="st-type-${node.id}-${ci}" data-ci="${ci}"
+              style="flex:1;font-size:11px">${typeOpts}</select>
+          </div>
         </div>
         ${likertSection}`;
     }).join('');
@@ -128,57 +160,14 @@ DWB.register('SET_TYPES', {
         ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
         : '';
 
-    // --- Diagnostic data ---
-    const diagTypes = DWB.inferTypes(prevData);
-    const diagRows = prevData.headers.map((h, ci) => {
-      const vals    = prevData.rows.map(r => String(r[ci] ?? '')).filter(v => v !== '');
-      const unique  = [...new Set(vals)];
-      const sample  = unique.slice(0, 5).map(v => v.length > 12 ? v.slice(0, 12) + '…' : v).join(', ');
-      return `<tr>
-        <td style="padding:2px 6px;color:var(--text-faint)">${ci}</td>
-        <td style="padding:2px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px" title="${h}">${h}</td>
-        <td style="padding:2px 6px;font-weight:600;color:${diagTypes[ci] === 'numeric' ? 'var(--info)' : 'var(--text-muted)'}">${diagTypes[ci]}</td>
-        <td style="padding:2px 6px;text-align:right">${unique.length}</td>
-        <td style="padding:2px 6px;color:var(--text-faint);font-size:10px">${sample || '—'}</td>
-      </tr>`;
-    }).join('');
-
-    const diagSection = `
-      <details open style="margin-bottom:8px;border:1px solid var(--border);border-radius:4px;overflow:hidden">
-        <summary style="padding:5px 8px;background:var(--bg-raised);font-size:11px;font-weight:600;
-                        color:var(--text-muted);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
-          🔍 Type Inference Diagnostic
-        </summary>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:11px">
-            <thead>
-              <tr style="background:var(--bg-raised);font-size:10px;font-weight:700;
-                         color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em">
-                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">#</th>
-                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Column</th>
-                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Inferred</th>
-                <th style="padding:3px 6px;text-align:right;border-bottom:1px solid var(--border)">Unique</th>
-                <th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)">Sample Values</th>
-              </tr>
-            </thead>
-            <tbody>${diagRows}</tbody>
-          </table>
-        </div>
-        <div style="padding:5px 8px;font-size:10px;color:var(--text-faint);border-top:1px solid var(--border);
-                    font-style:italic">
-          This panel is for diagnostic purposes and will be removed after viz dashboard testing.
-        </div>
-      </details>`;
-
     body.innerHTML = `
       <div style="display:flex;flex-direction:column">
-        ${diagSection}
-        <div style="display:grid;grid-template-columns:1fr 70px 80px;gap:6px;
-                    font-size:10px;font-weight:700;color:var(--text-faint);text-transform:uppercase;
+        <div style="display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 150px;
+                    gap:6px;font-size:10px;font-weight:700;color:var(--text-faint);text-transform:uppercase;
                     letter-spacing:0.06em;padding:0 0 4px;border-bottom:2px solid var(--border-strong)">
-          <span>Column</span><span style="text-align:center">Inferred</span><span>Override</span>
+          <span>#</span><span>Column</span><span>Sample Values</span><span style="padding-left:13px">Type</span>
         </div>
-        <div style="overflow-y:auto;max-height:110px">${rows}</div>
+        <div style="overflow-y:auto">${rows}</div>
         ${status}
         <button id="st-run-${node.id}"
           style="margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;
@@ -219,7 +208,7 @@ DWB.register('SET_TYPES', {
         });
       }
 
-      // Midpoint — updates config without re-render (no structural change)
+      // Midpoint — updates config without re-render
       const midSel = document.getElementById(`st-mid-${node.id}-${ci}`);
       if (midSel) {
         midSel.addEventListener('change', e => {
@@ -232,9 +221,9 @@ DWB.register('SET_TYPES', {
     // Scale reorder buttons — direct listeners on each newly created element
     body.querySelectorAll('.st-ord-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const ci  = parseInt(btn.dataset.ci, 10);
-        const si  = parseInt(btn.dataset.si, 10);
-        const dir = btn.dataset.dir;
+        const ci   = parseInt(btn.dataset.ci, 10);
+        const si   = parseInt(btn.dataset.si, 10);
+        const dir  = btn.dataset.dir;
         const meta = cfg.likertMeta[ci];
         if (!meta?.scale) return;
         const swap = dir === 'up' ? si - 1 : si + 1;
@@ -279,8 +268,8 @@ DWB.register('SET_TYPES', {
     out.columnTypeMeta = columnTypeMeta;
     node.output = out;
 
-    const n = { text: 0, numeric: 0, likert: 0 };
+    const n = { number: 0, date: 0, categorical: 0, likert: 0, text: 0 };
     columnTypes.forEach(t => { if (n[t] !== undefined) n[t]++; else n.text++; });
-    DWB.log(`Set types: ${n.numeric} numeric, ${n.likert} likert, ${n.text} text`);
+    DWB.log(`Set types: ${n.number} number, ${n.date} date, ${n.categorical} categorical, ${n.likert} likert, ${n.text} text`);
   }
 });
