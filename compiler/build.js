@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-const fs = require('fs');
+'use strict';
+const fs   = require('fs');
 const path = require('path');
 
-const ROOT = path.resolve(__dirname, '..');
-const FRAME = path.join(ROOT, 'src', 'frame', 'frame.html');
+const ROOT     = path.resolve(__dirname, '..');
+const FRAME    = path.join(ROOT, 'src', 'frame', 'frame.html');
 const NODES_DIR = path.join(ROOT, 'src', 'nodes');
-const VIZ_DIR = path.join(ROOT, 'src', 'viz');
-const OUT_DIR = path.join(ROOT, 'dist');
-const OUT_FILE = path.join(OUT_DIR, 'workbench.html');
+const VIZ_DIR   = path.join(ROOT, 'src', 'viz');
+const OUT_DIR   = path.join(ROOT, 'dist');
+const OUT_FILE  = path.join(OUT_DIR, 'workbench.html');
 
 function collectJs(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -16,7 +17,7 @@ function collectJs(dir) {
     .sort()
     .map(f => ({
       file: path.join(dir, f),
-      rel: path.relative(ROOT, path.join(dir, f))
+      rel:  path.relative(ROOT, path.join(dir, f))
     }));
 }
 
@@ -44,6 +45,21 @@ function build() {
   const kb = (fs.statSync(OUT_FILE).size / 1024).toFixed(1);
   console.log(`Built: dist/workbench.html  (${kb} KB, ${sources.length} plugin file(s))`);
   sources.forEach(({ rel }) => console.log('  +', rel));
+
+  return { kb, pluginCount: sources.length, outFile: OUT_FILE };
 }
 
-build();
+// Only execute when run directly; require('./build') just gets the export.
+if (require.main === module) {
+  const result = build();
+
+  if (process.argv.includes('--release')) {
+    const relDir  = path.join(ROOT, 'releases');
+    const relFile = path.join(relDir, 'workbench-latest.html');
+    if (!fs.existsSync(relDir)) fs.mkdirSync(relDir, { recursive: true });
+    fs.copyFileSync(result.outFile, relFile);
+    console.log('→ Release copy written to releases/workbench-latest.html');
+  }
+}
+
+module.exports = { build };
