@@ -15,7 +15,9 @@ DWB.register('PUSH_TO_VIZ', {
 
     const status = node.output && node.config.datasetName
       ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Promoted as: ${node.config.datasetName}</div>`
-      : '';
+      : node.output
+        ? `<div style="margin-top:10px;font-size:12px;color:var(--text-muted)">Data is passing through — set a name to push to Viz.</div>`
+        : '';
 
     const rows = prevData ? prevData.rows.length : null;
     const cols = prevData ? prevData.headers.length : null;
@@ -40,8 +42,7 @@ DWB.register('PUSH_TO_VIZ', {
 
     const input = document.getElementById(`pviz-name-${node.id}`);
     input.addEventListener('input', () => {
-      node.config.datasetName = input.value.trim();
-      DWB.renderActiveNode();
+      DWB.updateConfig(node.id, 'datasetName', input.value.trim());
     });
 
     document.getElementById(`pviz-run-${node.id}`).addEventListener('click', () => {
@@ -53,9 +54,12 @@ DWB.register('PUSH_TO_VIZ', {
 
   execute(node, inputData) {
     if (!inputData) throw new Error('No data to push.');
-    if (!node.config.datasetName) throw new Error('Dataset name is required.');
+    node.output = DWB.passthroughCopy(inputData);
+    if (!node.config.datasetName) {
+      DWB.log('Push to Viz: no dataset name — passing through without promoting.', 'warn');
+      return;
+    }
     DWB.promoteToActive(node.config.datasetName, inputData);
-    node.output = { headers: [...inputData.headers], rows: inputData.rows.map(r => [...r]) };
     DWB.log(`Pushed to Viz as: ${node.config.datasetName} (${inputData.rows.length} rows)`);
   }
 });

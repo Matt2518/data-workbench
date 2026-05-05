@@ -85,7 +85,9 @@ DWB.register('RENAME_COL', {
     });
 
     const renameCount = Object.values(renames).filter(v => v && v.trim()).length;
-    node.output = { headers: newHeaders, rows: inputData.rows.map(r => [...r]) };
+    const out = DWB.passthroughCopy(inputData);
+    out.headers = newHeaders;
+    node.output = out;
     DWB.log(`Renamed ${renameCount} column${renameCount !== 1 ? 's' : ''}`);
   }
 });

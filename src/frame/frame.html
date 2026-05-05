@@ -1020,14 +1020,44 @@ window.DWB = (() => {
     }).join('');
   }
 
+  // ---- Data utilities ----
+  function passthroughCopy(data) {
+    const out = {
+      headers: [...data.headers],
+      rows: data.rows.map(r => [...r])
+    };
+    if (data.columnTypes)    out.columnTypes    = [...data.columnTypes];
+    if (data.columnTypeMeta) out.columnTypeMeta = Object.assign({}, data.columnTypeMeta);
+    return out;
+  }
+
+  function inferTypes(data) {
+    return data.headers.map((_, ci) => {
+      const sample = data.rows.slice(0, 200).map(r => r[ci] ?? '').filter(v => v !== '');
+      if (!sample.length) return 'text';
+      const numCount = sample.filter(v => !isNaN(parseFloat(v)) && isFinite(v)).length;
+      return numCount / sample.length > 0.8 ? 'numeric' : 'text';
+    });
+  }
+
+  // ---- Config update (no re-render) ----
+  function updateConfig(nodeId, key, value) {
+    const node = pipeline.nodes.find(n => n.id === nodeId);
+    if (node) node.config[key] = value;
+  }
+
   // ---- Active Dataset ----
   function promoteToActive(name, data) {
+    const columnTypes    = data.columnTypes    ? [...data.columnTypes]           : inferTypes(data);
+    const columnTypeMeta = data.columnTypeMeta ? Object.assign({}, data.columnTypeMeta) : {};
     activeDataset = {
       name, data,
       objects: toObjects(data),
       rowCount: data.rows.length,
       promotedFrom: null,
-      timestamp: new Date()
+      timestamp: new Date(),
+      columnTypes,
+      columnTypeMeta
     };
     const ind = document.getElementById('active-dataset-indicator');
     ind.textContent = `Active: ${name} · ${data.rows.length.toLocaleString()} rows`;
@@ -1039,6 +1069,14 @@ window.DWB = (() => {
     });
     document.getElementById('viz-dropzone')?.classList.add('hidden');
     log(`Promoted "${name}" to active dataset (${data.rows.length} rows)`, 'success');
+  }
+
+  function getColumnMeta(colIndex) {
+    if (!activeDataset) return { type: 'text', meta: null };
+    return {
+      type: (activeDataset.columnTypes || [])[colIndex] || 'text',
+      meta: (activeDataset.columnTypeMeta || {})[colIndex] || null
+    };
   }
 
   // ---- Theme ----
@@ -1505,6 +1543,7 @@ window.DWB = (() => {
     register,
     // utilities
     parseCSV, generateOptions, toObjects, fromObjects,
+    passthroughCopy, inferTypes, updateConfig,
     // execution
     runFrom, renderActiveNode, renderDataInspector,
     // node mgmt
@@ -1513,7 +1552,7 @@ window.DWB = (() => {
     // stash
     getStash, setStash, listStashes, _deleteStash,
     // active dataset
-    promoteToActive,
+    promoteToActive, getColumnMeta,
     // console
     log, clearConsole,
     // ui

@@ -68,10 +68,7 @@ DWB.register('STASH_RESTORE', {
     if (!node.config.stashName) throw new Error('No stash selected.');
     const stash = DWB.getStash(node.config.stashName);
     if (!stash) throw new Error(`Stash "${node.config.stashName}" not found. It may have been deleted.`);
-    node.output = {
-      headers: [...stash.data.headers],
-      rows: stash.data.rows.map(r => [...r])
-    };
+    node.output = DWB.passthroughCopy(stash.data);
     DWB.log(`Restored stash: ${node.config.stashName} (${node.output.rows.length} rows)`);
   }
 });

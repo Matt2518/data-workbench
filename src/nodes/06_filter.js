@@ -121,7 +121,9 @@ DWB.register('FILTER', {
       }
     });
 
-    node.output = { headers: [...inputData.headers], rows: filtered };
+    const out = DWB.passthroughCopy(inputData);
+    out.rows = filtered;
+    node.output = out;
     DWB.log(`Filter: kept ${filtered.length} of ${total} rows`);
   }
 });

@@ -119,7 +119,11 @@ DWB.register('ADD_COL', {
       return [...r, val];
     });
 
-    node.output = { headers: [...inputData.headers, name], rows: newRows };
+    const out = DWB.passthroughCopy(inputData);
+    out.headers = [...inputData.headers, name];
+    out.rows = newRows;
+    if (inputData.columnTypes) out.columnTypes = [...inputData.columnTypes, 'text'];
+    node.output = out;
     DWB.log(`Added column: ${name}`);
   }
 });

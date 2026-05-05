@@ -45,8 +45,7 @@ DWB.register('STASH_SAVE', {
 
     const input = document.getElementById(`stsh-name-${node.id}`);
     input.addEventListener('input', () => {
-      node.config.stashName = input.value.trim();
-      DWB.renderActiveNode();
+      DWB.updateConfig(node.id, 'stashName', input.value.trim());
     });
 
     document.getElementById(`stsh-run-${node.id}`).addEventListener('click', () => {
@@ -60,7 +59,7 @@ DWB.register('STASH_SAVE', {
     if (!inputData) throw new Error('No data to stash.');
     if (!node.config.stashName) throw new Error('Stash name is required.');
     DWB.setStash(node.config.stashName, inputData, node.id);
-    node.output = { headers: [...inputData.headers], rows: inputData.rows.map(r => [...r]) };
+    node.output = DWB.passthroughCopy(inputData);
     DWB.log(`Stashed as: ${node.config.stashName} (${inputData.rows.length} rows)`);
   }
 });

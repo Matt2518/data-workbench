@@ -71,10 +71,20 @@ DWB.register('DROP_COLS', {
     }
 
     const keepIndices = inputData.headers.map((_, i) => i).filter(i => !dropIndices.includes(i));
-    node.output = {
+    const out = {
       headers: keepIndices.map(i => inputData.headers[i]),
       rows:    inputData.rows.map(r => keepIndices.map(i => r[i]))
     };
+    if (inputData.columnTypes) {
+      out.columnTypes = keepIndices.map(i => inputData.columnTypes[i] || 'text');
+    }
+    if (inputData.columnTypeMeta) {
+      out.columnTypeMeta = {};
+      keepIndices.forEach((origIdx, newIdx) => {
+        if (inputData.columnTypeMeta[origIdx]) out.columnTypeMeta[newIdx] = inputData.columnTypeMeta[origIdx];
+      });
+    }
+    node.output = out;
 
     DWB.log(`Dropped ${dropIndices.length} columns, ${keepIndices.length} remaining`);
   }

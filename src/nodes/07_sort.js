@@ -109,7 +109,9 @@ DWB.register('SORT', {
       `${inputData.headers[s.colIndex] || s.colIndex} ${s.direction}`
     ).join(', ');
 
-    node.output = { headers: [...inputData.headers], rows };
+    const out = DWB.passthroughCopy(inputData);
+    out.rows = rows;
+    node.output = out;
     DWB.log(`Sorted by ${desc}`);
   }
 });

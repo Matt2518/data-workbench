@@ -72,6 +72,6 @@ DWB.register('EXPORT_CSV', {
 
   execute(node, inputData) {
     if (!inputData) throw new Error('No data to export.');
-    node.output = { headers: [...inputData.headers], rows: inputData.rows.map(r => [...r]) };
+    node.output = DWB.passthroughCopy(inputData);
   }
 });
