@@ -2,6 +2,12 @@
 
 *Releases are tagged and committed here.*
 
+## \[v0.5] — 2026-05-06
+
+*Release notes: Workflow persistence (.dwbflow save/load), splash screen, workflow manager, auto-save every 30s, dirty tracking, inline workflow name editing. Bug fix: template literal compiler bug causing source code display.*
+
+* Build: 208.7 KB, 18 plugin(s)
+
 ## \[v0.4] — 2026-05-06
 
 *Release notes: visual polish pass, BAR\_H, BAR\_V, PIE, KPI\_STAT added.*
