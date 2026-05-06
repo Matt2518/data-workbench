@@ -1133,13 +1133,156 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+    /* === WORKFLOW NAME FIELD === */
+    .workflow-name-field {
+      display: inline-block;
+      min-width: 120px;
+      max-width: 300px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: text;
+      transition: border-color 0.15s;
+      white-space: nowrap;
+      overflow: hidden;
+      outline: none;
+      vertical-align: middle;
+    }
+    .workflow-name-field:focus { border-color: rgba(255,255,255,0.4); }
+    .workflow-name-field:empty::before {
+      content: attr(placeholder);
+      color: rgba(255,255,255,0.4);
+    }
+    .dirty-dot {
+      color: var(--accent-gold);
+      font-size: 10px;
+      margin-left: 2px;
+      vertical-align: middle;
+    }
+    .app-title-sep {
+      color: rgba(255,255,255,0.28);
+      margin: 0 5px;
+      font-size: 15px;
+      vertical-align: middle;
+    }
+
+    /* === SPLASH === */
+    @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+    .splash-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .splash-card {
+      background: var(--bg-surface);
+      border-radius: 16px;
+      padding: 36px 40px 32px;
+      width: 480px; max-width: 90vw; max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.45);
+    }
+    .splash-header { text-align: center; margin-bottom: 24px; }
+    .splash-anchor { font-size: 44px; display: block; }
+    .splash-title {
+      font-size: 26px; font-weight: 800;
+      color: var(--navy-midnight); margin: 6px 0 3px;
+    }
+    [data-theme="dark"] .splash-title { color: var(--text-main); }
+    .splash-version { font-size: 12px; color: var(--text-faint); }
+
+    .splash-resume { margin-bottom: 18px; }
+    .splash-resume-btn {
+      width: 100%; padding: 13px 18px;
+      background: linear-gradient(135deg, var(--navy-midnight), var(--navy-sailor));
+      color: #fff; border-radius: 10px; border: none;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: opacity 0.15s; text-align: left;
+    }
+    .splash-resume-btn:hover { opacity: 0.88; }
+    .splash-resume-time { font-size: 11px; opacity: 0.7; display: block; margin-top: 2px; }
+
+    .splash-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+    .splash-btn {
+      padding: 15px 12px; border-radius: 10px;
+      border: 2px solid var(--border); cursor: pointer;
+      text-align: center; font-weight: 600; font-size: 14px;
+      display: flex; flex-direction: column; gap: 4px; align-items: center;
+      transition: all 0.15s;
+    }
+    .splash-btn small { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+    .splash-btn-primary {
+      background: var(--navy-sailor); color: #fff; border-color: var(--navy-sailor);
+    }
+    .splash-btn-primary:hover { background: var(--navy-midnight); border-color: var(--navy-midnight); }
+    .splash-btn-secondary { background: var(--bg-surface); color: var(--text-main); }
+    .splash-btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .splash-btn-secondary small { color: var(--text-muted); }
+
+    .splash-divider {
+      text-align: center; color: var(--text-faint); font-size: 12px;
+      margin: 2px 0 14px; position: relative;
+    }
+    .splash-divider::before, .splash-divider::after {
+      content: ''; position: absolute; top: 50%;
+      width: 26%; height: 1px; background: var(--border);
+    }
+    .splash-divider::before { left: 0; }
+    .splash-divider::after  { right: 0; }
+
+    .splash-quickstart { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+    .splash-qs-btn {
+      padding: 13px 12px; border-radius: 10px; border: 1px solid var(--border);
+      cursor: pointer; background: var(--bg-raised); text-align: center;
+      font-size: 13px; font-weight: 600;
+      display: flex; flex-direction: column; gap: 4px; align-items: center;
+      transition: all 0.15s;
+    }
+    .splash-qs-btn small { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+    .splash-qs-btn:hover { border-color: var(--accent); background: var(--accent-light); }
+
+    .splash-recent { border-top: 1px solid var(--border); padding-top: 14px; margin-bottom: 14px; }
+    .splash-recent-header {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+    }
+    .splash-recent-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 6px; border-radius: 6px; cursor: pointer;
+    }
+    .splash-recent-item:hover { background: var(--bg-raised); }
+
+    .splash-footer { text-align: center; }
+    .splash-tutorial-link {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 12px; cursor: pointer; text-decoration: underline dotted;
+    }
+    .splash-tutorial-link:hover { color: var(--accent); }
+
+    /* === WORKFLOW MANAGER === */
+    .wf-manager-section-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+    }
   </style>
 </head>
 <body>
 
 <!-- TOP BAR -->
 <div id="top-bar">
-  <span class="app-title">⚓ Data Workbench</span>
+  <span id="app-title" class="app-title">⚓ Data Workbench</span>
+  <span class="app-title-sep">/</span>
+  <span id="workflow-name"
+    contenteditable="true"
+    spellcheck="false"
+    class="workflow-name-field"
+    placeholder="Untitled Workflow">Untitled Workflow</span>
+  <span id="workflow-dirty-dot" class="dirty-dot" style="display:none">●</span>
 
   <div class="mode-toggle">
     <button class="mode-btn active" id="btn-pm" onclick="DWB.setMode('pipeline')">⚙ Pipeline</button>
@@ -1149,12 +1292,9 @@
   <div id="active-dataset-indicator">No active dataset</div>
   <div class="flex-spacer"></div>
 
-  <button class="tb-btn" onclick="DWB.saveWorkflow()">💾 Save</button>
-  <button class="tb-btn" onclick="DWB.showLoadModal()">📂 Load</button>
-  <button class="tb-btn" onclick="DWB.exportWorkflow()">⬇ Export</button>
-  <label  class="tb-btn" style="cursor:pointer">⬆ Import
-    <input type="file" accept=".json" style="display:none" onchange="DWB._importWorkflowFile(this)">
-  </label>
+  <button class="tb-btn" onclick="DWB.workflow.saveToFile()">💾 Save</button>
+  <button class="tb-btn" onclick="DWB.workflow.showManager()">📂 Open</button>
+  <button class="tb-btn" onclick="DWB.workflow.newWorkflow(true)">+ New</button>
 
   <button class="tb-btn" id="theme-toggle" onclick="DWB.toggleTheme()">🌙</button>
 </div>
@@ -1291,20 +1431,15 @@
 </div>
 
 <!-- ============================================================
-     WORKFLOW MODAL
+     WORKFLOW MANAGER MODAL
      ============================================================ -->
-<div id="wf-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.closeWfModal()">
-  <div id="wf-modal" class="modal">
+<div id="wf-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.workflow.closeManager()">
+  <div id="wf-modal" class="modal" style="width:460px;max-height:78vh">
     <div class="modal-header">
-      Load Workflow
-      <button class="modal-close" onclick="DWB.closeWfModal()">✕</button>
+      📂 Workflows
+      <button class="modal-close" onclick="DWB.workflow.closeManager()">✕</button>
     </div>
-    <div id="wf-modal-body">
-      <div class="wf-list" id="wf-list"></div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="DWB.closeWfModal()">Close</button>
-      </div>
-    </div>
+    <div id="wf-modal-body" style="padding:16px;overflow-y:auto;flex:1"></div>
   </div>
 </div>
 
@@ -1355,6 +1490,64 @@
       <button class="modal-close" onclick="DWB.viz&&DWB.viz.closeElementPicker()">✕</button>
     </div>
     <div id="element-picker-list" style="overflow-y:auto;flex:1;padding:8px"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SPLASH OVERLAY
+     ============================================================ -->
+<div id="splash-overlay" class="splash-overlay" style="display:none">
+  <div class="splash-card">
+
+    <div class="splash-header">
+      <span class="splash-anchor">⚓</span>
+      <h1 class="splash-title">Data Workbench</h1>
+      <span class="splash-version">v0.4</span>
+    </div>
+
+    <div id="splash-resume" class="splash-resume" style="display:none">
+      <button id="splash-resume-btn" class="splash-resume-btn">
+        ▶ Resume: <span id="splash-resume-name">Untitled</span>
+        <span id="splash-resume-time" class="splash-resume-time"></span>
+      </button>
+    </div>
+
+    <div class="splash-actions">
+      <button class="splash-btn splash-btn-primary" id="splash-open">
+        📂 Open Workflow
+        <small>.dwbflow file</small>
+      </button>
+      <button class="splash-btn splash-btn-secondary" id="splash-new">
+        + New Workflow
+        <small>Start fresh</small>
+      </button>
+    </div>
+
+    <div class="splash-divider">— or start fresh with —</div>
+
+    <div class="splash-quickstart">
+      <button class="splash-qs-btn" id="splash-pipeline">
+        ⚙️ Pipeline Task
+        <small>Clean, join, reformat CSVs</small>
+      </button>
+      <button class="splash-qs-btn" id="splash-explore">
+        📊 Explore Data
+        <small>Load CSV, build charts</small>
+      </button>
+    </div>
+
+    <div id="splash-recent" class="splash-recent">
+      <div class="splash-recent-header">Recent</div>
+      <div id="splash-recent-list"></div>
+    </div>
+
+    <div class="splash-footer">
+      <button class="splash-tutorial-link"
+        onclick="DWB.splash.dismiss();DWB.log('Tutorial coming soon')">
+        🎓 New here? Start with the guided tutorial
+      </button>
+    </div>
+
   </div>
 </div>
 
@@ -1443,6 +1636,7 @@ window.DWB = (() => {
     stashes[name] = { name, data, timestamp: new Date(), nodeId: nodeId || null };
     _renderStashes();
     log(`Stashed "${name}" — ${data.rows.length} rows`);
+    workflow.markDirty();
   }
 
   function listStashes() { return Object.keys(stashes); }
@@ -1664,6 +1858,7 @@ window.DWB = (() => {
     renderTrack();
     selectNode(node.id);
     log(`Added: ${_typeDefs[type]?.title || type}`);
+    workflow.markDirty();
   }
 
   function selectNode(id) {
@@ -1711,6 +1906,7 @@ window.DWB = (() => {
     const active = pipeline.nodes.find(n => n.id === pipeline.activeNodeId);
     const target = (active?.output ? active : pipeline.nodes[pipeline.nodes.length - 1]);
     if (target?.output) renderDataInspector(target.output);
+    workflow.markDirty();
   }
 
   // ---- Split divider ----
@@ -1879,6 +2075,7 @@ window.DWB = (() => {
     }
 
     log(`Deleted: ${node.customName || def.title}`);
+    workflow.markDirty();
   }
 
   // ---- Quick View ----
@@ -2025,6 +2222,7 @@ window.DWB = (() => {
       renderTrack();
       promoteToActive(label, data);
       if (vizState.onDatasetPromoted) vizState.onDatasetPromoted(label);
+      workflow.markDirty();
     };
     reader.readAsText(file);
   }
@@ -2113,15 +2311,446 @@ window.DWB = (() => {
     reader.readAsText(f);
   }
 
+  // ---- Active Dataset reset ----
+  function _resetActiveDataset() {
+    activeDataset = null;
+    const ind = document.getElementById('active-dataset-indicator');
+    if (ind) { ind.textContent = 'No active dataset'; ind.classList.remove('has-data'); }
+  }
+
+  // ---- Time helper ----
+  function _timeAgo(ts) {
+    const diff = Date.now() - ts;
+    const min = Math.floor(diff / 60000);
+    const hr  = Math.floor(diff / 3600000);
+    const day = Math.floor(diff / 86400000);
+    if (min < 1)  return 'just now';
+    if (min < 60) return min + ' min' + (min === 1 ? '' : 's') + ' ago';
+    if (hr  < 24) return hr  + ' hr'  + (hr  === 1 ? '' : 's') + ' ago';
+    return day + ' day' + (day === 1 ? '' : 's') + ' ago';
+  }
+
+  // ================================================================
+  //  WORKFLOW STATE  (Parts 1–3)
+  // ================================================================
+  const workflow = {
+    name: 'Untitled Workflow',
+    tags: [],
+    notes: '',
+    created: null,
+    modified: null,
+    lastSavedToFile: null,
+    isDirty: false
+  };
+
+  workflow.markDirty = function () {
+    workflow.isDirty = true;
+    workflow.modified = Date.now();
+    const dot = document.getElementById('workflow-dirty-dot');
+    if (dot) dot.style.display = '';
+  };
+
+  workflow.markClean = function () {
+    workflow.isDirty = false;
+    workflow.lastSavedToFile = Date.now();
+    const dot = document.getElementById('workflow-dirty-dot');
+    if (dot) dot.style.display = 'none';
+  };
+
+  function _stripFileData(config) {
+    const copy = Object.assign({}, config);
+    delete copy.fileData;
+    return copy;
+  }
+
+  function _serializeBlocks() {
+    return (vizState.blocks || []).map(block => ({
+      id: block.id, layout: block.layout, colRatios: block.colRatios,
+      slots: (block.slots || []).map(slot => ({
+        id: slot.id,
+        elements: (slot.elements || []).map(el => {
+          const c = Object.assign({}, el);
+          delete c._instance;
+          delete c._resizeObserver;
+          return c;
+        })
+      }))
+    }));
+  }
+
+  workflow.serialize = function () {
+    const splitRatio = parseFloat(localStorage.getItem('dwb_split_ratio') || '0.35');
+    return {
+      version: '2.0',
+      appVersion: (window.DWB_CONFIG && window.DWB_CONFIG.version) || '0.4',
+      name: workflow.name,
+      tags: workflow.tags,
+      notes: workflow.notes,
+      created: workflow.created,
+      modified: workflow.modified,
+      appState: {
+        activeMode: _mode,
+        splitRatio,
+        activeNodeId: pipeline.activeNodeId || null,
+        workflowName: workflow.name
+      },
+      pipeline: {
+        nodes: pipeline.nodes.map(n => ({
+          id: n.id, type: n.type,
+          customName: n.customName || '',
+          isStarred: n.isStarred || false,
+          config: _stripFileData(n.config)
+        })),
+        stashNames: Object.keys(stashes)
+      },
+      viz: {
+        blocks: _serializeBlocks(),
+        headerElements: vizState.headerElements || [],
+        activeDatasetName: vizState.activeDatasetName || null
+      }
+    };
+  };
+
+  workflow.deserialize = function (obj) {
+    workflow.name    = obj.name || 'Untitled Workflow';
+    workflow.tags    = obj.tags || [];
+    workflow.notes   = obj.notes || '';
+    workflow.created = obj.created || null;
+    workflow.modified = obj.modified || null;
+
+    pipeline.nodes = ((obj.pipeline && obj.pipeline.nodes) || []).map(n => ({
+      id: n.id, type: n.type,
+      customName: n.customName || '',
+      isStarred: n.isStarred || false,
+      status: 'pending',
+      config: n.config || {},
+      output: null, errorMsg: null
+    }));
+
+    vizState.blocks = ((obj.viz && obj.viz.blocks) || []).map(block => ({
+      id: block.id, layout: block.layout, colRatios: block.colRatios,
+      slots: (block.slots || []).map(slot => ({
+        id: slot.id,
+        elements: (slot.elements || []).map(el => Object.assign({}, el, { _instance: null }))
+      }))
+    }));
+    vizState.headerElements    = (obj.viz && obj.viz.headerElements) || [];
+    vizState.activeDatasetName = (obj.viz && obj.viz.activeDatasetName) || null;
+
+    const appState = obj.appState || {};
+    if (appState.splitRatio) localStorage.setItem('dwb_split_ratio', appState.splitRatio);
+    pipeline.activeNodeId = appState.activeNodeId || null;
+
+    const wfEl = document.getElementById('workflow-name');
+    if (wfEl) wfEl.textContent = workflow.name;
+
+    setMode(appState.activeMode || 'pipeline');
+    renderTrack();
+    renderActiveNode();
+    if (vizState.renderCanvas) vizState.renderCanvas();
+
+    if (pipeline.nodes.length > 0) {
+      try { runFrom(pipeline.nodes[0].id); }
+      catch (e) { log('Auto-run error: ' + e.message, 'warn'); }
+    }
+
+    workflow.markClean();
+  };
+
+  workflow.saveToFile = function () {
+    const serialized = workflow.serialize();
+    const filename = (workflow.name || 'workflow').replace(/[^a-z0-9]/gi, '_') + '.dwbflow';
+    const blob = new Blob([JSON.stringify(serialized, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    workflow.addToRecent(workflow.name, Date.now());
+    workflow.markClean();
+    log('Workflow saved: ' + filename, 'success');
+  };
+
+  workflow.loadFromFile = function (onSuccess) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.dwbflow,.json';
+    input.onchange = function () {
+      const f = this.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const obj = JSON.parse(e.target.result);
+          if (!obj.version) throw new Error('Not a valid .dwbflow file');
+          workflow.deserialize(obj);
+          workflow.addToRecent(obj.name || 'Untitled', Date.now());
+          log('Workflow loaded: ' + (obj.name || 'Untitled'), 'success');
+          if (typeof onSuccess === 'function') onSuccess();
+        } catch (err) {
+          log('Load failed: ' + err.message, 'error');
+        }
+      };
+      reader.readAsText(f);
+    };
+    input.click();
+  };
+
+  workflow.autoSave = function () {
+    try {
+      localStorage.setItem('dwb_autosave', JSON.stringify({
+        timestamp: Date.now(),
+        workflow: workflow.serialize()
+      }));
+    } catch (e) { /* ignore */ }
+  };
+
+  workflow.loadAutoSave = function () {
+    try { return JSON.parse(localStorage.getItem('dwb_autosave') || 'null'); }
+    catch (e) { return null; }
+  };
+
+  workflow.clearAutoSave = function () {
+    localStorage.removeItem('dwb_autosave');
+  };
+
+  workflow.newWorkflow = function (confirmIfDirty) {
+    if (confirmIfDirty && workflow.isDirty) {
+      if (!confirm('Start a new workflow? Unsaved changes will be lost.')) return;
+    }
+    pipeline.nodes = [];
+    pipeline.activeNodeId = null;
+    vizState.blocks = [];
+    vizState.headerElements = [];
+    vizState.activeDatasetName = null;
+    vizState.activeElementId = null;
+    vizState.filters = [];
+    Object.keys(stashes).forEach(k => delete stashes[k]);
+    Object.keys(promotedDatasets).forEach(k => delete promotedDatasets[k]);
+    _resetActiveDataset();
+    workflow.name = 'Untitled Workflow';
+    workflow.tags = [];
+    workflow.notes = '';
+    workflow.created = Date.now();
+    workflow.modified = null;
+    workflow.lastSavedToFile = null;
+    workflow.isDirty = false;
+    const wfEl = document.getElementById('workflow-name');
+    if (wfEl) wfEl.textContent = 'Untitled Workflow';
+    const dot = document.getElementById('workflow-dirty-dot');
+    if (dot) dot.style.display = 'none';
+    renderTrack();
+    renderActiveNode();
+    renderDataInspector(null);
+    _renderStashes();
+    if (vizState.renderCanvas) vizState.renderCanvas();
+    if (vizState.renderSidebar) vizState.renderSidebar(null);
+    setMode('pipeline');
+    log('New workflow started');
+  };
+
+  workflow.addToRecent = function (name, timestamp) {
+    try {
+      let recent = JSON.parse(localStorage.getItem('dwb_recent') || '[]');
+      recent = recent.filter(r => r.name !== name);
+      recent.unshift({ name, timestamp });
+      if (recent.length > 10) recent = recent.slice(0, 10);
+      localStorage.setItem('dwb_recent', JSON.stringify(recent));
+    } catch (e) { /* ignore */ }
+  };
+
+  workflow.getRecent = function () {
+    try { return JSON.parse(localStorage.getItem('dwb_recent') || '[]'); }
+    catch (e) { return []; }
+  };
+
+  workflow.showManager = function () {
+    workflow._renderManager('');
+    document.getElementById('wf-overlay').classList.remove('hidden');
+  };
+
+  workflow.closeManager = function () {
+    document.getElementById('wf-overlay').classList.add('hidden');
+  };
+
+  workflow._filterRecent = function (q) {
+    const listEl = document.getElementById('wf-recent-list');
+    if (!listEl) return;
+    const recent = workflow.getRecent();
+    const filtered = q
+      ? recent.filter(r => r.name.toLowerCase().includes(q.toLowerCase()))
+      : recent;
+    listEl.innerHTML = filtered.length
+      ? filtered.map(r => `
+          <div class="wf-item">
+            <span style="font-size:14px">📋</span>
+            <span class="wf-item-name">${r.name.replace(/</g,'&lt;')}</span>
+            <span class="wf-item-date">${_timeAgo(r.timestamp)}</span>
+            <button class="wf-item-del" title="Can't open directly — browsers don't store file paths"
+              onclick="DWB.workflow._recentClick(${JSON.stringify(r.name)})">→</button>
+          </div>`).join('')
+      : '<div class="wf-item" style="color:var(--text-faint);justify-content:center">No recent workflows</div>';
+  };
+
+  workflow._renderManager = function (filter) {
+    const body = document.getElementById('wf-modal-body');
+    if (!body) return;
+    const templates = [
+      { name: 'Blank',        icon: '📋', desc: 'Empty workflow' },
+      { name: 'CSV Reformat', icon: '📋', desc: 'INGEST → clean → EXPORT' },
+      { name: 'Join Workflow',icon: '🔗', desc: 'Two CSVs joined' },
+      { name: 'Survey Brief', icon: '📊', desc: 'INGEST → SET_TYPES → PUSH_TO_VIZ' }
+    ];
+    const tmplHtml = templates.map(t =>
+      `<div class="wf-item" style="cursor:pointer"
+          onclick="DWB.workflow._loadTemplate(${JSON.stringify(t.name)});DWB.workflow.closeManager()">
+        <span style="font-size:14px">${t.icon}</span>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:12px">${t.name}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${t.desc}</div>
+        </div>
+      </div>`).join('');
+
+    body.innerHTML = `
+      <input type="text" id="wf-manager-search" placeholder="🔍 Search recent..."
+        style="width:100%;margin-bottom:12px"
+        value="${(filter || '').replace(/"/g, '&quot;')}"
+        oninput="DWB.workflow._filterRecent(this.value)">
+      <div class="wf-manager-section-label">Recent</div>
+      <div id="wf-recent-list" class="wf-list" style="margin-bottom:12px"></div>
+      <button class="btn-primary" style="width:100%;margin-bottom:16px"
+        onclick="DWB.workflow.loadFromFile(()=>DWB.workflow.closeManager())">
+        📁 Open .dwbflow file from disk
+      </button>
+      <div class="wf-manager-section-label">Templates</div>
+      <div class="wf-list">${tmplHtml}</div>`;
+
+    workflow._filterRecent(filter || '');
+  };
+
+  workflow._recentClick = function (name) {
+    alert('To reload "' + name + '", use "Open .dwbflow file from disk" and select the file.\n\nBrowsers do not allow storing file paths for direct re-open.');
+  };
+
+  workflow._loadTemplate = function (name) {
+    workflow.newWorkflow(false);
+    workflow.name = name;
+    workflow.created = Date.now();
+    const wfEl = document.getElementById('workflow-name');
+    if (wfEl) wfEl.textContent = name;
+    log('Template loaded: ' + name, 'success');
+  };
+
+  // ================================================================
+  //  SPLASH  (Part 5)
+  // ================================================================
+  const splash = {};
+
+  splash.dismiss = function () {
+    const overlay = document.getElementById('splash-overlay');
+    if (!overlay) return;
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 0.25s ease';
+    setTimeout(() => { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 260);
+    if (!workflow.created) workflow.created = Date.now();
+  };
+
+  splash._recentClick = function (name) {
+    alert('To reload "' + name + '", use "Open Workflow" on the splash or the top bar.\n\nBrowsers do not allow storing file paths for direct re-open.');
+  };
+
+  splash.init = function () {
+    const saved = workflow.loadAutoSave();
+    const resumeEl = document.getElementById('splash-resume');
+    if (saved && saved.timestamp && (Date.now() - saved.timestamp) < 86400000) {
+      const name = (saved.workflow && saved.workflow.name) || 'Untitled';
+      if (resumeEl) {
+        resumeEl.style.display = '';
+        const nameEl = document.getElementById('splash-resume-name');
+        const timeEl = document.getElementById('splash-resume-time');
+        if (nameEl) nameEl.textContent = name;
+        if (timeEl) timeEl.textContent = _timeAgo(saved.timestamp);
+      }
+      const resumeBtn = document.getElementById('splash-resume-btn');
+      if (resumeBtn) {
+        resumeBtn.onclick = () => {
+          try { workflow.deserialize(saved.workflow); log('Session resumed', 'success'); }
+          catch (e) { log('Resume failed: ' + e.message, 'error'); }
+          splash.dismiss();
+        };
+      }
+    }
+
+    const recentList = document.getElementById('splash-recent-list');
+    if (recentList) {
+      const recent = workflow.getRecent();
+      recentList.innerHTML = recent.length
+        ? recent.map(r => `
+            <div class="splash-recent-item"
+              onclick="DWB.splash._recentClick(${JSON.stringify(r.name)})">
+              <span style="flex-shrink:0;font-size:14px">📋</span>
+              <span style="flex:1;font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name.replace(/</g,'&lt;')}</span>
+              <span style="font-size:11px;color:var(--text-faint);white-space:nowrap">${_timeAgo(r.timestamp)}</span>
+              <span style="color:var(--text-faint);margin-left:4px">→</span>
+            </div>`).join('')
+        : '<div style="font-size:12px;color:var(--text-faint);text-align:center;padding:12px">No recent workflows</div>';
+    }
+
+    const openBtn = document.getElementById('splash-open');
+    if (openBtn) openBtn.onclick = () => workflow.loadFromFile(() => splash.dismiss());
+
+    const newBtn = document.getElementById('splash-new');
+    if (newBtn) newBtn.onclick = () => { workflow.newWorkflow(false); splash.dismiss(); };
+
+    const pipelineBtn = document.getElementById('splash-pipeline');
+    if (pipelineBtn) pipelineBtn.onclick = () => {
+      workflow.newWorkflow(false);
+      setMode('pipeline');
+      addNode('INGEST', 0);
+      splash.dismiss();
+    };
+
+    const exploreBtn = document.getElementById('splash-explore');
+    if (exploreBtn) exploreBtn.onclick = () => {
+      workflow.newWorkflow(false);
+      setMode('viz');
+      splash.dismiss();
+    };
+
+    const overlay = document.getElementById('splash-overlay');
+    if (overlay) overlay.style.display = 'flex';
+  };
+
   // ---- Init ----
   function _init() {
     _applyTheme();
     _initSplitDivider();
     renderTrack();
+
+    // Wire workflow name contenteditable
+    const wfNameEl = document.getElementById('workflow-name');
+    if (wfNameEl) {
+      wfNameEl.addEventListener('blur', () => {
+        const v = wfNameEl.textContent.trim();
+        workflow.name = v || 'Untitled Workflow';
+        if (!v) wfNameEl.textContent = 'Untitled Workflow';
+        workflow.markDirty();
+      });
+      wfNameEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); wfNameEl.blur(); }
+      });
+    }
+
+    // Auto-save every 30 seconds
+    setInterval(() => {
+      if (pipeline.nodes.length > 0 || (vizState.blocks && vizState.blocks.length > 0)) {
+        workflow.autoSave();
+      }
+    }, 30000);
+
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         closePicker();
-        closeWfModal();
+        workflow.closeManager();
         if (document.documentElement.classList.contains('presentation-mode')) {
           if (vizState.togglePresentation) vizState.togglePresentation();
         }
@@ -2133,7 +2762,9 @@ window.DWB = (() => {
         }
       }
     });
+
     log('Data Workbench ready.', 'success');
+    splash.init();
   }
 
   // ---- Public API (Spec §5.3) ----
@@ -2145,6 +2776,8 @@ window.DWB = (() => {
     get activeDataset()     { return activeDataset; },
     get promotedDatasets()  { return promotedDatasets; },
     get viz()               { return vizState; },
+    get workflow()          { return workflow; },
+    get splash()            { return splash; },
     // registration
     register, registerElement, registerHeaderElement,
     // utilities

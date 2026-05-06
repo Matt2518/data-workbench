@@ -238,6 +238,7 @@
     const found = viz.findElement(elementId);
     if (!found) return;
     found.element.datasetName = datasetName || null;
+    if (DWB.workflow) DWB.workflow.markDirty();
     viz.renderSidebar(elementId);
     viz.renderElement(elementId);
   };
@@ -384,6 +385,7 @@
     const ni = idx + dir;
     if (ni < 0 || ni >= viz.blocks.length) return;
     [viz.blocks[idx], viz.blocks[ni]] = [viz.blocks[ni], viz.blocks[idx]];
+    if (DWB.workflow) DWB.workflow.markDirty();
     viz.renderCanvas();
   };
 
@@ -396,6 +398,7 @@
       viz.activeElementId = null;
       viz.renderSidebar(null);
     }
+    if (DWB.workflow) DWB.workflow.markDirty();
     viz.renderCanvas();
   };
 
@@ -409,6 +412,7 @@
     if (ni < 0 || ni >= slot.elements.length) return;
     slot.elements.splice(idx, 1);
     slot.elements.splice(ni, 0, element);
+    if (DWB.workflow) DWB.workflow.markDirty();
     viz.renderCanvas();
   };
 
@@ -420,6 +424,7 @@
     copy.id = 'element-' + viz.generateId();
     copy._instance = null;
     slot.elements.splice(slot.elements.indexOf(element) + 1, 0, copy);
+    if (DWB.workflow) DWB.workflow.markDirty();
     viz.renderCanvas();
   };
 
@@ -433,6 +438,7 @@
             viz.activeElementId = null;
             viz.renderSidebar(null);
           }
+          if (DWB.workflow) DWB.workflow.markDirty();
           viz.renderCanvas();
           return;
         }
@@ -541,6 +547,7 @@
     }
 
     viz.closeAddBlockDialog();
+    if (DWB.workflow) DWB.workflow.markDirty();
     viz.renderCanvas();
   };
 
@@ -620,6 +627,7 @@
       targetSlot.elements.push(element);
     }
 
+    if (DWB.workflow) DWB.workflow.markDirty();
     viz.renderCanvas();
     viz.selectElement(element.id);
   };
