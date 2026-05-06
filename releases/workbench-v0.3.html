@@ -597,45 +597,61 @@
     /* === VIZ MODE === */
     #viz-mode { overflow: hidden; }
 
+    /* --- Canvas animations --- */
+    @keyframes blockSlideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes chipIn {
+      from { opacity: 0; transform: scale(0.8); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* --- Viz Toolbar --- */
     #viz-toolbar {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 12px;
+      padding: 8px 16px;
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
     .viz-btn {
-      padding: 5px 12px;
+      padding: 5px 14px;
       background: var(--bg-raised);
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 5px;
       color: var(--text-main);
       font-size: 12px;
       font-weight: 500;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    .viz-btn:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+    .viz-btn:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #fff; }
     .viz-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     #viz-dataset-picker {
-      padding: 4px 8px;
+      padding: 5px 10px;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 5px;
       font-size: 12px;
       min-width: 180px;
       max-width: 300px;
+      transition: border-color 0.15s;
     }
+    #viz-dataset-picker:focus { border-color: var(--accent); }
 
+    /* --- Header Block --- */
     #viz-header-block {
       max-height: 100px;
       width: 100%;
-      background: var(--navy-midnight);
+      background: linear-gradient(135deg, var(--navy-midnight) 0%, #003366 100%);
+      border-bottom: 2px solid var(--navy-gold);
       flex-shrink: 0;
       display: flex;
       flex-direction: row;
       align-items: center;
-      padding: 0 16px;
+      padding: 12px 20px;
       gap: 12px;
       overflow: hidden;
     }
@@ -645,30 +661,38 @@
       font-style: italic;
     }
 
+    /* --- Filter Bar --- */
     #viz-filter-bar {
       display: flex;
       align-items: center;
       gap: 4px;
-      padding: 4px 12px;
-      background: var(--bg-raised);
-      border-bottom: 1px solid var(--border);
+      padding: 6px 16px;
+      background: var(--accent-light);
+      border-bottom: 1px solid rgba(0,94,184,0.2);
       flex-shrink: 0;
       flex-wrap: wrap;
-      min-height: 32px;
+      min-height: 34px;
     }
     #viz-filter-bar.hidden { display: none; }
+    .viz-filter-label {
+      font-size: 11px; font-weight: 700; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-right: 4px; white-space: nowrap; flex-shrink: 0;
+    }
     .viz-clear-filters {
       margin-left: auto;
-      padding: 2px 8px;
+      padding: 2px 10px;
       background: transparent;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(0,94,184,0.3);
       border-radius: 3px;
       font-size: 11px;
-      color: var(--text-muted);
+      color: var(--accent);
       cursor: pointer;
+      white-space: nowrap;
     }
-    .viz-clear-filters:hover { color: var(--danger); border-color: var(--danger); }
+    .viz-clear-filters:hover { background: rgba(220,38,38,0.08); color: var(--danger); border-color: var(--danger); }
 
+    /* --- Main Layout --- */
     #viz-main {
       flex: 1;
       display: flex;
@@ -683,135 +707,155 @@
       flex-shrink: 0;
     }
     .sidebar-empty-msg {
-      padding: 24px 16px;
+      padding: 32px 16px;
       color: var(--text-faint);
       font-size: 12px;
       text-align: center;
+      line-height: 1.6;
     }
     .sidebar-section { padding: 12px; border-bottom: 1px solid var(--border); }
     .sidebar-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: block; }
     .sidebar-input { width: 100%; margin-bottom: 8px; }
     .sidebar-apply-btn {
-      width: 100%;
-      padding: 6px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
+      width: 100%; padding: 7px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;
     }
     .sidebar-apply-btn:hover { opacity: 0.88; }
     .sidebar-checkbox-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
     .sidebar-checkbox-item { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
 
+    /* Chart config groups (BAR_H, BAR_V, etc.) */
+    .dwb-config-group {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+    }
+    .dwb-config-group label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    .dwb-config-group select,
+    .dwb-config-group input[type="number"],
+    .dwb-config-group input[type="text"] { width: 100%; margin-top: 2px; }
+    .dwb-config-group small { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+    .dwb-config-inline { flex-direction: row; align-items: center; border-bottom: none; padding: 6px 12px; }
+    .dwb-config-inline label { display: flex; align-items: center; gap: 6px; font-weight: normal; color: var(--text-main); font-size: 12px; }
+    .dwb-btn-apply {
+      display: block; width: calc(100% - 24px); margin: 12px auto;
+      padding: 7px; background: var(--accent); color: #fff;
+      border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .dwb-btn-apply:hover { opacity: 0.88; }
+
     #viz-canvas {
-      flex: 1;
-      overflow: auto;
-      background: var(--bg-main);
-      padding: 24px;
+      flex: 1; overflow: auto; background: var(--bg-main); padding: 24px;
     }
 
-    /* === VIZ CANVAS BLOCKS & ELEMENTS === */
+    /* === VIZ CANVAS BLOCKS === */
     .dwb-block {
       background: var(--bg-surface);
       border: 1px solid var(--border);
+      border-left: 3px solid var(--navy-gold);
       border-radius: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
       overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: box-shadow 0.2s ease;
+      animation: blockSlideIn 0.2s ease;
     }
+    .dwb-block:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+
     .dwb-block-header {
       display: flex;
       align-items: center;
-      padding: 5px 10px;
-      background: var(--bg-raised);
-      border-bottom: 1px solid var(--border);
-      gap: 6px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, var(--navy-midnight) 0%, var(--navy-sailor) 100%);
+      border-bottom: none;
+      gap: 8px;
     }
-    .dwb-block-handle { color: var(--text-faint); cursor: grab; font-size: 14px; user-select: none; }
-    .dwb-block-label { font-size: 11px; color: var(--text-muted); flex: 1; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .dwb-block-handle { color: rgba(255,255,255,0.45); cursor: grab; font-size: 14px; user-select: none; }
+    .dwb-block-label {
+      font-size: 13px; color: #fff; flex: 1;
+      font-weight: 600; letter-spacing: 0.02em;
+    }
     .dwb-block-menu-btn {
-      padding: 2px 6px; background: transparent; border: none;
-      color: var(--text-faint); cursor: pointer; font-size: 16px; border-radius: 3px; line-height: 1;
+      padding: 3px 8px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.85); cursor: pointer; font-size: 15px; border-radius: 4px; line-height: 1;
     }
-    .dwb-block-menu-btn:hover { background: var(--border); color: var(--text-main); }
+    .dwb-block-menu-btn:hover { background: rgba(255,255,255,0.22); color: #fff; }
 
-    .dwb-block-slots { display: flex; gap: 0; }
+    .dwb-block-slots { display: flex; gap: 0; position: relative; }
 
     .dwb-slot {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding: 12px;
-      border-right: 1px solid var(--border);
-      min-height: 80px;
-      box-sizing: border-box;
+      display: flex; flex-direction: column; gap: 12px; padding: 16px;
+      border-right: 1px solid var(--border); min-height: 100px; box-sizing: border-box;
     }
     .dwb-slot:last-child { border-right: none; }
 
+    /* === ELEMENT CARDS === */
     .dwb-element-card {
-      background: var(--bg-raised);
-      border: 2px solid transparent;
-      border-radius: 6px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
       overflow: hidden;
       cursor: pointer;
-      transition: border-color 0.15s;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s;
     }
-    .dwb-element-card:hover { border-color: var(--border-strong); }
-    .dwb-element-card.selected { border-color: var(--accent); }
+    .dwb-element-card:hover:not(.selected) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-color: var(--border-strong);
+    }
+    .dwb-element-card.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,94,184,0.15);
+    }
 
     .dwb-element-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 10px;
-      background: var(--bg-surface);
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-raised);
       border-bottom: 1px solid var(--border);
     }
     .dwb-element-title-input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-main);
-      padding: 0;
-      outline: none;
-      min-width: 0;
+      flex: 1; background: transparent; border: none;
+      font-size: 13px; font-weight: 600; color: var(--text-main);
+      padding: 0; outline: none; min-width: 0;
     }
-    .dwb-element-title-input:focus { background: var(--bg-raised); border-radius: 3px; padding: 0 4px; }
+    .dwb-element-title-input:focus { background: var(--bg-surface); border-radius: 3px; padding: 0 4px; }
     .dwb-element-type-badge {
-      font-size: 10px; color: var(--text-faint); background: var(--bg-main);
-      border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0;
+      font-size: 10px; color: var(--text-muted); background: var(--bg-main);
+      font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      border-radius: 3px; padding: 2px 6px; white-space: nowrap; flex-shrink: 0;
     }
     .dwb-element-menu-btn {
-      padding: 2px 5px; background: transparent; border: none;
+      padding: 3px 6px; background: transparent; border: none;
       color: var(--text-faint); cursor: pointer; font-size: 14px; border-radius: 3px; flex-shrink: 0; line-height: 1;
     }
-    .dwb-element-menu-btn:hover { background: var(--border); }
+    .dwb-element-menu-btn:hover { background: var(--border); color: var(--text-main); }
 
-    .dwb-element-content { padding: 12px; min-height: 120px; }
+    .dwb-element-content { padding: 16px; min-height: 160px; }
 
     .dwb-add-element-btn {
-      display: block; width: 100%; padding: 6px; text-align: center;
-      color: var(--text-faint); border: 1px dashed var(--border); border-radius: 4px;
-      cursor: pointer; font-size: 12px; background: none;
+      display: block; width: 100%; padding: 8px; text-align: center;
+      color: var(--text-faint); border: 1px dashed var(--border); border-radius: 6px;
+      cursor: pointer; font-size: 12px; background: none; transition: all 0.15s;
     }
-    .dwb-add-element-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .dwb-add-element-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
 
-    .dwb-add-block-row { text-align: center; margin: 8px 0; }
+    .dwb-add-block-row { text-align: center; margin: 4px 0 16px; }
     .dwb-add-block-btn {
-      padding: 6px 20px; background: transparent;
+      padding: 6px 24px; background: transparent;
       border: 1px dashed var(--border-strong); border-radius: 6px;
-      color: var(--text-faint); font-size: 12px; cursor: pointer;
+      color: var(--text-faint); font-size: 12px; cursor: pointer; transition: all 0.15s;
     }
     .dwb-add-block-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 
+    /* === FILTER CHIPS === */
     .dwb-filter-chip {
       display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 8px; background: var(--accent-light); color: var(--accent);
+      padding: 3px 10px;
+      background: #fff; color: var(--accent);
+      border: 1px solid rgba(0,94,184,0.3);
       border-radius: 12px; font-size: 12px; font-weight: 500; margin: 2px;
+      animation: chipIn 0.15s ease;
     }
     .dwb-filter-chip-remove {
       cursor: pointer; opacity: 0.6; font-weight: bold;
@@ -819,6 +863,7 @@
     }
     .dwb-filter-chip-remove:hover { opacity: 1; }
 
+    /* === DATA TABLE === */
     .dwb-data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .dwb-data-table th {
       position: sticky; top: 0; background: var(--bg-raised);
@@ -837,12 +882,28 @@
     mark { background: var(--accent-gold); color: var(--navy-midnight); border-radius: 2px; padding: 0 1px; }
 
     .dwb-empty-state {
-      display: flex; align-items: center; justify-content: center;
-      min-height: 120px; color: var(--text-faint); font-size: 14px;
-      text-align: center; padding: 24px;
+      display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+      min-height: 160px; color: var(--text-faint); font-size: 13px; text-align: center; padding: 24px;
     }
 
-    /* Context menus */
+    /* KPI Stat element */
+    .dwb-kpi-stat {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; min-height: 120px; padding: 16px; gap: 6px; text-align: center;
+    }
+    .dwb-kpi-value {
+      font-size: 48px; font-weight: 700; color: var(--accent);
+      letter-spacing: -0.02em; line-height: 1;
+    }
+    .dwb-kpi-label {
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .dwb-kpi-rows {
+      font-size: 11px; color: var(--text-faint);
+    }
+
+    /* === CONTEXT MENUS === */
     .dwb-ctx-menu {
       position: fixed; background: var(--bg-surface); border: 1px solid var(--border-strong);
       border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);
@@ -855,46 +916,89 @@
     .dwb-ctx-item:hover { background: var(--bg-raised); }
     .dwb-ctx-item.danger { color: var(--danger); }
 
-    /* Add block dialog buttons */
+    /* === ADD BLOCK DIALOG === */
     .layout-opt-btn {
-      flex: 1; padding: 10px 8px; background: var(--bg-raised);
-      border: 2px solid var(--border); border-radius: 6px;
-      font-size: 12px; font-weight: 500; color: var(--text-main);
+      flex: 1; padding: 12px 6px; background: var(--bg-raised);
+      border: 2px solid var(--border); border-radius: 8px;
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
       text-align: center; cursor: pointer; transition: all 0.15s;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
     }
     .layout-opt-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
     .layout-opt-btn.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+    .layout-diagram { display: flex; gap: 2px; width: 56px; height: 22px; }
+    .layout-diagram .ld-col { background: var(--border-strong); border-radius: 2px; height: 100%; }
+    .layout-opt-btn.selected .ld-col,
+    .layout-opt-btn:hover .ld-col { background: var(--accent); }
+
     .ratio-opt-btn {
-      padding: 5px 10px; background: var(--bg-raised); border: 2px solid var(--border);
-      border-radius: 4px; font-size: 11px; font-weight: 500; color: var(--text-muted); cursor: pointer;
+      padding: 6px 10px; background: var(--bg-raised); border: 2px solid var(--border);
+      border-radius: 5px; font-size: 11px; font-weight: 500; color: var(--text-muted); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.15s;
     }
     .ratio-opt-btn:hover { border-color: var(--accent); color: var(--accent); }
     .ratio-opt-btn.selected { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+    .ratio-diagram { display: flex; gap: 1px; width: 50px; height: 14px; }
+    .ratio-diagram .rd-col { background: var(--border-strong); border-radius: 1px; height: 100%; }
+    .ratio-opt-btn.selected .rd-col,
+    .ratio-opt-btn:hover .rd-col { background: var(--accent); }
 
-    /* Element picker */
+    /* === ELEMENT PICKER === */
     .element-picker-cat {
-      font-size: 10px; font-weight: 800; color: var(--text-faint);
-      text-transform: uppercase; letter-spacing: 0.09em; padding: 8px 8px 3px;
+      font-size: 11px; font-weight: 700; color: var(--navy-sailor);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 12px 12px 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
     }
-    .element-picker-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
-    .element-picker-item:hover { background: var(--bg-raised); }
-    .element-picker-icon { font-size: 20px; flex-shrink: 0; }
-    .element-picker-title { font-weight: 600; font-size: 13px; }
-    .element-picker-desc { font-size: 11px; color: var(--text-muted); }
+    .element-picker-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 8px 12px;
+    }
+    .element-picker-item {
+      display: flex; align-items: flex-start; gap: 8px; padding: 10px;
+      border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+      position: relative; transition: all 0.15s;
+    }
+    .element-picker-item:hover { border-color: var(--accent); background: var(--accent-light); }
+    .element-picker-icon { font-size: 20px; flex-shrink: 0; line-height: 1.2; }
+    .element-picker-title { font-weight: 600; font-size: 12px; line-height: 1.3; }
+    .element-picker-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
     .element-recommended {
-      display: inline-block; padding: 1px 5px; background: var(--accent-light);
-      color: var(--accent); border-radius: 3px; font-size: 10px; font-weight: 600; margin-left: 6px;
+      position: absolute; top: -1px; right: -1px;
+      padding: 2px 5px; background: var(--navy-gold); color: var(--navy-midnight);
+      border-radius: 0 5px 0 5px; font-size: 9px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.04em;
     }
 
-    /* Presentation mode */
+    /* === PRESENTATION MODE === */
     .presentation-mode #top-bar,
     .presentation-mode #viz-toolbar,
     .presentation-mode #viz-config-sidebar,
-    .presentation-mode .dwb-block-menu,
-    .presentation-mode .dwb-element-menu,
+    .presentation-mode .dwb-block-header,
     .presentation-mode .dwb-add-block-row,
     .presentation-mode .dwb-add-element-btn { display: none !important; }
-    .presentation-mode #viz-canvas { padding: 0; }
+
+    .presentation-mode #viz-canvas { padding: 32px; }
+
+    .presentation-mode .dwb-block {
+      box-shadow: none; border: none; border-left: none;
+      border-radius: 0; margin-bottom: 24px;
+    }
+    .presentation-mode .dwb-block-slots {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden;
+    }
+    .presentation-mode .dwb-block-slots::before {
+      content: attr(data-block-title);
+      position: absolute; top: 8px; left: 12px; z-index: 1;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+      color: var(--text-faint); opacity: 0.6; pointer-events: none;
+    }
+    .presentation-mode .dwb-element-card {
+      border-color: var(--border); box-shadow: none;
+    }
+    .presentation-mode .dwb-element-card:hover:not(.selected) {
+      transform: none; box-shadow: none;
+    }
 
     /* === NODE PICKER MODAL === */
     .overlay {
@@ -1154,6 +1258,7 @@
 
   <!-- Filter Bar (hidden until filters active) -->
   <div id="viz-filter-bar" class="hidden">
+    <span class="viz-filter-label">Filters:</span>
     <div id="viz-filter-chips"></div>
     <button class="viz-clear-filters" onclick="DWB.viz && DWB.viz.clearFilters()">Clear all</button>
   </div>
@@ -1215,9 +1320,18 @@
     <div style="padding:16px">
       <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">Layout</div>
       <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button class="layout-opt-btn selected" data-layout="1col" onclick="DWB.viz._selectBlockLayout('1col',this)">1 Column</button>
-        <button class="layout-opt-btn" data-layout="2col" onclick="DWB.viz._selectBlockLayout('2col',this)">2 Columns</button>
-        <button class="layout-opt-btn" data-layout="3col" onclick="DWB.viz._selectBlockLayout('3col',this)">3 Columns</button>
+        <button class="layout-opt-btn selected" data-layout="1col" onclick="DWB.viz._selectBlockLayout('1col',this)">
+          <div class="layout-diagram"><div class="ld-col" style="flex:1"></div></div>
+          1 Column
+        </button>
+        <button class="layout-opt-btn" data-layout="2col" onclick="DWB.viz._selectBlockLayout('2col',this)">
+          <div class="layout-diagram"><div class="ld-col" style="flex:1"></div><div class="ld-col" style="flex:1"></div></div>
+          2 Columns
+        </button>
+        <button class="layout-opt-btn" data-layout="3col" onclick="DWB.viz._selectBlockLayout('3col',this)">
+          <div class="layout-diagram"><div class="ld-col" style="flex:1"></div><div class="ld-col" style="flex:1"></div><div class="ld-col" style="flex:1"></div></div>
+          3 Columns
+        </button>
       </div>
       <div id="add-block-ratio-section" style="display:none">
         <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">Column Ratio</div>
@@ -3609,7 +3723,7 @@ DWB.register('PASSTHROUGH', {
         <button class="dwb-block-menu-btn"
           onclick="DWB.viz._showBlockMenu(event,'${block.id}')">⋯</button>
       </div>
-      <div class="dwb-block-slots">${slotsHtml}</div>
+      <div class="dwb-block-slots" data-block-title="${labels[block.layout] || block.layout}">${slotsHtml}</div>
     </div>`;
   };
 
@@ -3799,10 +3913,14 @@ DWB.register('PASSTHROUGH', {
     if (ps.length) {
       ratioSection.style.display = '';
       _addBlockSelectedRatio = ps[0];
-      ratioBtns.innerHTML = ps.map((p, i) =>
-        `<button class="ratio-opt-btn${i === 0 ? ' selected' : ''}"
-          onclick="DWB.viz._selectRatio(this,[${p}])">${p.join('/')}%</button>`
-      ).join('');
+      ratioBtns.innerHTML = ps.map((p, i) => {
+        const diagCols = p.map(v => `<div class="rd-col" style="flex:${v}"></div>`).join('');
+        return `<button class="ratio-opt-btn${i === 0 ? ' selected' : ''}"
+          onclick="DWB.viz._selectRatio(this,[${p}])">
+          <div class="ratio-diagram">${diagCols}</div>
+          ${p.join('/')}%
+        </button>`;
+      }).join('');
     } else {
       ratioSection.style.display = 'none';
       _addBlockSelectedRatio = null;
@@ -3882,6 +4000,7 @@ DWB.register('PASSTHROUGH', {
     } else {
       list.innerHTML = Object.entries(byCat).map(([cat, items]) =>
         `<div class="element-picker-cat">${cat}</div>` +
+        `<div class="element-picker-grid">` +
         items.map(({ key, def }) => {
           const rec = def.columnAffinity && def.columnAffinity.primary
             ? def.columnAffinity.primary.some(t => activeTypes.includes(t))
@@ -3889,11 +4008,12 @@ DWB.register('PASSTHROUGH', {
           return `<div class="element-picker-item" onclick="DWB.viz._pickElement('${key}')">
             <span class="element-picker-icon">${def.icon || '📦'}</span>
             <div>
-              <div class="element-picker-title">${def.title}${rec ? '<span class="element-recommended">Recommended</span>' : ''}</div>
+              <div class="element-picker-title" style="position:relative">${def.title}${rec ? '<span class="element-recommended">Recommended</span>' : ''}</div>
               <div class="element-picker-desc">${def.desc || ''}</div>
             </div>
           </div>`;
-        }).join('')
+        }).join('') +
+        `</div>`
       ).join('');
     }
 
@@ -3988,6 +4108,800 @@ DWB.register('PASSTHROUGH', {
 
   DWB.log('Canvas engine ready.', 'success');
 })();
+
+/* --- src\viz\elements\e01_bar_vertical.js --- */
+DWB.registerElement('BAR_V', {
+  title: 'Bar Chart (Vertical)',
+  icon: '📈',
+  category: 'Charts',
+  desc: 'Vertical bar chart with aggregation, sort, and click-to-filter.',
+  headerCompatible: false,
+  columnAffinity: { primary: ['categorical', 'text', 'number'] },
+
+  _colorSchemes: {
+    navy:    ['#1B3A6B','#005EB8','#4A90D9','#7BB3E8','#A8CFEF','#C8E0F7'],
+    warm:    ['#C0392B','#E67E22','#F1C40F','#27AE60','#2980B9','#8E44AD'],
+    cool:    ['#2C3E50','#2980B9','#1ABC9C','#3498DB','#27AE60','#16A085'],
+    mono:    ['#1B3A6B','#2D5FA0','#4A82C8','#6FA0D8','#96BBE4','#BDD3F0'],
+    golden:  ['#B8860B','#DAA520','#F0C040','#C8A200','#A07800','#805800'],
+  },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const colOpts = (name) => headers.map((h, i) =>
+      `<option value="${i}" ${cfg[name] === i ? 'selected' : ''}>${h}</option>`
+    ).join('');
+
+    const aggOpts = ['count','sum','avg','min','max'].map(a =>
+      `<option value="${a}" ${(cfg.aggregation||'count') === a ? 'selected' : ''}>${a.toUpperCase()}</option>`
+    ).join('');
+
+    const sortOpts = [['value-desc','Value ↓'],['value-asc','Value ↑'],['label-asc','Label A–Z'],['label-desc','Label Z–A']].map(([v,l]) =>
+      `<option value="${v}" ${(cfg.sort||'value-desc') === v ? 'selected' : ''}>${l}</option>`
+    ).join('');
+
+    const schemeOpts = Object.keys(this._colorSchemes).map(k =>
+      `<option value="${k}" ${(cfg.colorScheme||'navy') === k ? 'selected' : ''}>${k.charAt(0).toUpperCase()+k.slice(1)}</option>`
+    ).join('');
+
+    const maxItems   = cfg.maxItems   !== undefined ? cfg.maxItems   : 20;
+    const showValues = cfg.showValues !== false;
+    const labelRotate = cfg.labelRotate !== undefined ? cfg.labelRotate : 45;
+
+    return `
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Category column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','categoryCol',parseInt(this.value))">
+          <option value="">— none —</option>${colOpts('categoryCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Value column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','valueCol',this.value===''?null:parseInt(this.value))">
+          <option value="">— none (count) —</option>${colOpts('valueCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Aggregation</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','aggregation',this.value)">${aggOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Sort</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','sort',this.value)">${sortOpts}</select>
+        </div>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Color scheme</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','colorScheme',this.value)">${schemeOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Max bars</label>
+          <input type="number" class="sidebar-input" value="${maxItems}" min="1" max="200"
+            oninput="DWB.updateConfig_viz('${element.id}','maxItems',parseInt(this.value)||20)">
+        </div>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Label rotation (°)</label>
+        <input type="number" class="sidebar-input" value="${labelRotate}" min="0" max="90" step="15"
+          oninput="DWB.updateConfig_viz('${element.id}','labelRotate',parseInt(this.value)||0)">
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-checkbox-item">
+          <input type="checkbox" ${showValues ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showValues',this.checked)">
+          Show value labels
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available.</div>';
+      return;
+    }
+
+    const cfg      = element.config || {};
+    const catIdx   = cfg.categoryCol !== undefined && cfg.categoryCol !== null ? cfg.categoryCol : null;
+    const valIdx   = cfg.valueCol    !== undefined && cfg.valueCol    !== null ? cfg.valueCol    : null;
+    const agg      = cfg.aggregation || 'count';
+    const sort     = cfg.sort || 'value-desc';
+    const scheme   = this._colorSchemes[cfg.colorScheme || 'navy'];
+    const maxItems = cfg.maxItems || 20;
+    const labelRotate = cfg.labelRotate !== undefined ? cfg.labelRotate : 45;
+
+    if (catIdx === null) {
+      container.innerHTML = '<div class="dwb-empty-state">Select a category column.</div>';
+      return;
+    }
+
+    // Aggregate
+    const buckets = {};
+    for (const row of dataset.rows) {
+      const key = String(row[catIdx] ?? '(blank)');
+      const num = valIdx !== null ? parseFloat(row[valIdx]) : NaN;
+      if (!buckets[key]) buckets[key] = { sum: 0, count: 0, min: Infinity, max: -Infinity };
+      const b = buckets[key];
+      b.count++;
+      if (!isNaN(num)) { b.sum += num; b.min = Math.min(b.min, num); b.max = Math.max(b.max, num); }
+    }
+
+    let data = Object.entries(buckets).map(([label, b]) => {
+      let value;
+      switch (agg) {
+        case 'sum':   value = b.sum; break;
+        case 'avg':   value = b.count > 0 ? b.sum / b.count : 0; break;
+        case 'min':   value = isFinite(b.min) ? b.min : 0; break;
+        case 'max':   value = isFinite(b.max) ? b.max : 0; break;
+        default:      value = b.count;
+      }
+      return { label, value };
+    });
+
+    // Sort
+    if (sort === 'value-desc') data.sort((a, b) => b.value - a.value);
+    else if (sort === 'value-asc') data.sort((a, b) => a.value - b.value);
+    else if (sort === 'label-asc') data.sort((a, b) => a.label.localeCompare(b.label));
+    else if (sort === 'label-desc') data.sort((a, b) => b.label.localeCompare(a.label));
+
+    data = data.slice(0, maxItems);
+
+    if (!window.echarts) {
+      container.innerHTML = '<div class="dwb-empty-state">ECharts not loaded.</div>';
+      return;
+    }
+
+    const bottomPad = labelRotate > 0 ? Math.round(labelRotate * 1.4) : 24;
+    container.style.minHeight = '200px';
+
+    if (element._instance) {
+      element._instance.dispose();
+      element._instance = null;
+    }
+    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+
+    const chart = echarts.init(container, null, { renderer: 'canvas' });
+    element._instance = chart;
+
+    const catCol = dataset.headers[catIdx];
+    const colors = data.map((_, i) => scheme[i % scheme.length]);
+
+    chart.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: '2%', right: '2%', top: cfg.showValues !== false ? 28 : 12, bottom: bottomPad, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: data.map(d => d.label),
+        axisLabel: {
+          fontSize: 11,
+          rotate: labelRotate,
+          width: 80,
+          overflow: 'truncate',
+          interval: 0
+        }
+      },
+      yAxis: { type: 'value', axisLabel: { fontSize: 11 } },
+      series: [{
+        type: 'bar',
+        data: data.map((d, i) => ({ value: d.value, itemStyle: { color: colors[i] } })),
+        label: cfg.showValues !== false
+          ? { show: true, position: 'top', fontSize: 10,
+              formatter: p => typeof p.value === 'number' && !Number.isInteger(p.value)
+                ? p.value.toFixed(2) : String(p.value) }
+          : { show: false }
+      }]
+    });
+
+    chart.on('click', params => {
+      if (params.componentType === 'series') {
+        DWB.viz.addFilter(catCol, params.name, element.id);
+      }
+    });
+
+    element._resizeObs = new ResizeObserver(() => {
+      if (element._instance && !element._instance.isDisposed()) {
+        element._instance.resize();
+      }
+    });
+    element._resizeObs.observe(container);
+  },
+
+  onFilterChange(element, dataset, filters) {
+    this.render(element, dataset, filters);
+  },
+
+  onThemeChange(element) {
+    if (element._instance && !element._instance.isDisposed()) {
+      element._instance.resize();
+    }
+  },
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    const cfg = element.config || {};
+    const cat = cfg.categoryCol !== undefined ? dataset.headers[cfg.categoryCol] : '(unset)';
+    const val = cfg.valueCol    !== undefined ? dataset.headers[cfg.valueCol]    : 'count';
+    return `Vertical Bar: category=${cat}, value=${val}, agg=${cfg.aggregation||'count'}, rows=${dataset.rowCount}.`;
+  },
+
+  getEchartsInstance(element) { return element._instance || null; }
+});
+
+/* --- src\viz\elements\e02_bar_horizontal.js --- */
+DWB.registerElement('BAR_H', {
+  title: 'Bar Chart (Horizontal)',
+  icon: '📊',
+  category: 'Charts',
+  desc: 'Horizontal bar chart with aggregation, sort, and click-to-filter.',
+  headerCompatible: false,
+  columnAffinity: { primary: ['categorical', 'text', 'number'] },
+
+  _colorSchemes: {
+    navy:    ['#1B3A6B','#005EB8','#4A90D9','#7BB3E8','#A8CFEF','#C8E0F7'],
+    warm:    ['#C0392B','#E67E22','#F1C40F','#27AE60','#2980B9','#8E44AD'],
+    cool:    ['#2C3E50','#2980B9','#1ABC9C','#3498DB','#27AE60','#16A085'],
+    mono:    ['#1B3A6B','#2D5FA0','#4A82C8','#6FA0D8','#96BBE4','#BDD3F0'],
+    golden:  ['#B8860B','#DAA520','#F0C040','#C8A200','#A07800','#805800'],
+  },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const colOpts = (selected, name) => headers.map((h, i) =>
+      `<option value="${i}" ${cfg[name] === i ? 'selected' : ''}>${h}</option>`
+    ).join('');
+
+    const aggOpts = ['count','sum','avg','min','max'].map(a =>
+      `<option value="${a}" ${(cfg.aggregation||'count') === a ? 'selected' : ''}>${a.toUpperCase()}</option>`
+    ).join('');
+
+    const sortOpts = [['value-desc','Value ↓'],['value-asc','Value ↑'],['label-asc','Label A–Z'],['label-desc','Label Z–A']].map(([v,l]) =>
+      `<option value="${v}" ${(cfg.sort||'value-desc') === v ? 'selected' : ''}>${l}</option>`
+    ).join('');
+
+    const schemeOpts = Object.keys(this._colorSchemes).map(k =>
+      `<option value="${k}" ${(cfg.colorScheme||'navy') === k ? 'selected' : ''}>${k.charAt(0).toUpperCase()+k.slice(1)}</option>`
+    ).join('');
+
+    const maxItems = cfg.maxItems !== undefined ? cfg.maxItems : 20;
+    const showValues = cfg.showValues !== false;
+
+    return `
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Category column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','categoryCol',parseInt(this.value))">
+          <option value="">— none —</option>${colOpts(cfg.categoryCol,'categoryCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Value column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','valueCol',this.value===''?null:parseInt(this.value))">
+          <option value="">— none (count) —</option>${colOpts(cfg.valueCol,'valueCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Aggregation</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','aggregation',this.value)">${aggOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Sort</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','sort',this.value)">${sortOpts}</select>
+        </div>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Color scheme</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','colorScheme',this.value)">${schemeOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Max bars</label>
+          <input type="number" class="sidebar-input" value="${maxItems}" min="1" max="200"
+            oninput="DWB.updateConfig_viz('${element.id}','maxItems',parseInt(this.value)||20)">
+        </div>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-checkbox-item">
+          <input type="checkbox" ${showValues ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showValues',this.checked)">
+          Show value labels
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available.</div>';
+      return;
+    }
+
+    const cfg      = element.config || {};
+    const catIdx   = cfg.categoryCol !== undefined && cfg.categoryCol !== null ? cfg.categoryCol : null;
+    const valIdx   = cfg.valueCol    !== undefined && cfg.valueCol    !== null ? cfg.valueCol    : null;
+    const agg      = cfg.aggregation || 'count';
+    const sort     = cfg.sort || 'value-desc';
+    const scheme   = this._colorSchemes[cfg.colorScheme || 'navy'];
+    const maxItems = cfg.maxItems || 20;
+
+    if (catIdx === null) {
+      container.innerHTML = '<div class="dwb-empty-state">Select a category column.</div>';
+      return;
+    }
+
+    // Aggregate
+    const buckets = {};
+    for (const row of dataset.rows) {
+      const key = String(row[catIdx] ?? '(blank)');
+      const num = valIdx !== null ? parseFloat(row[valIdx]) : NaN;
+      if (!buckets[key]) buckets[key] = { sum: 0, count: 0, min: Infinity, max: -Infinity, vals: [] };
+      const b = buckets[key];
+      b.count++;
+      if (!isNaN(num)) { b.sum += num; b.vals.push(num); b.min = Math.min(b.min, num); b.max = Math.max(b.max, num); }
+    }
+
+    let data = Object.entries(buckets).map(([label, b]) => {
+      let value;
+      switch (agg) {
+        case 'sum':   value = b.sum; break;
+        case 'avg':   value = b.count > 0 ? b.sum / b.count : 0; break;
+        case 'min':   value = isFinite(b.min) ? b.min : 0; break;
+        case 'max':   value = isFinite(b.max) ? b.max : 0; break;
+        default:      value = b.count; // count
+      }
+      return { label, value };
+    });
+
+    // Sort
+    if (sort === 'value-desc') data.sort((a, b) => b.value - a.value);
+    else if (sort === 'value-asc') data.sort((a, b) => a.value - b.value);
+    else if (sort === 'label-asc') data.sort((a, b) => a.label.localeCompare(b.label));
+    else if (sort === 'label-desc') data.sort((a, b) => b.label.localeCompare(a.label));
+
+    data = data.slice(0, maxItems);
+
+    // ECharts
+    if (!window.echarts) {
+      container.innerHTML = '<div class="dwb-empty-state">ECharts not loaded.</div>';
+      return;
+    }
+
+    container.style.minHeight = Math.max(160, data.length * 28 + 40) + 'px';
+
+    if (element._instance) {
+      element._instance.dispose();
+      element._instance = null;
+    }
+    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+
+    const chart = echarts.init(container, null, { renderer: 'canvas' });
+    element._instance = chart;
+
+    const catCol = dataset.headers[catIdx];
+    const colors = data.map((_, i) => scheme[i % scheme.length]);
+
+    chart.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: '2%', right: cfg.showValues !== false ? '6%' : '2%', top: 8, bottom: 8, containLabel: true },
+      xAxis: { type: 'value', axisLabel: { fontSize: 11 } },
+      yAxis: {
+        type: 'category',
+        data: data.map(d => d.label),
+        axisLabel: { fontSize: 11, width: 100, overflow: 'truncate' },
+        inverse: false
+      },
+      series: [{
+        type: 'bar',
+        data: data.map((d, i) => ({ value: d.value, itemStyle: { color: colors[i] } })),
+        label: cfg.showValues !== false
+          ? { show: true, position: 'right', fontSize: 10,
+              formatter: p => typeof p.value === 'number' && !Number.isInteger(p.value)
+                ? p.value.toFixed(2) : String(p.value) }
+          : { show: false }
+      }]
+    });
+
+    chart.on('click', params => {
+      if (params.componentType === 'series') {
+        DWB.viz.addFilter(catCol, params.name, element.id);
+      }
+    });
+
+    element._resizeObs = new ResizeObserver(() => {
+      if (element._instance && !element._instance.isDisposed()) {
+        element._instance.resize();
+      }
+    });
+    element._resizeObs.observe(container);
+  },
+
+  onFilterChange(element, dataset, filters) {
+    this.render(element, dataset, filters);
+  },
+
+  onThemeChange(element) {
+    if (element._instance && !element._instance.isDisposed()) {
+      element._instance.resize();
+    }
+  },
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    const cfg = element.config || {};
+    const cat = cfg.categoryCol !== undefined ? dataset.headers[cfg.categoryCol] : '(unset)';
+    const val = cfg.valueCol    !== undefined ? dataset.headers[cfg.valueCol]    : 'count';
+    return `Horizontal Bar: category=${cat}, value=${val}, agg=${cfg.aggregation||'count'}, rows=${dataset.rowCount}.`;
+  },
+
+  getEchartsInstance(element) { return element._instance || null; }
+});
+
+/* --- src\viz\elements\e03_pie.js --- */
+DWB.registerElement('PIE', {
+  title: 'Pie / Donut Chart',
+  icon: '🥧',
+  category: 'Charts',
+  desc: 'Pie or donut chart with aggregation and click-to-filter.',
+  headerCompatible: false,
+  columnAffinity: { primary: ['categorical', 'text'] },
+
+  _colorSchemes: {
+    navy:    ['#1B3A6B','#005EB8','#4A90D9','#7BB3E8','#A8CFEF','#C8E0F7'],
+    warm:    ['#C0392B','#E67E22','#F1C40F','#27AE60','#2980B9','#8E44AD'],
+    cool:    ['#2C3E50','#2980B9','#1ABC9C','#3498DB','#27AE60','#16A085'],
+    mono:    ['#1B3A6B','#2D5FA0','#4A82C8','#6FA0D8','#96BBE4','#BDD3F0'],
+    golden:  ['#B8860B','#DAA520','#F0C040','#C8A200','#A07800','#805800'],
+  },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const colOpts = (name) => headers.map((h, i) =>
+      `<option value="${i}" ${cfg[name] === i ? 'selected' : ''}>${h}</option>`
+    ).join('');
+
+    const aggOpts = ['count','sum','avg'].map(a =>
+      `<option value="${a}" ${(cfg.aggregation||'count') === a ? 'selected' : ''}>${a.toUpperCase()}</option>`
+    ).join('');
+
+    const schemeOpts = Object.keys(this._colorSchemes).map(k =>
+      `<option value="${k}" ${(cfg.colorScheme||'navy') === k ? 'selected' : ''}>${k.charAt(0).toUpperCase()+k.slice(1)}</option>`
+    ).join('');
+
+    const radius   = cfg.radius   !== undefined ? cfg.radius   : 0;
+    const maxSlices = cfg.maxSlices !== undefined ? cfg.maxSlices : 12;
+    const showLabels = cfg.showLabels !== false;
+
+    return `
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Category column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','categoryCol',parseInt(this.value))">
+          <option value="">— none —</option>${colOpts('categoryCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Value column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','valueCol',this.value===''?null:parseInt(this.value))">
+          <option value="">— none (count) —</option>${colOpts('valueCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Aggregation</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','aggregation',this.value)">${aggOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Color scheme</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','colorScheme',this.value)">${schemeOpts}</select>
+        </div>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Inner radius % (0=pie)</label>
+          <input type="number" class="sidebar-input" value="${radius}" min="0" max="80" step="5"
+            oninput="DWB.updateConfig_viz('${element.id}','radius',parseInt(this.value)||0)">
+        </div>
+        <div>
+          <label class="sidebar-label">Max slices</label>
+          <input type="number" class="sidebar-input" value="${maxSlices}" min="2" max="50"
+            oninput="DWB.updateConfig_viz('${element.id}','maxSlices',parseInt(this.value)||12)">
+        </div>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-checkbox-item">
+          <input type="checkbox" ${showLabels ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showLabels',this.checked)">
+          Show slice labels
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available.</div>';
+      return;
+    }
+
+    const cfg       = element.config || {};
+    const catIdx    = cfg.categoryCol !== undefined && cfg.categoryCol !== null ? cfg.categoryCol : null;
+    const valIdx    = cfg.valueCol    !== undefined && cfg.valueCol    !== null ? cfg.valueCol    : null;
+    const agg       = cfg.aggregation || 'count';
+    const scheme    = this._colorSchemes[cfg.colorScheme || 'navy'];
+    const innerR    = cfg.radius    !== undefined ? cfg.radius    : 0;
+    const maxSlices = cfg.maxSlices !== undefined ? cfg.maxSlices : 12;
+
+    if (catIdx === null) {
+      container.innerHTML = '<div class="dwb-empty-state">Select a category column.</div>';
+      return;
+    }
+
+    const buckets = {};
+    for (const row of dataset.rows) {
+      const key = String(row[catIdx] ?? '(blank)');
+      const num = valIdx !== null ? parseFloat(row[valIdx]) : NaN;
+      if (!buckets[key]) buckets[key] = { sum: 0, count: 0 };
+      buckets[key].count++;
+      if (!isNaN(num)) buckets[key].sum += num;
+    }
+
+    let data = Object.entries(buckets).map(([name, b]) => {
+      const value = agg === 'sum' ? b.sum : agg === 'avg' ? (b.count ? b.sum / b.count : 0) : b.count;
+      return { name, value };
+    }).sort((a, b) => b.value - a.value);
+
+    // Roll up tail into "Other"
+    if (data.length > maxSlices) {
+      const tail  = data.slice(maxSlices - 1);
+      const other = tail.reduce((s, d) => s + d.value, 0);
+      data = data.slice(0, maxSlices - 1);
+      data.push({ name: `Other (${tail.length})`, value: other });
+    }
+
+    if (!window.echarts) {
+      container.innerHTML = '<div class="dwb-empty-state">ECharts not loaded.</div>';
+      return;
+    }
+
+    container.style.minHeight = '200px';
+
+    if (element._instance) { element._instance.dispose(); element._instance = null; }
+    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+
+    const chart = echarts.init(container, null, { renderer: 'canvas' });
+    element._instance = chart;
+
+    const catCol = dataset.headers[catIdx];
+    const outerR = '70%';
+    const innerRStr = innerR > 0 ? innerR + '%' : '0';
+
+    chart.setOption({
+      tooltip: {
+        trigger: 'item',
+        formatter: p => `${p.name}<br/>${p.value} (${p.percent}%)`
+      },
+      legend: { show: false },
+      color: scheme,
+      series: [{
+        type: 'pie',
+        radius: [innerRStr, outerR],
+        center: ['50%', '50%'],
+        data: data.map(d => ({ name: d.name, value: d.value })),
+        label: cfg.showLabels !== false
+          ? { show: true, fontSize: 10, formatter: '{b}: {d}%' }
+          : { show: false },
+        emphasis: {
+          itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.3)' }
+        }
+      }]
+    });
+
+    chart.on('click', params => {
+      if (params.componentType === 'series' && params.name !== `Other (${data.length})`) {
+        DWB.viz.addFilter(catCol, params.name, element.id);
+      }
+    });
+
+    element._resizeObs = new ResizeObserver(() => {
+      if (element._instance && !element._instance.isDisposed()) element._instance.resize();
+    });
+    element._resizeObs.observe(container);
+  },
+
+  onFilterChange(element, dataset, filters) { this.render(element, dataset, filters); },
+
+  onThemeChange(element) {
+    if (element._instance && !element._instance.isDisposed()) element._instance.resize();
+  },
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    const cfg = element.config || {};
+    const cat = cfg.categoryCol !== undefined ? dataset.headers[cfg.categoryCol] : '(unset)';
+    return `Pie chart: category=${cat}, agg=${cfg.aggregation||'count'}, rows=${dataset.rowCount}.`;
+  },
+
+  getEchartsInstance(element) { return element._instance || null; }
+});
+
+/* --- src\viz\elements\e04_kpi_stat.js --- */
+DWB.registerElement('KPI_STAT', {
+  title: 'KPI Stat',
+  icon: '🔢',
+  category: 'Data',
+  desc: 'Single metric card: aggregate a column and display as a large statistic.',
+  headerCompatible: true,
+  columnAffinity: { primary: ['number'] },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const colOpts = headers.map((h, i) =>
+      `<option value="${i}" ${cfg.valueCol === i ? 'selected' : ''}>${h}</option>`
+    ).join('');
+
+    const aggOpts = ['count','sum','avg','min','max','distinct'].map(a =>
+      `<option value="${a}" ${(cfg.aggregation||'count') === a ? 'selected' : ''}>${a.toUpperCase()}</option>`
+    ).join('');
+
+    const fmtOpts = [['auto','Auto'],['number','Number'],['currency','Currency ($)'],['percent','Percent (%)'],['compact','Compact (1.2K)']].map(([v,l]) =>
+      `<option value="${v}" ${(cfg.format||'auto') === v ? 'selected' : ''}>${l}</option>`
+    ).join('');
+
+    const prefix = cfg.prefix || '';
+    const suffix = cfg.suffix || '';
+    const showLabel = cfg.showLabel !== false;
+
+    return `
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Value column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','valueCol',this.value===''?null:parseInt(this.value))">
+          <option value="">— none —</option>${colOpts}
+        </select>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Aggregation</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','aggregation',this.value)">${aggOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Format</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','format',this.value)">${fmtOpts}</select>
+        </div>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Prefix</label>
+          <input type="text" class="sidebar-input" value="${prefix.replace(/"/g,'&quot;')}" placeholder="e.g. $"
+            oninput="DWB.updateConfig_viz('${element.id}','prefix',this.value)">
+        </div>
+        <div>
+          <label class="sidebar-label">Suffix</label>
+          <input type="text" class="sidebar-input" value="${suffix.replace(/"/g,'&quot;')}" placeholder="e.g. %"
+            oninput="DWB.updateConfig_viz('${element.id}','suffix',this.value)">
+        </div>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-checkbox-item">
+          <input type="checkbox" ${showLabel ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showLabel',this.checked)">
+          Show metric label below value
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available.</div>';
+      return;
+    }
+
+    const cfg    = element.config || {};
+    const valIdx = cfg.valueCol !== undefined && cfg.valueCol !== null ? cfg.valueCol : null;
+    const agg    = cfg.aggregation || 'count';
+
+    let computed;
+    let label;
+
+    if (agg === 'count') {
+      computed = dataset.rows.length;
+      label = 'Row Count';
+    } else if (agg === 'distinct' && valIdx !== null) {
+      const uniq = new Set(dataset.rows.map(r => r[valIdx]));
+      computed = uniq.size;
+      label = `Distinct ${dataset.headers[valIdx]}`;
+    } else if (valIdx !== null) {
+      const nums = dataset.rows.map(r => parseFloat(r[valIdx])).filter(n => !isNaN(n));
+      if (nums.length === 0) { computed = 0; }
+      else if (agg === 'sum') { computed = nums.reduce((a, b) => a + b, 0); }
+      else if (agg === 'avg') { computed = nums.reduce((a, b) => a + b, 0) / nums.length; }
+      else if (agg === 'min') { computed = Math.min(...nums); }
+      else if (agg === 'max') { computed = Math.max(...nums); }
+      label = `${agg.toUpperCase()} of ${dataset.headers[valIdx]}`;
+    } else {
+      container.innerHTML = '<div class="dwb-empty-state">Select a value column.</div>';
+      return;
+    }
+
+    const formatted = this._format(computed, cfg.format || 'auto', cfg.prefix || '', cfg.suffix || '');
+
+    container.innerHTML = `
+      <div class="dwb-kpi-stat">
+        <div class="dwb-kpi-value">${formatted}</div>
+        ${cfg.showLabel !== false ? `<div class="dwb-kpi-label">${label}</div>` : ''}
+        <div class="dwb-kpi-rows">${dataset.rows.length.toLocaleString()} rows</div>
+      </div>`;
+  },
+
+  _format(value, fmt, prefix, suffix) {
+    let str;
+    if (fmt === 'currency') {
+      str = '
+
+<script>
+(function() {
+  const n = Object.keys(DWB.nodes).length;
+  DWB.log(`${n} node plugin(s) loaded.`);
+})();
+</script>
+
+</body>
+</html>
+ + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else if (fmt === 'percent') {
+      str = value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+    } else if (fmt === 'compact') {
+      str = this._compact(value);
+    } else if (fmt === 'number') {
+      str = Number.isInteger(value)
+        ? value.toLocaleString()
+        : value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else {
+      // auto
+      str = Number.isInteger(value)
+        ? value.toLocaleString()
+        : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+    return prefix + str + suffix;
+  },
+
+  _compact(value) {
+    const abs = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+    if (abs >= 1e9)  return sign + (abs / 1e9).toFixed(1)  + 'B';
+    if (abs >= 1e6)  return sign + (abs / 1e6).toFixed(1)  + 'M';
+    if (abs >= 1e3)  return sign + (abs / 1e3).toFixed(1)  + 'K';
+    return sign + abs.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  },
+
+  onFilterChange(element, dataset, filters) { this.render(element, dataset, filters); },
+  onThemeChange() {},
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    const cfg = element.config || {};
+    const col = cfg.valueCol !== undefined ? dataset.headers[cfg.valueCol] : '(unset)';
+    return `KPI Stat: agg=${cfg.aggregation||'count'}, column=${col}, rows=${dataset.rowCount}.`;
+  },
+
+  getEchartsInstance() { return null; }
+});
 
 /* --- src\viz\elements\e10_data_table.js --- */
 DWB.registerElement('DATA_TABLE', {

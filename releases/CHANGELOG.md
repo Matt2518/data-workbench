@@ -2,6 +2,10 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.3] — 2026-05-06
+_Release notes: (edit this line before committing)_
+- Build: 185.1 KB, 18 plugin(s)
+
 ## \[v0.3] — 2026-05-06
 
 *Release notes: Release notes: Viz canvas shell — block/slot/element model, filter coordinator, dataset picker, header block, DATA\_TABLE element with keyword search, presentation mode.*
