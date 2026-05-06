@@ -2,6 +2,12 @@
 
 *Releases are tagged and committed here.*
 
+## \[v0.3] — 2026-05-06
+
+*Release notes: Release notes: Viz canvas shell — block/slot/element model, filter coordinator, dataset picker, header block, DATA\_TABLE element with keyword search, presentation mode.*
+
+* Build: 147.5 KB, 14 plugin(s)
+
 ## \[v0.2] — 2026-05-05
 
 *Release notes: PapaParse CSV fix, focus loss fix, push\_to\_viz fix, SET\_TYPES node with full type inference (number/date/categorical/likert/text), type metadata system, passthroughCopy, resizable panel split.*
