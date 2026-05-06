@@ -618,53 +618,283 @@
     .viz-btn:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
     .viz-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    #viz-dataset-label { font-size: 11px; color: var(--text-muted); margin-left: auto; }
-
-    #viz-body { flex: 1; overflow: auto; position: relative; }
-
-    /* Drop zone */
-    #viz-dropzone {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    #viz-dataset-picker {
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 12px;
+      min-width: 180px;
+      max-width: 300px;
     }
-    #viz-dropzone.hidden { display: none; }
 
-    .dz-box {
-      border: 2px dashed var(--border-strong);
-      border-radius: 14px;
-      padding: 52px 72px;
+    #viz-header-block {
+      max-height: 100px;
+      width: 100%;
+      background: var(--navy-midnight);
+      flex-shrink: 0;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: center;
+      padding: 0 16px;
       gap: 12px;
-      background: var(--bg-surface);
+      overflow: hidden;
+    }
+    .viz-header-placeholder {
+      color: rgba(255,255,255,0.35);
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    #viz-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 12px;
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      min-height: 32px;
+    }
+    #viz-filter-bar.hidden { display: none; }
+    .viz-clear-filters {
+      margin-left: auto;
+      padding: 2px 8px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 11px;
+      color: var(--text-muted);
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
+    }
+    .viz-clear-filters:hover { color: var(--danger); border-color: var(--danger); }
+
+    #viz-main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      min-height: 0;
+    }
+    #viz-config-sidebar {
+      width: 280px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .sidebar-empty-msg {
+      padding: 24px 16px;
+      color: var(--text-faint);
+      font-size: 12px;
       text-align: center;
     }
-    .dz-box:hover, .dz-box.dragover {
-      border-color: var(--accent);
-      background: var(--accent-light);
-    }
-    .dz-icon  { font-size: 48px; }
-    .dz-title { font-size: 18px; font-weight: 700; color: var(--text-main); }
-    .dz-sub   { font-size: 13px; color: var(--text-muted); max-width: 340px; }
-    .dz-browse {
-      margin-top: 4px;
-      padding: 8px 22px;
+    .sidebar-section { padding: 12px; border-bottom: 1px solid var(--border); }
+    .sidebar-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: block; }
+    .sidebar-input { width: 100%; margin-bottom: 8px; }
+    .sidebar-apply-btn {
+      width: 100%;
+      padding: 6px;
       background: var(--accent);
       color: #fff;
       border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .sidebar-apply-btn:hover { opacity: 0.88; }
+    .sidebar-checkbox-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+    .sidebar-checkbox-item { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+
+    #viz-canvas {
+      flex: 1;
+      overflow: auto;
+      background: var(--bg-main);
+      padding: 24px;
+    }
+
+    /* === VIZ CANVAS BLOCKS & ELEMENTS === */
+    .dwb-block {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .dwb-block-header {
+      display: flex;
+      align-items: center;
+      padding: 5px 10px;
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      gap: 6px;
+    }
+    .dwb-block-handle { color: var(--text-faint); cursor: grab; font-size: 14px; user-select: none; }
+    .dwb-block-label { font-size: 11px; color: var(--text-muted); flex: 1; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .dwb-block-menu-btn {
+      padding: 2px 6px; background: transparent; border: none;
+      color: var(--text-faint); cursor: pointer; font-size: 16px; border-radius: 3px; line-height: 1;
+    }
+    .dwb-block-menu-btn:hover { background: var(--border); color: var(--text-main); }
+
+    .dwb-block-slots { display: flex; gap: 0; }
+
+    .dwb-slot {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px;
+      border-right: 1px solid var(--border);
+      min-height: 80px;
+      box-sizing: border-box;
+    }
+    .dwb-slot:last-child { border-right: none; }
+
+    .dwb-element-card {
+      background: var(--bg-raised);
+      border: 2px solid transparent;
       border-radius: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .dwb-element-card:hover { border-color: var(--border-strong); }
+    .dwb-element-card.selected { border-color: var(--accent); }
+
+    .dwb-element-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .dwb-element-title-input {
+      flex: 1;
+      background: transparent;
+      border: none;
       font-size: 13px;
       font-weight: 600;
+      color: var(--text-main);
+      padding: 0;
+      outline: none;
+      min-width: 0;
     }
-    .dz-browse:hover { opacity: 0.88; }
+    .dwb-element-title-input:focus { background: var(--bg-raised); border-radius: 3px; padding: 0 4px; }
+    .dwb-element-type-badge {
+      font-size: 10px; color: var(--text-faint); background: var(--bg-main);
+      border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0;
+    }
+    .dwb-element-menu-btn {
+      padding: 2px 5px; background: transparent; border: none;
+      color: var(--text-faint); cursor: pointer; font-size: 14px; border-radius: 3px; flex-shrink: 0; line-height: 1;
+    }
+    .dwb-element-menu-btn:hover { background: var(--border); }
 
-    #viz-dashboard { padding: 16px; min-height: 100%; }
+    .dwb-element-content { padding: 12px; min-height: 120px; }
+
+    .dwb-add-element-btn {
+      display: block; width: 100%; padding: 6px; text-align: center;
+      color: var(--text-faint); border: 1px dashed var(--border); border-radius: 4px;
+      cursor: pointer; font-size: 12px; background: none;
+    }
+    .dwb-add-element-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    .dwb-add-block-row { text-align: center; margin: 8px 0; }
+    .dwb-add-block-btn {
+      padding: 6px 20px; background: transparent;
+      border: 1px dashed var(--border-strong); border-radius: 6px;
+      color: var(--text-faint); font-size: 12px; cursor: pointer;
+    }
+    .dwb-add-block-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+    .dwb-filter-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px; background: var(--accent-light); color: var(--accent);
+      border-radius: 12px; font-size: 12px; font-weight: 500; margin: 2px;
+    }
+    .dwb-filter-chip-remove {
+      cursor: pointer; opacity: 0.6; font-weight: bold;
+      background: none; border: none; color: inherit; font-size: 12px; padding: 0 1px; line-height: 1;
+    }
+    .dwb-filter-chip-remove:hover { opacity: 1; }
+
+    .dwb-data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .dwb-data-table th {
+      position: sticky; top: 0; background: var(--bg-raised);
+      padding: 6px 10px; text-align: left; font-weight: 600;
+      border-bottom: 2px solid var(--border-strong); white-space: nowrap;
+    }
+    .dwb-data-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .dwb-data-table tbody tr:hover { background: var(--bg-raised); }
+    .dwb-table-scroll { overflow: auto; max-height: 400px; }
+    .dwb-table-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 0 8px; }
+    .dwb-search-input {
+      padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+      font-size: 13px; background: var(--bg-surface); color: var(--text-main);
+    }
+    .dwb-row-count { font-size: 12px; color: var(--text-muted); }
+    mark { background: var(--accent-gold); color: var(--navy-midnight); border-radius: 2px; padding: 0 1px; }
+
+    .dwb-empty-state {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 120px; color: var(--text-faint); font-size: 14px;
+      text-align: center; padding: 24px;
+    }
+
+    /* Context menus */
+    .dwb-ctx-menu {
+      position: fixed; background: var(--bg-surface); border: 1px solid var(--border-strong);
+      border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      z-index: 600; min-width: 160px; padding: 4px 0;
+    }
+    .dwb-ctx-item {
+      display: block; width: 100%; padding: 7px 14px; text-align: left;
+      background: none; border: none; font-size: 13px; color: var(--text-main); cursor: pointer;
+    }
+    .dwb-ctx-item:hover { background: var(--bg-raised); }
+    .dwb-ctx-item.danger { color: var(--danger); }
+
+    /* Add block dialog buttons */
+    .layout-opt-btn {
+      flex: 1; padding: 10px 8px; background: var(--bg-raised);
+      border: 2px solid var(--border); border-radius: 6px;
+      font-size: 12px; font-weight: 500; color: var(--text-main);
+      text-align: center; cursor: pointer; transition: all 0.15s;
+    }
+    .layout-opt-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+    .layout-opt-btn.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+    .ratio-opt-btn {
+      padding: 5px 10px; background: var(--bg-raised); border: 2px solid var(--border);
+      border-radius: 4px; font-size: 11px; font-weight: 500; color: var(--text-muted); cursor: pointer;
+    }
+    .ratio-opt-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .ratio-opt-btn.selected { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+    /* Element picker */
+    .element-picker-cat {
+      font-size: 10px; font-weight: 800; color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.09em; padding: 8px 8px 3px;
+    }
+    .element-picker-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+    .element-picker-item:hover { background: var(--bg-raised); }
+    .element-picker-icon { font-size: 20px; flex-shrink: 0; }
+    .element-picker-title { font-weight: 600; font-size: 13px; }
+    .element-picker-desc { font-size: 11px; color: var(--text-muted); }
+    .element-recommended {
+      display: inline-block; padding: 1px 5px; background: var(--accent-light);
+      color: var(--accent); border-radius: 3px; font-size: 10px; font-weight: 600; margin-left: 6px;
+    }
+
+    /* Presentation mode */
+    .presentation-mode #top-bar,
+    .presentation-mode #viz-toolbar,
+    .presentation-mode #viz-config-sidebar,
+    .presentation-mode .dwb-block-menu,
+    .presentation-mode .dwb-element-menu,
+    .presentation-mode .dwb-add-block-row,
+    .presentation-mode .dwb-add-element-btn { display: none !important; }
+    .presentation-mode #viz-canvas { padding: 0; }
 
     /* === NODE PICKER MODAL === */
     .overlay {
@@ -905,28 +1135,38 @@
      ============================================================ -->
 <div id="viz-mode" class="mode-panel hidden">
 
+  <!-- Viz Toolbar -->
   <div id="viz-toolbar">
-    <button class="viz-btn" id="btn-add-chart" disabled>＋ Add Chart</button>
-    <button class="viz-btn" id="btn-layout"    disabled>⊞ Layout</button>
-    <button class="viz-btn" id="btn-ppt"       disabled>📤 Export PPT</button>
-    <span id="viz-dataset-label">No active dataset</span>
+    <button class="viz-btn" id="btn-add-block" onclick="DWB.viz && DWB.viz.showAddBlockDialog()">＋ Add Block</button>
+    <select id="viz-dataset-picker" onchange="DWB.viz && DWB.viz.onDatasetPickerChange(this.value)">
+      <option value="">No datasets — push data from pipeline</option>
+    </select>
+    <div class="flex-spacer"></div>
+    <button class="viz-btn" id="btn-presentation" onclick="DWB.viz && DWB.viz.togglePresentation()">⛶ Presentation</button>
+    <button class="viz-btn" disabled title="Coming soon">📤 Export PPTX</button>
+    <button class="viz-btn" disabled title="Coming soon">🌐 Export HTML</button>
   </div>
 
-  <div id="viz-body">
-    <div id="viz-dropzone">
-      <div class="dz-box" id="dz-box"
-           ondragover="event.preventDefault();this.classList.add('dragover')"
-           ondragleave="this.classList.remove('dragover')"
-           ondrop="DWB._vizDrop(event)">
-        <span class="dz-icon">📊</span>
-        <span class="dz-title">No active dataset</span>
-        <span class="dz-sub">Drop a CSV here, or promote data from the Pipeline tab.<br>Charts appear instantly.</span>
-        <label class="dz-browse">Browse CSV…
-          <input type="file" accept=".csv" style="display:none" onchange="DWB._vizFileInput(this)">
-        </label>
-      </div>
+  <!-- Sticky Header Block -->
+  <div id="viz-header-block">
+    <span class="viz-header-placeholder">No header elements</span>
+  </div>
+
+  <!-- Filter Bar (hidden until filters active) -->
+  <div id="viz-filter-bar" class="hidden">
+    <div id="viz-filter-chips"></div>
+    <button class="viz-clear-filters" onclick="DWB.viz && DWB.viz.clearFilters()">Clear all</button>
+  </div>
+
+  <!-- Main: config sidebar + canvas -->
+  <div id="viz-main">
+    <div id="viz-config-sidebar">
+      <div class="sidebar-empty-msg">Select an element to configure</div>
     </div>
-    <div id="viz-dashboard"></div>
+    <div id="viz-canvas"
+         ondragover="event.preventDefault()"
+         ondrop="DWB._vizDrop(event)">
+    </div>
   </div>
 
 </div>
@@ -963,6 +1203,47 @@
   </div>
 </div>
 
+<!-- ============================================================
+     ADD BLOCK MODAL
+     ============================================================ -->
+<div id="add-block-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.viz&&DWB.viz.closeAddBlockDialog()">
+  <div class="modal" style="width:380px">
+    <div class="modal-header">
+      Add Block
+      <button class="modal-close" onclick="DWB.viz&&DWB.viz.closeAddBlockDialog()">✕</button>
+    </div>
+    <div style="padding:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">Layout</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="layout-opt-btn selected" data-layout="1col" onclick="DWB.viz._selectBlockLayout('1col',this)">1 Column</button>
+        <button class="layout-opt-btn" data-layout="2col" onclick="DWB.viz._selectBlockLayout('2col',this)">2 Columns</button>
+        <button class="layout-opt-btn" data-layout="3col" onclick="DWB.viz._selectBlockLayout('3col',this)">3 Columns</button>
+      </div>
+      <div id="add-block-ratio-section" style="display:none">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">Column Ratio</div>
+        <div id="add-block-ratio-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="DWB.viz&&DWB.viz.closeAddBlockDialog()">Cancel</button>
+        <button class="btn-primary" onclick="DWB.viz&&DWB.viz.confirmAddBlock()">Add Block</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     ELEMENT PICKER MODAL
+     ============================================================ -->
+<div id="element-picker-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.viz&&DWB.viz.closeElementPicker()">
+  <div class="modal" style="width:440px;max-height:70vh">
+    <div class="modal-header">
+      Add Element
+      <button class="modal-close" onclick="DWB.viz&&DWB.viz.closeElementPicker()">✕</button>
+    </div>
+    <div id="element-picker-list" style="overflow-y:auto;flex:1;padding:8px"></div>
+  </div>
+</div>
+
 <script>
 // ================================================================
 //  CORE ENGINE  (Spec §5.3)
@@ -971,9 +1252,11 @@ window.DWB = (() => {
   'use strict';
 
   // ---- Internal state ----
-  const _typeDefs = {};
-  const pipeline  = { nodes: [], activeNodeId: null };
-  const stashes   = {};
+  const _typeDefs       = {};
+  const pipeline        = { nodes: [], activeNodeId: null };
+  const stashes         = {};
+  const promotedDatasets = {};
+  const vizState        = { _elementRegistry: {}, _headerRegistry: {} };
   let activeDataset = null;
   let _mode      = 'pipeline';
   let _quickView = false;
@@ -1170,15 +1453,18 @@ window.DWB = (() => {
       columnTypes,
       columnTypeMeta
     };
+    promotedDatasets[name] = {
+      name,
+      headers: data.headers,
+      rows: data.rows,
+      columnTypes,
+      columnTypeMeta,
+      rowCount: data.rows.length,
+      timestamp: new Date()
+    };
     const ind = document.getElementById('active-dataset-indicator');
     ind.textContent = `Active: ${name} · ${data.rows.length.toLocaleString()} rows`;
     ind.classList.add('has-data');
-    const vl = document.getElementById('viz-dataset-label');
-    if (vl) vl.textContent = `Dataset: ${name} · ${data.rows.length.toLocaleString()} rows`;
-    ['btn-add-chart','btn-layout','btn-ppt'].forEach(id => {
-      const b = document.getElementById(id); if (b) b.disabled = false;
-    });
-    document.getElementById('viz-dropzone')?.classList.add('hidden');
     log(`Promoted "${name}" to active dataset (${data.rows.length} rows)`, 'success');
     const tc = { number: 0, date: 0, categorical: 0, likert: 0, text: 0 };
     columnTypes.forEach(t => { if (tc[t] !== undefined) tc[t]++; else tc.text++; });
@@ -1233,6 +1519,16 @@ window.DWB = (() => {
   function register(type, def) {
     _typeDefs[type] = def;
     log(`Registered: ${type}`);
+  }
+
+  function registerElement(key, def) {
+    vizState._elementRegistry[key] = def;
+    log(`Registered element: ${key}`);
+  }
+
+  function registerHeaderElement(key, def) {
+    vizState._headerRegistry[key] = def;
+    log(`Registered header element: ${key}`);
   }
 
   // ---- Pipeline: node CRUD ----
@@ -1594,7 +1890,6 @@ window.DWB = (() => {
   // ---- Viz CSV drop ----
   function _vizDrop(event) {
     event.preventDefault();
-    document.getElementById('dz-box').classList.remove('dragover');
     const f = event.dataTransfer.files[0];
     if (f) _loadVizCSV(f);
   }
@@ -1608,14 +1903,14 @@ window.DWB = (() => {
     reader.onload = e => {
       const data = parseCSV(e.target.result);
       const label = file.name.replace(/\.csv$/i, '');
-      // Silently create INGEST + PUSH_TO_VIZ nodes (Spec §10)
       const ingest = { id: _uid(), type: 'INGEST', customName: file.name, isStarred: false,
         status: 'ok', config: { fileName: file.name }, output: data, errorMsg: null };
       const push   = { id: _uid(), type: 'PUSH_TO_VIZ', customName: label, isStarred: false,
-        status: 'ok', config: { label }, output: data, errorMsg: null };
+        status: 'ok', config: { datasetName: label }, output: data, errorMsg: null };
       pipeline.nodes.push(ingest, push);
       renderTrack();
       promoteToActive(label, data);
+      if (vizState.onDatasetPromoted) vizState.onDatasetPromoted(label);
     };
     reader.readAsText(file);
   }
@@ -1710,7 +2005,19 @@ window.DWB = (() => {
     _initSplitDivider();
     renderTrack();
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { closePicker(); closeWfModal(); }
+      if (e.key === 'Escape') {
+        closePicker();
+        closeWfModal();
+        if (document.documentElement.classList.contains('presentation-mode')) {
+          if (vizState.togglePresentation) vizState.togglePresentation();
+        }
+      }
+      if ((e.key === 'f' || e.key === 'F') && _mode === 'viz') {
+        const tag = document.activeElement ? document.activeElement.tagName : '';
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          if (vizState.togglePresentation) vizState.togglePresentation();
+        }
+      }
     });
     log('Data Workbench ready.', 'success');
   }
@@ -1718,12 +2025,14 @@ window.DWB = (() => {
   // ---- Public API (Spec §5.3) ----
   return {
     // state (readable)
-    get nodes()         { return _typeDefs; },
-    get pipeline()      { return pipeline; },
-    get stashes()       { return stashes; },
-    get activeDataset() { return activeDataset; },
+    get nodes()             { return _typeDefs; },
+    get pipeline()          { return pipeline; },
+    get stashes()           { return stashes; },
+    get activeDataset()     { return activeDataset; },
+    get promotedDatasets()  { return promotedDatasets; },
+    get viz()               { return vizState; },
     // registration
-    register,
+    register, registerElement, registerHeaderElement,
     // utilities
     parseCSV, generateOptions, toObjects, fromObjects,
     passthroughCopy, inferTypes, updateConfig,

@@ -61,5 +61,6 @@ DWB.register('PUSH_TO_VIZ', {
     }
     DWB.promoteToActive(node.config.datasetName, inputData);
     DWB.log(`Pushed to Viz as: ${node.config.datasetName} (${inputData.rows.length} rows)`);
+    if (DWB.viz && DWB.viz.onDatasetPromoted) DWB.viz.onDatasetPromoted(node.config.datasetName);
   }
 });

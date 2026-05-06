@@ -26,7 +26,9 @@ function build() {
 
   const sources = [
     ...collectJs(NODES_DIR),
-    ...collectJs(VIZ_DIR)
+    ...collectJs(path.join(VIZ_DIR, 'canvas')),
+    ...collectJs(path.join(VIZ_DIR, 'elements')),
+    ...collectJs(path.join(VIZ_DIR, 'header')),
   ];
 
   const pluginBlock = sources.map(({ file, rel }) => {
