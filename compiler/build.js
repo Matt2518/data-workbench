@@ -33,12 +33,17 @@ function build() {
 
   const pluginBlock = sources.map(({ file, rel }) => {
     const code = fs.readFileSync(file, 'utf8').trimEnd();
-    return `/* --- ${rel} --- */\n${code}`;
+    // Wrap in IIFE for scope isolation between plugin files
+    return `/* --- ${rel} --- */\n(function(){\n${code}\n})();`;
   }).join('\n\n');
 
+  // IMPORTANT: use a function replacer, NOT a string replacer.
+  // String.prototype.replace() interprets $' $` $& etc. as special patterns.
+  // Plugin source code can contain '$' (e.g. currency strings) which would
+  // corrupt the HTML output via the $' "insert-after-match" expansion.
   const injected = shell.replace(
     '<!-- {{NODES}} -->',
-    `<script>\n/* injected by compiler/build.js */\n\n${pluginBlock}\n</script>`
+    () => `<script>\n/* injected by compiler/build.js */\n\n${pluginBlock}\n</script>`
   );
 
   if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
