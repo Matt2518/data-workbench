@@ -1,5 +1,5 @@
 # Data Workbench + Visualizer — Project Specification
-**Version:** 2.0  
+**Version:** 2.1  
 **Status:** Active  
 **Coordination:** This chat (design decisions) + Claude Code (file execution)
 
@@ -34,7 +34,8 @@ are first-class.
 - **Single compiled HTML file** (`dist/workbench.html`)
 - **Modular source** under `src/` — compiled by `compiler/build.js`
 - Source is the truth; `dist/` is the build artifact
-- CDN dependencies: ECharts 5.x, PapaParse 5.x, PptxGenJS 3.x, Quill.js
+- CDN dependencies: ECharts 5.x, PapaParse 5.x, PptxGenJS 3.x,
+  Quill.js 1.x, html2canvas 1.x, echarts-wordcloud
 - No Tailwind, no bundler, no npm packages required for core build
 
 ### 2.2 Source Structure
@@ -844,27 +845,142 @@ can be named, saved, and reused.
 
 ## 11. Export System
 
+### 11.0 Export Menu (Viz Toolbar)
+A single [Export ▾] dropdown in the viz toolbar exposes all export options:
+```
+[Export ▾]
+  ├── 📸 Export canvas as PNG      (full infographic)
+  ├── 🖼  Export canvas as SVG      (vector, scalable)
+  ├── 📄 Export as PDF             (print dialog)
+  ├── 📊 Export to PowerPoint      (PptxGenJS)
+  └── 🌐 Export as standalone HTML
+```
+Each chart element's [...] menu also includes:
+```
+  └── 📸 Save chart as PNG         (single element)
+```
+
 ### 11.1 Print to PDF
-- @media print stylesheet hides chrome (sidebar, top bar, controls)
-- Blocks render full-width
-- Page breaks configurable per block
-- Optional Navy header on each printed page
+- @media print stylesheet hides chrome (sidebar, top bar, controls,
+  block headers, element menus, add buttons)
+- Blocks render full-width, full color
+- Page breaks configurable per block (block menu option)
+- Optional Navy header on each printed page (canvas-level setting)
 - User: File > Print > Save as PDF. No library required.
+- Presentation mode activates automatically before print dialog opens
 
 ### 11.2 Standalone HTML Export
-- Existing report export
 - Embeds current canvas state as static HTML
 - No pipeline data, no config UI -- view only
+- Suitable for sharing with stakeholders who don't have the workbench
 
 ### 11.3 PowerPoint Export (PptxGenJS 3.x)
-- One slide per chart element (or per block, configurable)
+- One slide per chart element (or one per block -- configurable)
 - Chart canvas captured via canvas.toDataURL('image/png')
-- Text blocks: HTML to PptxGenJS text runs via converter utility
-- Slide: 10" x 5.63" widescreen 16:9
+- Text blocks: HTML to PptxGenJS text runs via HTML-to-PPTX converter utility
+- Slide dimensions: 10" x 5.63" widescreen 16:9
 - Optional Navy gradient title bar per slide
-- Export options: all / selected / current block
+- Export options: all elements / selected elements / current block only
 - Captures current render state including active filters
 - Filename prompt before download
+
+### 11.4 PNG Export -- Single Element
+Available on every ECharts-based element via element [...] menu.
+Uses ECharts built-in getDataURL():
+```javascript
+const url = element._instance.getDataURL({
+  type: 'png',
+  pixelRatio: 2,           // retina quality
+  backgroundColor: '#ffffff'
+});
+// Trigger download via <a> element
+```
+Non-ECharts elements (KPI_STAT, DATA_TABLE, TEXT_RICH) use html2canvas
+to capture their content div.
+Filename: element title + timestamp + .png
+
+### 11.5 PNG Export -- Full Canvas (Infographic)
+Exports the entire #viz-canvas div as a single PNG image.
+Library: html2canvas (loaded from cdnjs CDN).
+
+**ECharts pre-capture workaround:**
+Before html2canvas runs, replace each ECharts canvas with a plain <img>
+using getDataURL(), then restore after capture:
+```javascript
+async function captureCanvas() {
+  // 1. Snapshot all ECharts instances to <img>
+  const swaps = [];
+  document.querySelectorAll('[id^="echarts-"]').forEach(div => {
+    const elementId = div.id.replace('echarts-', '');
+    const el = DWB.viz.findElement(elementId)?.element;
+    if (el?._instance) {
+      const url = el._instance.getDataURL({ pixelRatio: 2 });
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.cssText = div.style.cssText;
+      div.parentNode.replaceChild(img, div);
+      swaps.push({ img, div, parent: img.parentNode });
+    }
+  });
+
+  // 2. Run html2canvas
+  const canvas = await html2canvas(
+    document.getElementById('viz-canvas'), {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg-main').trim()
+    }
+  );
+
+  // 3. Restore ECharts divs
+  swaps.forEach(({ img, div, parent }) => {
+    parent.replaceChild(div, img);
+  });
+
+  // 4. Trigger download
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'workbench-export-' + Date.now() + '.png';
+  a.click();
+}
+```
+
+### 11.6 SVG Export -- Full Canvas
+ECharts supports SVG rendering mode (`renderer: 'svg'` in echarts.init).
+When SVG mode is active, each chart renders as inline SVG rather than
+canvas -- infinitely scalable, ideal for print and export.
+
+SVG mode is a canvas-level toggle (not per-element) stored in
+DWB.viz.renderMode ('canvas' | 'svg'). Switching mode disposes and
+re-initializes all ECharts instances.
+
+Full canvas SVG export collects all SVG elements from the canvas DOM
+and assembles them into a single downloadable .svg file.
+
+Note: html2canvas does not support SVG export -- SVG export uses a
+separate DOM-walking approach. Non-ECharts elements (KPI, table, text)
+are serialized to SVG using foreignObject where supported.
+
+### 11.7 CDN Dependencies (updated)
+```html
+<!-- Core -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.x.x/echarts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css">
+
+<!-- Charts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts-wordcloud/..."></script>
+
+<!-- Export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+```
+
+All loaded in <head> before the {{NODES}} injection point.
+All libraries verified available on cdnjs before use.
 
 ---
 
@@ -955,21 +1071,180 @@ Git discipline:
 
 ---
 
-## 14. Out of Scope (V1)
+## 14. Online / Offline Runtime Configuration
+
+### 14.1 The Config Block
+A small configuration object is injected into the compiled HTML at
+build time via a `<!-- {{CONFIG}} -->` placeholder in frame.html,
+placed before the {{NODES}} injection point:
+
+```javascript
+window.DWB_CONFIG = {
+  mode: 'offline',         // 'offline' | 'online'
+  apiBase: null,           // 'https://yoursite.com/api' when online
+  datasetLibrary: false,   // true enables Dataset Library feature
+  authRequired: false,     // true when online + auth enforced
+  version: '0.3'
+};
+```
+
+### 14.2 Config Source Files
+```
+src/config/
+  offline.config.js    <- default, baked in by compiler
+  online.config.js     <- used by --config online build flag
+```
+
+Both files are committed to the repo. The compiler reads the
+appropriate one based on the --config flag (default: offline).
+
+### 14.3 Compiler Flag
+```bash
+# Offline build (default, existing behavior)
+node compiler/build.js
+
+# Online build (for server deployment)
+node compiler/build.js --config online
+```
+
+The compiler replaces <!-- {{CONFIG}} --> with the contents of the
+appropriate config file. All other build behavior is identical.
+
+### 14.4 What the Flag Controls
+All online-only features are guarded by:
+```javascript
+if (window.DWB_CONFIG.mode === 'online') { ... }
+// or shorthand:
+const isOnline = DWB_CONFIG.mode === 'online';
+```
+
+| Feature | Offline | Online |
+|---|---|---|
+| Dataset Library in INGEST | No | Yes (fetch from API) |
+| Splash sample dataset buttons | Bundled samples only | API + bundled |
+| Cloud workflow save/load | No | Yes |
+| User account / auth UI | No | Yes |
+| Recent workflows | localStorage only | API + localStorage |
+
+### 14.5 Graceful Degradation
+The online version must work correctly even if the API is unreachable:
+- localStorage auto-save still works
+- .dwbflow file export/import still works
+- Bundled sample datasets still available
+- All pipeline and viz functionality unaffected
+- Show subtle "Offline mode" indicator if API fetch fails
+
+### 14.6 Dataset Library (Online Only)
+When datasetLibrary is true, the INGEST node gains a third source tab:
+"Library Dataset" alongside Upload File and Paste CSV.
+
+The library picker fetches GET /api/datasets and shows:
+- Dataset name, description, tags
+- Row count, column count
+- Last updated date
+- "Full" / "Sampled (10K rows)" / pre-filtered variants
+
+Selected dataset fetches GET /api/datasets/:id/data and loads
+exactly like a file upload from that point forward. The pipeline
+treats it identically to any other ingested CSV.
+
+Bundled sample datasets (small, offline-capable) are always shown
+in a separate "Sample Datasets" section regardless of online/offline
+mode. These are JS constants in src/data/sample_datasets/.
+
+### 14.7 Splash Screen Dataset Shortcuts (Online Only)
+When online, the splash screen shows quick-start dataset buttons
+below the main action buttons:
+```
+-- or start with a sample dataset --
+
+[SF Fire Incidents]  [NFIRS 2023]
+[Wildland Fires]     [FF Fatalities]
+```
+Clicking one silently creates INGEST + PUSH_TO_VIZ nodes loaded
+with that dataset and drops the user into viz mode.
+
+---
+
+## 15. Out of Scope (V1)
 
 - DAG / non-linear pipeline (architecture supports it later)
 - Real-time collaboration
-- Server-side anything
-- API calls of any kind (hard security constraint)
+- Server-side anything (offline version only)
+- API calls in offline mode (hard security constraint)
 - Mobile / touch optimization
 - Undo / redo history
 - Tokenized text blocks (v1.1)
 - Guided tutorial content (button present on splash, content TBD)
 - Leaflet tile maps (future option for online environments)
+- Full canvas SVG export (v1.1 -- foreignObject support inconsistent)
 
 ---
 
-## 15. Decisions Log
+## 16. Decisions Log
+
+| # | Decision |
+|---|---|
+| 1 | DAG vs linear? Linear with stash; engine designed for DAG later |
+| 2 | Data format? {headers, rows} + optional columnTypes/columnTypeMeta |
+| 3 | CSS framework? None -- pure CSS custom properties |
+| 4 | Build tool? Plain Node.js script, no bundler |
+| 5 | ECharts version? 5.x from cdnjs |
+| 6 | Dark mode default? Light default, persisted to localStorage |
+| 7 | dist/ in git? No -- gitignored. releases/ IS committed. |
+| 8 | Stash model? Named dictionary, not a stack |
+| 9 | Pipeline-Viz bridge? PUSH_TO_VIZ node, non-destructive, named, multiple |
+| 10 | Direct CSV to Viz bypass pipeline? No -- silent INGEST + PUSH_TO_VIZ |
+| 11 | No API calls in offline mode -- hard security constraint |
+| 12 | Copy/paste AI pattern -- human in the loop by design |
+| 13 | Two AI prompt levels: dataset-level and block/widget-level |
+| 14 | AI prompts: aggregated summaries + 25 sample rows |
+| 15 | Editable prompt modal with preview + edit before insert |
+| 16 | Prompt templates saved to localStorage |
+| 17 | One copy button -- no AI tool differentiation |
+| 18 | Prompt requests HTML-structured response (Quill-compatible) |
+| 19 | Paste-back parses HTML into Quill with preview before insert |
+| 20 | PPTX export needs HTML to PptxGenJS text converter utility |
+| 21 | Rich text editor: Quill.js via CDN |
+| 22 | Viz layout: blocks > slots > elements (three-level hierarchy) |
+| 23 | Slots can contain multiple stacked elements (infographic style) |
+| 24 | Header block: singleton, sticky, limited height, left-to-right |
+| 25 | Filter coordinator: global, additive AND logic, coordinator owns state |
+| 26 | Filters NOT saved to .dwbflow (canvas loads unfiltered) |
+| 27 | Multiple promoted datasets, each element picks its own source |
+| 28 | KPI: sum/avg/min/max/count only -- complexity belongs in pipeline |
+| 29 | Likert groups always share a scale within a grouping |
+| 30 | Geo maps: ECharts GeoJSON default (offline); Leaflet optional future |
+| 31 | Navy installation lookup bundled in src/data/navy_locations.js |
+| 32 | Sentiment: bundled lexicon only (AFINN/VADER style), no API |
+| 33 | Primary persistence: .dwbflow custom file extension |
+| 34 | localStorage: convenience cache only, never primary store |
+| 35 | Auto-save to localStorage every 30 seconds |
+| 36 | .dwbflow saves pipeline + viz + activeMode + full UI state |
+| 37 | Loading workflow restores exact app state |
+| 38 | Splash screen on every load with open/new/pipeline/explore/tutorial |
+| 39 | Pipeline Task path: pipeline mode, INGEST node pre-added |
+| 40 | Explore Data path: viz mode, CSV drop zone, silent pipeline |
+| 41 | Tutorial: always on splash, never auto-shown, stateless |
+| 42 | Unsaved session banner on splash if localStorage has auto-save |
+| 43 | Recent workflows list on splash from localStorage |
+| 44 | Workflow tags + notes fields in .dwbflow |
+| 45 | Built-in workflow templates bundled as JS constants |
+| 46 | Validation nodes flag rows (add _flag col), do not filter by default |
+| 47 | LEFT_JOIN explicitly supports one-to-many cardinality |
+| 48 | Column picker: structure axis + value axis + label/color axis pattern |
+| 49 | Data table: column picker + keyword search + cell highlight |
+| 50 | Calendar elements: 4 types (heatmap/monthly/weekly/month-of-year) |
+| 51 | Image export: per-element PNG (ECharts getDataURL) + full canvas PNG (html2canvas) |
+| 52 | Full canvas PNG: pre-capture ECharts to img, run html2canvas, restore |
+| 53 | SVG export: ECharts SVG renderer mode toggle (canvas-level setting) |
+| 54 | Export menu: single [Export ▾] dropdown in viz toolbar |
+| 55 | Online/offline: DWB_CONFIG runtime flag, {{CONFIG}} compiler placeholder |
+| 56 | Config files: src/config/offline.config.js + online.config.js |
+| 57 | Compiler flag: --config online for server deployment builds |
+| 58 | Online graceful degradation: all offline features work if API unreachable |
+| 59 | Dataset Library: online-only, third INGEST tab, fetches from API |
+| 60 | Bundled sample datasets: JS constants, always available offline |
 
 | # | Decision |
 |---|---|
