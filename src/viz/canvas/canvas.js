@@ -289,7 +289,7 @@
         <button class="dwb-block-menu-btn"
           onclick="DWB.viz._showBlockMenu(event,'${block.id}')">⋯</button>
       </div>
-      <div class="dwb-block-slots">${slotsHtml}</div>
+      <div class="dwb-block-slots" data-block-title="${labels[block.layout] || block.layout}">${slotsHtml}</div>
     </div>`;
   };
 
@@ -479,10 +479,14 @@
     if (ps.length) {
       ratioSection.style.display = '';
       _addBlockSelectedRatio = ps[0];
-      ratioBtns.innerHTML = ps.map((p, i) =>
-        `<button class="ratio-opt-btn${i === 0 ? ' selected' : ''}"
-          onclick="DWB.viz._selectRatio(this,[${p}])">${p.join('/')}%</button>`
-      ).join('');
+      ratioBtns.innerHTML = ps.map((p, i) => {
+        const diagCols = p.map(v => `<div class="rd-col" style="flex:${v}"></div>`).join('');
+        return `<button class="ratio-opt-btn${i === 0 ? ' selected' : ''}"
+          onclick="DWB.viz._selectRatio(this,[${p}])">
+          <div class="ratio-diagram">${diagCols}</div>
+          ${p.join('/')}%
+        </button>`;
+      }).join('');
     } else {
       ratioSection.style.display = 'none';
       _addBlockSelectedRatio = null;
@@ -562,6 +566,7 @@
     } else {
       list.innerHTML = Object.entries(byCat).map(([cat, items]) =>
         `<div class="element-picker-cat">${cat}</div>` +
+        `<div class="element-picker-grid">` +
         items.map(({ key, def }) => {
           const rec = def.columnAffinity && def.columnAffinity.primary
             ? def.columnAffinity.primary.some(t => activeTypes.includes(t))
@@ -569,11 +574,12 @@
           return `<div class="element-picker-item" onclick="DWB.viz._pickElement('${key}')">
             <span class="element-picker-icon">${def.icon || '📦'}</span>
             <div>
-              <div class="element-picker-title">${def.title}${rec ? '<span class="element-recommended">Recommended</span>' : ''}</div>
+              <div class="element-picker-title" style="position:relative">${def.title}${rec ? '<span class="element-recommended">Recommended</span>' : ''}</div>
               <div class="element-picker-desc">${def.desc || ''}</div>
             </div>
           </div>`;
-        }).join('')
+        }).join('') +
+        `</div>`
       ).join('');
     }
 
