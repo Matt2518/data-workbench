@@ -2,6 +2,10 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.5] — 2026-05-06
+_Release notes: (edit this line before committing)_
+- Build: 208.7 KB, 18 plugin(s)
+
 ## \[v0.4] — 2026-05-06
 
 *Release notes: visual polish pass, BAR\_H, BAR\_V, PIE, KPI\_STAT added.*
