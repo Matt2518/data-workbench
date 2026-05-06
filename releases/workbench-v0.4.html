@@ -1,0 +1,5046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Workbench</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+
+  <style>
+    /* === CSS VARIABLES (Spec §7.2) === */
+    :root {
+      --navy-midnight: #002244;
+      --navy-sailor:   #005EB8;
+      --navy-gold:     #C5B230;
+      --navy-light:    #EAF2FB;
+
+      --bg-main:       #f8fafc;
+      --bg-surface:    #ffffff;
+      --bg-raised:     #f1f5f9;
+      --border:        #e2e8f0;
+      --border-strong: #94a3b8;
+      --text-main:     #1e293b;
+      --text-muted:    #64748b;
+      --text-faint:    #94a3b8;
+
+      --accent:        var(--navy-sailor);
+      --accent-light:  var(--navy-light);
+      --accent-gold:   var(--navy-gold);
+
+      --success: #059669;
+      --warning: #f59e0b;
+      --danger:  #dc2626;
+      --info:    #0ea5e9;
+
+      --likert-strong-pos:   #1d4ed8;
+      --likert-pos:          #3b82f6;
+      --likert-somewhat-pos: #93c5fd;
+      --likert-neutral:      #94a3b8;
+      --likert-somewhat-neg: #fdba74;
+      --likert-neg:          #f97316;
+      --likert-strong-neg:   #c2410c;
+
+      --topbar-h:    48px;
+      --sidebar-w:   268px;
+      --console-h:   168px;
+      --config-h:    200px;
+    }
+
+    [data-theme="dark"] {
+      --bg-main:       #0a1628;
+      --bg-surface:    #0f2040;
+      --bg-raised:     #1a3056;
+      --border:        #1e3a5f;
+      --border-strong: #2d5a8e;
+      --text-main:     #e2eaf4;
+      --text-muted:    #7ea3c4;
+      --text-faint:    #4a7099;
+    }
+
+    /* === RESET === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      background: var(--bg-main);
+      color: var(--text-main);
+    }
+
+    button { cursor: pointer; font-family: inherit; font-size: inherit; }
+
+    input, select, textarea {
+      font-family: inherit;
+      font-size: inherit;
+      color: var(--text-main);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+    }
+
+    /* === TOP BAR === */
+    #top-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      height: var(--topbar-h);
+      background: var(--navy-midnight);
+      border-bottom: 2px solid var(--navy-sailor);
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .app-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: #fff;
+      white-space: nowrap;
+      margin-right: 6px;
+    }
+
+    .mode-toggle {
+      display: flex;
+      gap: 2px;
+      background: rgba(0,0,0,0.35);
+      border-radius: 6px;
+      padding: 3px;
+    }
+    .mode-btn {
+      padding: 4px 13px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn.active { background: var(--navy-sailor); color: #fff; }
+    .mode-btn:hover:not(.active) { background: rgba(255,255,255,0.1); color: #e2eaf4; }
+
+    #active-dataset-indicator {
+      padding: 3px 10px;
+      background: rgba(0,0,0,0.25);
+      border-radius: 4px;
+      font-size: 11px;
+      color: #7ea3c4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 300px;
+      min-width: 120px;
+    }
+    #active-dataset-indicator.has-data { color: var(--navy-gold); }
+
+    .flex-spacer { flex: 1; }
+
+    .tb-btn {
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: #c8d8e8;
+      font-size: 11px;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .tb-btn:hover { background: rgba(255,255,255,0.16); color: #fff; }
+    #theme-toggle { padding: 4px 8px; font-size: 15px; line-height: 1; }
+
+    /* === MODE PANELS === */
+    .mode-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .mode-panel.hidden { display: none !important; }
+
+    /* === PIPELINE MODE BODY === */
+    #pipeline-body {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #pipeline-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    /* --- Config Panel --- */
+    #config-panel {
+      background: var(--bg-surface);
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 35%;
+      min-height: 120px;
+      overflow: hidden;
+      position: relative;
+      transition: flex-basis 0.2s ease;
+    }
+    #config-panel.collapsed {
+      flex-basis: 32px !important;
+      min-height: 0 !important;
+      overflow: hidden;
+    }
+    #config-panel::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 20px;
+      background: linear-gradient(transparent, var(--bg-surface));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 1;
+    }
+    #config-panel.has-overflow::after { opacity: 1; }
+
+    /* --- Split Divider --- */
+    #split-divider {
+      flex: 0 0 6px;
+      background: var(--bg-raised);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      cursor: ns-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    #split-divider::before {
+      content: '· · ·';
+      font-size: 8px;
+      color: var(--border-strong);
+      letter-spacing: 3px;
+    }
+    #split-divider:hover { background: var(--accent-light); }
+    #config-panel.collapsed + #split-divider { display: none; }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      height: 32px;
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      flex-shrink: 0;
+    }
+    .panel-header:hover { background: var(--accent-light); color: var(--accent); }
+    .panel-header .arrow { margin-left: auto; transition: transform 0.2s; font-style: normal; }
+    .collapsed .panel-header .arrow { transform: rotate(-90deg); }
+
+    #config-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .config-empty {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-faint);
+      font-size: 12px;
+    }
+
+    /* --- Data Inspector --- */
+    #data-inspector {
+      flex: 1;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-main);
+      position: relative;
+    }
+    #data-inspector::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 20px;
+      background: linear-gradient(transparent, var(--bg-main));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 1;
+    }
+    #data-inspector.has-overflow::after { opacity: 1; }
+
+    #inspector-meta {
+      padding: 5px 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #inspector-table-wrap {
+      flex: 1;
+      overflow: auto;
+    }
+
+    .inspector-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: var(--text-faint);
+      gap: 8px;
+      font-size: 12px;
+    }
+    .inspector-empty .ei-icon { font-size: 32px; }
+
+    .data-table {
+      border-collapse: collapse;
+      font-size: 12px;
+      min-width: 100%;
+      white-space: nowrap;
+    }
+    .data-table th {
+      position: sticky;
+      top: 0;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      padding: 0;
+      z-index: 2;
+      vertical-align: top;
+    }
+    .col-header-name {
+      padding: 6px 8px 4px;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-main);
+    }
+    .vdp {
+      border-top: 1px solid var(--border);
+      padding: 3px 8px 5px;
+      background: var(--bg-surface);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .vdp-stats { display: flex; gap: 8px; margin-bottom: 3px; }
+    .vdp-bar-track {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .vdp-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    .data-table td {
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      color: var(--text-main);
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .data-table tr:nth-child(even) td { background: var(--bg-raised); }
+    .row-num-cell {
+      color: var(--text-faint);
+      font-size: 10px;
+      text-align: right;
+      padding: 3px 6px;
+      user-select: none;
+      width: 40px;
+    }
+
+    /* === PIPELINE SIDEBAR === */
+    #pipeline-sidebar {
+      width: var(--sidebar-w);
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      height: 32px;
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      flex-shrink: 0;
+      gap: 6px;
+    }
+
+    #qv-toggle {
+      margin-left: auto;
+      padding: 2px 7px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    #qv-toggle.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+    #node-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+    .add-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(100% - 16px);
+      margin: 2px 8px;
+      padding: 4px;
+      background: transparent;
+      border: 1px dashed var(--border-strong);
+      border-radius: 4px;
+      color: var(--text-faint);
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+    .add-btn:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+    .node-card {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 9px;
+      margin: 1px 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.1s;
+    }
+    .node-card:hover { background: var(--bg-raised); }
+    .node-card.selected { background: var(--accent-light); border-color: var(--accent); }
+
+    .node-icon { font-size: 17px; flex-shrink: 0; }
+
+    .node-info { flex: 1; min-width: 0; }
+    .node-name {
+      font-weight: 600;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .node-type-sub { font-size: 10px; color: var(--text-muted); }
+
+    .node-star {
+      background: none;
+      border: none;
+      font-size: 12px;
+      padding: 0 2px;
+      color: var(--text-faint);
+      opacity: 0.5;
+    }
+    .node-star.starred { color: var(--accent-gold); opacity: 1; }
+
+    .node-del {
+      background: none;
+      border: none;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 2px;
+      color: var(--text-faint);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .node-card:hover .node-del { opacity: 1; }
+    .node-del:hover { color: var(--danger); }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.idle    { background: var(--text-faint); }
+    .status-dot.ok      { background: var(--success); }
+    .status-dot.error   { background: var(--danger); }
+    .status-dot.running { background: var(--warning); animation: pulse 0.8s infinite; }
+    @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.4 } }
+
+    /* --- Stash Panel --- */
+    #stash-panel {
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      max-height: 200px;
+      overflow: hidden;
+      transition: max-height 0.2s;
+    }
+    #stash-panel.collapsed { max-height: 32px; }
+
+    #stash-list { overflow-y: auto; flex: 1; }
+
+    .stash-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      border-bottom: 1px solid var(--border);
+    }
+    .stash-item:hover { background: var(--bg-raised); }
+    .stash-name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stash-ts { font-size: 10px; color: var(--text-faint); white-space: nowrap; }
+    .stash-actions { display: flex; gap: 3px; }
+    .stash-act {
+      padding: 1px 5px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .stash-act:hover { background: var(--accent-light); color: var(--accent); }
+    .stash-empty { padding: 8px 10px; font-size: 11px; color: var(--text-faint); }
+
+    /* === CONSOLE === */
+    #console-panel {
+      flex-shrink: 0;
+      background: #080e1c;
+      border-top: 1px solid #1e3a5f;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(var(--console-h) + 28px);
+      overflow: hidden;
+      transition: max-height 0.22s ease;
+    }
+    #console-panel.collapsed { max-height: 28px; }
+
+    #console-header {
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      height: 28px;
+      background: #0c1628;
+      border-bottom: 1px solid #1e3a5f;
+      cursor: pointer;
+      user-select: none;
+      flex-shrink: 0;
+      gap: 6px;
+    }
+    #console-header span.label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #4a7099;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    #console-clear {
+      padding: 1px 6px;
+      background: transparent;
+      border: 1px solid #1e3a5f;
+      border-radius: 3px;
+      font-size: 10px;
+      color: #4a7099;
+    }
+    #console-clear:hover { color: #7ea3c4; }
+    #console-arrow { margin-left: auto; color: #4a7099; }
+
+    #console-log {
+      height: var(--console-h);
+      overflow-y: auto;
+      padding: 5px 10px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 11px;
+    }
+    #console-panel.collapsed #console-log { display: none; }
+
+    .log-line { padding: 1px 0; line-height: 1.55; }
+    .log-ts { color: #2d5a8e; margin-right: 6px; }
+    .log-line.info    .log-msg { color: #7ea3c4; }
+    .log-line.error   .log-msg { color: #f87171; }
+    .log-line.warn    .log-msg { color: #fbbf24; }
+    .log-line.success .log-msg { color: #34d399; }
+
+    /* === VIZ MODE === */
+    #viz-mode { overflow: hidden; }
+
+    /* --- Canvas animations --- */
+    @keyframes blockSlideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes chipIn {
+      from { opacity: 0; transform: scale(0.8); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* --- Viz Toolbar --- */
+    #viz-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .viz-btn {
+      padding: 5px 14px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .viz-btn:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .viz-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #viz-dataset-picker {
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 12px;
+      min-width: 180px;
+      max-width: 300px;
+      transition: border-color 0.15s;
+    }
+    #viz-dataset-picker:focus { border-color: var(--accent); }
+
+    /* --- Header Block --- */
+    #viz-header-block {
+      max-height: 100px;
+      width: 100%;
+      background: linear-gradient(135deg, var(--navy-midnight) 0%, #003366 100%);
+      border-bottom: 2px solid var(--navy-gold);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      padding: 12px 20px;
+      gap: 12px;
+      overflow: hidden;
+    }
+    .viz-header-placeholder {
+      color: rgba(255,255,255,0.35);
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    /* --- Filter Bar --- */
+    #viz-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 16px;
+      background: var(--accent-light);
+      border-bottom: 1px solid rgba(0,94,184,0.2);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      min-height: 34px;
+    }
+    #viz-filter-bar.hidden { display: none; }
+    .viz-filter-label {
+      font-size: 11px; font-weight: 700; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-right: 4px; white-space: nowrap; flex-shrink: 0;
+    }
+    .viz-clear-filters {
+      margin-left: auto;
+      padding: 2px 10px;
+      background: transparent;
+      border: 1px solid rgba(0,94,184,0.3);
+      border-radius: 3px;
+      font-size: 11px;
+      color: var(--accent);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .viz-clear-filters:hover { background: rgba(220,38,38,0.08); color: var(--danger); border-color: var(--danger); }
+
+    /* --- Main Layout --- */
+    #viz-main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      min-height: 0;
+    }
+    #viz-config-sidebar {
+      width: 280px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .sidebar-empty-msg {
+      padding: 32px 16px;
+      color: var(--text-faint);
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .sidebar-section { padding: 12px; border-bottom: 1px solid var(--border); }
+    .sidebar-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: block; }
+    .sidebar-input { width: 100%; margin-bottom: 8px; }
+    .sidebar-apply-btn {
+      width: 100%; padding: 7px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .sidebar-apply-btn:hover { opacity: 0.88; }
+    .sidebar-checkbox-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+    .sidebar-checkbox-item { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+
+    /* Chart config groups (BAR_H, BAR_V, etc.) */
+    .dwb-config-group {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+    }
+    .dwb-config-group label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    .dwb-config-group select,
+    .dwb-config-group input[type="number"],
+    .dwb-config-group input[type="text"] { width: 100%; margin-top: 2px; }
+    .dwb-config-group small { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+    .dwb-config-inline { flex-direction: row; align-items: center; border-bottom: none; padding: 6px 12px; }
+    .dwb-config-inline label { display: flex; align-items: center; gap: 6px; font-weight: normal; color: var(--text-main); font-size: 12px; }
+    .dwb-btn-apply {
+      display: block; width: calc(100% - 24px); margin: 12px auto;
+      padding: 7px; background: var(--accent); color: #fff;
+      border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .dwb-btn-apply:hover { opacity: 0.88; }
+
+    #viz-canvas {
+      flex: 1; overflow: auto; background: var(--bg-main); padding: 24px;
+    }
+
+    /* === VIZ CANVAS BLOCKS === */
+    .dwb-block {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--navy-gold);
+      border-radius: 8px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: box-shadow 0.2s ease;
+      animation: blockSlideIn 0.2s ease;
+    }
+    .dwb-block:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+
+    .dwb-block-header {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, var(--navy-midnight) 0%, var(--navy-sailor) 100%);
+      border-bottom: none;
+      gap: 8px;
+    }
+    .dwb-block-handle { color: rgba(255,255,255,0.45); cursor: grab; font-size: 14px; user-select: none; }
+    .dwb-block-label {
+      font-size: 13px; color: #fff; flex: 1;
+      font-weight: 600; letter-spacing: 0.02em;
+    }
+    .dwb-block-menu-btn {
+      padding: 3px 8px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.85); cursor: pointer; font-size: 15px; border-radius: 4px; line-height: 1;
+    }
+    .dwb-block-menu-btn:hover { background: rgba(255,255,255,0.22); color: #fff; }
+
+    .dwb-block-slots { display: flex; gap: 0; position: relative; }
+
+    .dwb-slot {
+      display: flex; flex-direction: column; gap: 12px; padding: 16px;
+      border-right: 1px solid var(--border); min-height: 100px; box-sizing: border-box;
+    }
+    .dwb-slot:last-child { border-right: none; }
+
+    /* === ELEMENT CARDS === */
+    .dwb-element-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s;
+    }
+    .dwb-element-card:hover:not(.selected) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-color: var(--border-strong);
+    }
+    .dwb-element-card.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,94,184,0.15);
+    }
+
+    .dwb-element-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+    }
+    .dwb-element-title-input {
+      flex: 1; background: transparent; border: none;
+      font-size: 13px; font-weight: 600; color: var(--text-main);
+      padding: 0; outline: none; min-width: 0;
+    }
+    .dwb-element-title-input:focus { background: var(--bg-surface); border-radius: 3px; padding: 0 4px; }
+    .dwb-element-type-badge {
+      font-size: 10px; color: var(--text-muted); background: var(--bg-main);
+      font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      border-radius: 3px; padding: 2px 6px; white-space: nowrap; flex-shrink: 0;
+    }
+    .dwb-element-menu-btn {
+      padding: 3px 6px; background: transparent; border: none;
+      color: var(--text-faint); cursor: pointer; font-size: 14px; border-radius: 3px; flex-shrink: 0; line-height: 1;
+    }
+    .dwb-element-menu-btn:hover { background: var(--border); color: var(--text-main); }
+
+    .dwb-element-content { padding: 16px; min-height: 160px; }
+
+    .dwb-add-element-btn {
+      display: block; width: 100%; padding: 8px; text-align: center;
+      color: var(--text-faint); border: 1px dashed var(--border); border-radius: 6px;
+      cursor: pointer; font-size: 12px; background: none; transition: all 0.15s;
+    }
+    .dwb-add-element-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
+
+    .dwb-add-block-row { text-align: center; margin: 4px 0 16px; }
+    .dwb-add-block-btn {
+      padding: 6px 24px; background: transparent;
+      border: 1px dashed var(--border-strong); border-radius: 6px;
+      color: var(--text-faint); font-size: 12px; cursor: pointer; transition: all 0.15s;
+    }
+    .dwb-add-block-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+    /* === FILTER CHIPS === */
+    .dwb-filter-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px;
+      background: #fff; color: var(--accent);
+      border: 1px solid rgba(0,94,184,0.3);
+      border-radius: 12px; font-size: 12px; font-weight: 500; margin: 2px;
+      animation: chipIn 0.15s ease;
+    }
+    .dwb-filter-chip-remove {
+      cursor: pointer; opacity: 0.6; font-weight: bold;
+      background: none; border: none; color: inherit; font-size: 12px; padding: 0 1px; line-height: 1;
+    }
+    .dwb-filter-chip-remove:hover { opacity: 1; }
+
+    /* === DATA TABLE === */
+    .dwb-data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .dwb-data-table th {
+      position: sticky; top: 0; background: var(--bg-raised);
+      padding: 6px 10px; text-align: left; font-weight: 600;
+      border-bottom: 2px solid var(--border-strong); white-space: nowrap;
+    }
+    .dwb-data-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .dwb-data-table tbody tr:hover { background: var(--bg-raised); }
+    .dwb-table-scroll { overflow: auto; max-height: 400px; }
+    .dwb-table-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 0 8px; }
+    .dwb-search-input {
+      padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+      font-size: 13px; background: var(--bg-surface); color: var(--text-main);
+    }
+    .dwb-row-count { font-size: 12px; color: var(--text-muted); }
+    mark { background: var(--accent-gold); color: var(--navy-midnight); border-radius: 2px; padding: 0 1px; }
+
+    .dwb-empty-state {
+      display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+      min-height: 160px; color: var(--text-faint); font-size: 13px; text-align: center; padding: 24px;
+    }
+
+    /* KPI Stat element */
+    .dwb-kpi-stat {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; min-height: 120px; padding: 16px; gap: 6px; text-align: center;
+    }
+    .dwb-kpi-value {
+      font-size: 48px; font-weight: 700; color: var(--accent);
+      letter-spacing: -0.02em; line-height: 1;
+    }
+    .dwb-kpi-label {
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .dwb-kpi-rows {
+      font-size: 11px; color: var(--text-faint);
+    }
+
+    /* === CONTEXT MENUS === */
+    .dwb-ctx-menu {
+      position: fixed; background: var(--bg-surface); border: 1px solid var(--border-strong);
+      border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      z-index: 600; min-width: 160px; padding: 4px 0;
+    }
+    .dwb-ctx-item {
+      display: block; width: 100%; padding: 7px 14px; text-align: left;
+      background: none; border: none; font-size: 13px; color: var(--text-main); cursor: pointer;
+    }
+    .dwb-ctx-item:hover { background: var(--bg-raised); }
+    .dwb-ctx-item.danger { color: var(--danger); }
+
+    /* === ADD BLOCK DIALOG === */
+    .layout-opt-btn {
+      flex: 1; padding: 12px 6px; background: var(--bg-raised);
+      border: 2px solid var(--border); border-radius: 8px;
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-align: center; cursor: pointer; transition: all 0.15s;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .layout-opt-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+    .layout-opt-btn.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+    .layout-diagram { display: flex; gap: 2px; width: 56px; height: 22px; }
+    .layout-diagram .ld-col { background: var(--border-strong); border-radius: 2px; height: 100%; }
+    .layout-opt-btn.selected .ld-col,
+    .layout-opt-btn:hover .ld-col { background: var(--accent); }
+
+    .ratio-opt-btn {
+      padding: 6px 10px; background: var(--bg-raised); border: 2px solid var(--border);
+      border-radius: 5px; font-size: 11px; font-weight: 500; color: var(--text-muted); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.15s;
+    }
+    .ratio-opt-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .ratio-opt-btn.selected { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+    .ratio-diagram { display: flex; gap: 1px; width: 50px; height: 14px; }
+    .ratio-diagram .rd-col { background: var(--border-strong); border-radius: 1px; height: 100%; }
+    .ratio-opt-btn.selected .rd-col,
+    .ratio-opt-btn:hover .rd-col { background: var(--accent); }
+
+    /* === ELEMENT PICKER === */
+    .element-picker-cat {
+      font-size: 11px; font-weight: 700; color: var(--navy-sailor);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 12px 12px 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
+    }
+    .element-picker-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 8px 12px;
+    }
+    .element-picker-item {
+      display: flex; align-items: flex-start; gap: 8px; padding: 10px;
+      border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+      position: relative; transition: all 0.15s;
+    }
+    .element-picker-item:hover { border-color: var(--accent); background: var(--accent-light); }
+    .element-picker-icon { font-size: 20px; flex-shrink: 0; line-height: 1.2; }
+    .element-picker-title { font-weight: 600; font-size: 12px; line-height: 1.3; }
+    .element-picker-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+    .element-recommended {
+      position: absolute; top: -1px; right: -1px;
+      padding: 2px 5px; background: var(--navy-gold); color: var(--navy-midnight);
+      border-radius: 0 5px 0 5px; font-size: 9px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+
+    /* === PRESENTATION MODE === */
+    .presentation-mode #top-bar,
+    .presentation-mode #viz-toolbar,
+    .presentation-mode #viz-config-sidebar,
+    .presentation-mode .dwb-block-header,
+    .presentation-mode .dwb-add-block-row,
+    .presentation-mode .dwb-add-element-btn { display: none !important; }
+
+    .presentation-mode #viz-canvas { padding: 32px; }
+
+    .presentation-mode .dwb-block {
+      box-shadow: none; border: none; border-left: none;
+      border-radius: 0; margin-bottom: 24px;
+    }
+    .presentation-mode .dwb-block-slots {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden;
+    }
+    .presentation-mode .dwb-block-slots::before {
+      content: attr(data-block-title);
+      position: absolute; top: 8px; left: 12px; z-index: 1;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+      color: var(--text-faint); opacity: 0.6; pointer-events: none;
+    }
+    .presentation-mode .dwb-element-card {
+      border-color: var(--border); box-shadow: none;
+    }
+    .presentation-mode .dwb-element-card:hover:not(.selected) {
+      transform: none; box-shadow: none;
+    }
+
+    /* === NODE PICKER MODAL === */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.hidden { display: none; }
+
+    .modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #node-picker { width: 480px; max-height: 72vh; }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .modal-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: var(--text-muted);
+      padding: 0 2px;
+    }
+    .modal-close:hover { color: var(--text-main); }
+
+    #picker-search {
+      margin: 10px 14px;
+      width: calc(100% - 28px);
+      padding: 7px 10px;
+    }
+    #picker-list { overflow-y: auto; flex: 1; padding: 0 8px 8px; }
+
+    .picker-cat {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      padding: 8px 8px 3px;
+    }
+    .picker-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .picker-item:hover { background: var(--bg-raised); }
+    .picker-item-icon { font-size: 20px; flex-shrink: 0; }
+    .picker-item-title { font-weight: 600; font-size: 13px; }
+    .picker-item-desc  { font-size: 11px; color: var(--text-muted); }
+
+    /* Workflow modal */
+    #wf-modal { width: 420px; padding: 0; }
+    #wf-modal .modal-header { padding: 14px 16px; }
+    #wf-modal-body { padding: 12px 16px 16px; }
+
+    .wf-list {
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      margin-bottom: 12px;
+    }
+    .wf-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 12px;
+      gap: 8px;
+    }
+    .wf-item:last-child { border-bottom: none; }
+    .wf-item:hover { background: var(--bg-raised); }
+    .wf-item-name { flex: 1; font-weight: 600; }
+    .wf-item-date { font-size: 10px; color: var(--text-faint); white-space: nowrap; }
+    .wf-item-del {
+      padding: 1px 5px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+    .wf-item-del:hover { color: var(--danger); border-color: var(--danger); }
+
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
+
+    .btn-primary {
+      padding: 6px 16px;
+      background: var(--accent);
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-secondary {
+      padding: 6px 14px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text-main);
+      font-size: 12px;
+    }
+    .btn-secondary:hover { background: var(--border); }
+
+    /* === SCROLLBARS === */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+  <span class="app-title">⚓ Data Workbench</span>
+
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="btn-pm" onclick="DWB.setMode('pipeline')">⚙ Pipeline</button>
+    <button class="mode-btn"        id="btn-vm" onclick="DWB.setMode('viz')">📊 Visualize</button>
+  </div>
+
+  <div id="active-dataset-indicator">No active dataset</div>
+  <div class="flex-spacer"></div>
+
+  <button class="tb-btn" onclick="DWB.saveWorkflow()">💾 Save</button>
+  <button class="tb-btn" onclick="DWB.showLoadModal()">📂 Load</button>
+  <button class="tb-btn" onclick="DWB.exportWorkflow()">⬇ Export</button>
+  <label  class="tb-btn" style="cursor:pointer">⬆ Import
+    <input type="file" accept=".json" style="display:none" onchange="DWB._importWorkflowFile(this)">
+  </label>
+
+  <button class="tb-btn" id="theme-toggle" onclick="DWB.toggleTheme()">🌙</button>
+</div>
+
+<!-- ============================================================
+     PIPELINE MODE
+     ============================================================ -->
+<div id="pipeline-mode" class="mode-panel">
+
+  <div id="pipeline-body">
+
+    <!-- MAIN: config + inspector -->
+    <div id="pipeline-main">
+
+      <!-- Config Panel (collapsible) -->
+      <div id="config-panel">
+        <div class="panel-header" onclick="DWB.togglePanel('config-panel')">
+          <span id="config-title">Node Config</span>
+          <i class="arrow">▾</i>
+        </div>
+        <div id="config-body">
+          <div class="config-empty">Select a node to configure it.</div>
+        </div>
+      </div>
+
+      <!-- Resizable split divider -->
+      <div id="split-divider"></div>
+
+      <!-- Data Inspector -->
+      <div id="data-inspector">
+        <div id="inspector-meta">No data loaded</div>
+        <div id="inspector-table-wrap">
+          <div class="inspector-empty">
+            <span class="ei-icon">📋</span>
+            <span>Run a node to see data here.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- PIPELINE TRACK SIDEBAR -->
+    <div id="pipeline-sidebar">
+
+      <div id="sidebar-header">
+        Pipeline
+        <button id="qv-toggle" onclick="DWB.toggleQuickView()" title="Show starred nodes only">⭐ Quick View</button>
+      </div>
+
+      <div id="node-list">
+        <!-- rendered by JS -->
+      </div>
+
+      <!-- Stash Panel -->
+      <div id="stash-panel">
+        <div class="panel-header" onclick="DWB.togglePanel('stash-panel')">
+          <span>Stashes</span>
+          <i class="arrow">▾</i>
+        </div>
+        <div id="stash-list">
+          <div class="stash-empty">No stashes yet.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CONSOLE (collapsible, starts minimized) -->
+  <div id="console-panel" class="collapsed">
+    <div id="console-header" onclick="DWB.togglePanel('console-panel')">
+      <span class="label">Console</span>
+      <button id="console-clear" onclick="event.stopPropagation();DWB.clearConsole()">Clear</button>
+      <span id="console-arrow">▲</span>
+    </div>
+    <div id="console-log"></div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     VIZ MODE
+     ============================================================ -->
+<div id="viz-mode" class="mode-panel hidden">
+
+  <!-- Viz Toolbar -->
+  <div id="viz-toolbar">
+    <button class="viz-btn" id="btn-add-block" onclick="DWB.viz && DWB.viz.showAddBlockDialog()">＋ Add Block</button>
+    <select id="viz-dataset-picker" onchange="DWB.viz && DWB.viz.onDatasetPickerChange(this.value)">
+      <option value="">No datasets — push data from pipeline</option>
+    </select>
+    <div class="flex-spacer"></div>
+    <button class="viz-btn" id="btn-presentation" onclick="DWB.viz && DWB.viz.togglePresentation()">⛶ Presentation</button>
+    <button class="viz-btn" disabled title="Coming soon">📤 Export PPTX</button>
+    <button class="viz-btn" disabled title="Coming soon">🌐 Export HTML</button>
+  </div>
+
+  <!-- Sticky Header Block -->
+  <div id="viz-header-block">
+    <span class="viz-header-placeholder">No header elements</span>
+  </div>
+
+  <!-- Filter Bar (hidden until filters active) -->
+  <div id="viz-filter-bar" class="hidden">
+    <span class="viz-filter-label">Filters:</span>
+    <div id="viz-filter-chips"></div>
+    <button class="viz-clear-filters" onclick="DWB.viz && DWB.viz.clearFilters()">Clear all</button>
+  </div>
+
+  <!-- Main: config sidebar + canvas -->
+  <div id="viz-main">
+    <div id="viz-config-sidebar">
+      <div class="sidebar-empty-msg">Select an element to configure</div>
+    </div>
+    <div id="viz-canvas"
+         ondragover="event.preventDefault()"
+         ondrop="DWB._vizDrop(event)">
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     NODE PICKER MODAL
+     ============================================================ -->
+<div id="picker-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.closePicker()">
+  <div id="node-picker" class="modal">
+    <div class="modal-header">
+      Add Node
+      <button class="modal-close" onclick="DWB.closePicker()">✕</button>
+    </div>
+    <input type="text" id="picker-search" placeholder="Search nodes…" oninput="DWB._filterPicker(this.value)">
+    <div id="picker-list"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     WORKFLOW MODAL
+     ============================================================ -->
+<div id="wf-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.closeWfModal()">
+  <div id="wf-modal" class="modal">
+    <div class="modal-header">
+      Load Workflow
+      <button class="modal-close" onclick="DWB.closeWfModal()">✕</button>
+    </div>
+    <div id="wf-modal-body">
+      <div class="wf-list" id="wf-list"></div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="DWB.closeWfModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     ADD BLOCK MODAL
+     ============================================================ -->
+<div id="add-block-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.viz&&DWB.viz.closeAddBlockDialog()">
+  <div class="modal" style="width:380px">
+    <div class="modal-header">
+      Add Block
+      <button class="modal-close" onclick="DWB.viz&&DWB.viz.closeAddBlockDialog()">✕</button>
+    </div>
+    <div style="padding:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">Layout</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="layout-opt-btn selected" data-layout="1col" onclick="DWB.viz._selectBlockLayout('1col',this)">
+          <div class="layout-diagram"><div class="ld-col" style="flex:1"></div></div>
+          1 Column
+        </button>
+        <button class="layout-opt-btn" data-layout="2col" onclick="DWB.viz._selectBlockLayout('2col',this)">
+          <div class="layout-diagram"><div class="ld-col" style="flex:1"></div><div class="ld-col" style="flex:1"></div></div>
+          2 Columns
+        </button>
+        <button class="layout-opt-btn" data-layout="3col" onclick="DWB.viz._selectBlockLayout('3col',this)">
+          <div class="layout-diagram"><div class="ld-col" style="flex:1"></div><div class="ld-col" style="flex:1"></div><div class="ld-col" style="flex:1"></div></div>
+          3 Columns
+        </button>
+      </div>
+      <div id="add-block-ratio-section" style="display:none">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">Column Ratio</div>
+        <div id="add-block-ratio-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="DWB.viz&&DWB.viz.closeAddBlockDialog()">Cancel</button>
+        <button class="btn-primary" onclick="DWB.viz&&DWB.viz.confirmAddBlock()">Add Block</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     ELEMENT PICKER MODAL
+     ============================================================ -->
+<div id="element-picker-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.viz&&DWB.viz.closeElementPicker()">
+  <div class="modal" style="width:440px;max-height:70vh">
+    <div class="modal-header">
+      Add Element
+      <button class="modal-close" onclick="DWB.viz&&DWB.viz.closeElementPicker()">✕</button>
+    </div>
+    <div id="element-picker-list" style="overflow-y:auto;flex:1;padding:8px"></div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+//  CORE ENGINE  (Spec §5.3)
+// ================================================================
+window.DWB = (() => {
+  'use strict';
+
+  // ---- Internal state ----
+  const _typeDefs       = {};
+  const pipeline        = { nodes: [], activeNodeId: null };
+  const stashes         = {};
+  const promotedDatasets = {};
+  const vizState        = { _elementRegistry: {}, _headerRegistry: {} };
+  let activeDataset = null;
+  let _mode      = 'pipeline';
+  let _quickView = false;
+  let _insertIdx = 0;
+
+  // ---- Utilities ----
+  const _uid = () => 'n' + Math.random().toString(36).slice(2, 9);
+  const _hms = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+  function parseCSV(text) {
+    const result = Papa.parse(text, {
+      header: false,
+      skipEmptyLines: true,
+      trimHeaders: false
+    });
+    if (!result.data || result.data.length < 1) {
+      return { headers: [], rows: [] };
+    }
+    if (result.errors && result.errors.length > 0) {
+      const msgs = result.errors.slice(0, 3).map(e => e.message).join('; ');
+      log(`CSV parse warnings: ${msgs}`, 'warn');
+    }
+    const headers = result.data[0].map(h => String(h).trim());
+    const rows    = result.data.slice(1);
+    return { headers, rows };
+  }
+
+  function generateOptions(headers, selected) {
+    return headers.map(h =>
+      `<option value="${h}"${h === selected ? ' selected' : ''}>${h}</option>`
+    ).join('');
+  }
+
+  function toObjects(data) {
+    if (!data?.headers?.length) return [];
+    return data.rows.map(row =>
+      Object.fromEntries(data.headers.map((h, i) => [h, row[i] ?? '']))
+    );
+  }
+
+  function fromObjects(arr, headers) {
+    const hdrs = headers || (arr[0] ? Object.keys(arr[0]) : []);
+    return { headers: hdrs, rows: arr.map(o => hdrs.map(h => o[h] ?? '')) };
+  }
+
+  // ---- Console ----
+  function log(msg, level) {
+    const el = document.getElementById('console-log');
+    if (!el) return;
+    const cls = level === true || level === 'error' ? 'error'
+              : level === 'warn'    ? 'warn'
+              : level === 'success' ? 'success'
+              : 'info';
+    const line = document.createElement('div');
+    line.className = `log-line ${cls}`;
+    line.innerHTML = `<span class="log-ts">${_hms()}</span><span class="log-msg">${String(msg)}</span>`;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function clearConsole() {
+    const el = document.getElementById('console-log');
+    if (el) el.innerHTML = '';
+  }
+
+  // ---- Stash ----
+  function getStash(name) { return stashes[name] || null; }
+
+  function setStash(name, data, nodeId) {
+    stashes[name] = { name, data, timestamp: new Date(), nodeId: nodeId || null };
+    _renderStashes();
+    log(`Stashed "${name}" — ${data.rows.length} rows`);
+  }
+
+  function listStashes() { return Object.keys(stashes); }
+
+  function _deleteStash(name) {
+    delete stashes[name];
+    _renderStashes();
+    log(`Stash "${name}" deleted`);
+  }
+
+  function _renderStashes() {
+    const el = document.getElementById('stash-list');
+    const names = Object.keys(stashes);
+    if (!names.length) { el.innerHTML = '<div class="stash-empty">No stashes yet.</div>'; return; }
+    el.innerHTML = names.map(name => {
+      const s = stashes[name];
+      const ts = s.timestamp instanceof Date
+        ? s.timestamp.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
+      return `<div class="stash-item">
+        <span class="stash-name" title="${name}">${name}</span>
+        <span class="stash-ts">${ts}</span>
+        <div class="stash-actions">
+          <button class="stash-act" onclick="DWB.promoteToActive('${name}',DWB.getStash('${name}').data)" title="Promote to active">▲</button>
+          <button class="stash-act" onclick="DWB._deleteStash('${name}')" title="Delete">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ---- Data utilities ----
+  function passthroughCopy(data) {
+    const out = {
+      headers: [...data.headers],
+      rows: data.rows.map(r => [...r])
+    };
+    if (data.columnTypes)    out.columnTypes    = [...data.columnTypes];
+    if (data.columnTypeMeta) out.columnTypeMeta = Object.assign({}, data.columnTypeMeta);
+    return out;
+  }
+
+  function inferTypes(data) {
+    const LIKERT_SCALES = [
+      ['strongly disagree','disagree','neutral','agree','strongly agree'],
+      ['strongly disagree','disagree','neither agree nor disagree','agree','strongly agree'],
+      ['never','rarely','sometimes','often','always'],
+      ['very dissatisfied','dissatisfied','neutral','satisfied','very satisfied'],
+      ['not at all','barely','neutral','somewhat','strongly'],
+      ['not at all','slightly','moderately','very','extremely'],
+      ['poor','fair','good','very good','excellent'],
+      ['1','2','3','4','5'],
+      ['1','2','3','4'],
+      ['yes','no'],
+      ['true','false'],
+      ['complete','incomplete'],
+      ['yes','no','n/a'],
+    ];
+
+    return data.headers.map((header, colIdx) => {
+      const values = data.rows
+        .map(r => String(r[colIdx] ?? '').trim())
+        .filter(v => v !== '');
+
+      if (values.length === 0) return 'text';
+
+      const uniqueVals  = [...new Set(values.map(v => v.toLowerCase()))];
+      const uniqueCount = uniqueVals.length;
+      const totalCount  = values.length;
+
+      // Likert: unique values are a subset of a known scale
+      for (const scale of LIKERT_SCALES) {
+        const inScale    = uniqueVals.filter(v => scale.includes(v));
+        const outOfScale = uniqueVals.filter(v => !scale.includes(v));
+        if (
+          inScale.length >= Math.min(2, scale.length) &&
+          outOfScale.length === 0 &&
+          uniqueCount <= scale.length
+        ) return 'likert';
+      }
+
+      // Number: >80% of non-empty values parse as finite float
+      const numericCount = values.filter(v => {
+        const cleaned = v.replace(/[$,%\s]/g, '');
+        return cleaned !== '' && isFinite(parseFloat(cleaned));
+      }).length;
+      if (numericCount / totalCount > 0.8) return 'number';
+
+      // Date: >80% parse as valid dates, value length > 4 chars
+      const dateCount = values.filter(v => {
+        if (v.length <= 4) return false;
+        const d = new Date(v);
+        return !isNaN(d.getTime());
+      }).length;
+      if (dateCount / totalCount > 0.8) return 'date';
+
+      // Categorical: uniqueCount <= 20 AND unique ratio <= 15%, not free text
+      if (uniqueCount <= 20 && uniqueCount / totalCount <= 0.15) {
+        const avgWords = values.reduce((sum, v) =>
+          sum + v.split(/\s+/).length, 0) / totalCount;
+        if (avgWords <= 4) return 'categorical';
+      }
+
+      return 'text';
+    });
+  }
+
+  // ---- Config update (no re-render) ----
+  function updateConfig(nodeId, key, value) {
+    const node = pipeline.nodes.find(n => n.id === nodeId);
+    if (node) node.config[key] = value;
+  }
+
+  // ---- Active Dataset ----
+  function promoteToActive(name, data) {
+    const columnTypes    = data.columnTypes    ? [...data.columnTypes]           : inferTypes(data);
+    const columnTypeMeta = data.columnTypeMeta ? Object.assign({}, data.columnTypeMeta) : {};
+    activeDataset = {
+      name, data,
+      objects: toObjects(data),
+      rowCount: data.rows.length,
+      promotedFrom: null,
+      timestamp: new Date(),
+      columnTypes,
+      columnTypeMeta
+    };
+    promotedDatasets[name] = {
+      name,
+      headers: data.headers,
+      rows: data.rows,
+      columnTypes,
+      columnTypeMeta,
+      rowCount: data.rows.length,
+      timestamp: new Date()
+    };
+    const ind = document.getElementById('active-dataset-indicator');
+    ind.textContent = `Active: ${name} · ${data.rows.length.toLocaleString()} rows`;
+    ind.classList.add('has-data');
+    log(`Promoted "${name}" to active dataset (${data.rows.length} rows)`, 'success');
+    const tc = { number: 0, date: 0, categorical: 0, likert: 0, text: 0 };
+    columnTypes.forEach(t => { if (tc[t] !== undefined) tc[t]++; else tc.text++; });
+    log(`Type inference — number: ${tc.number}, date: ${tc.date}, categorical: ${tc.categorical}, likert: ${tc.likert}, text: ${tc.text}`);
+  }
+
+  function getColumnMeta(colIndex) {
+    if (!activeDataset) return { type: 'text', meta: null };
+    return {
+      type: (activeDataset.columnTypes || [])[colIndex] || 'text',
+      meta: (activeDataset.columnTypeMeta || {})[colIndex] || null
+    };
+  }
+
+  // ---- Theme ----
+  function toggleTheme() {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const next = dark ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('dwb_theme', next);
+    document.getElementById('theme-toggle').textContent = next === 'dark' ? '☀️' : '🌙';
+  }
+
+  function _applyTheme() {
+    const t = localStorage.getItem('dwb_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', t);
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+  }
+
+  // ---- Panel collapse ----
+  function togglePanel(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('collapsed');
+    if (id === 'console-panel') {
+      const arrow = document.getElementById('console-arrow');
+      if (arrow) arrow.textContent = el.classList.contains('collapsed') ? '▲' : '▼';
+    }
+  }
+
+  // ---- Mode ----
+  function setMode(mode) {
+    _mode = mode;
+    document.getElementById('pipeline-mode').classList.toggle('hidden', mode !== 'pipeline');
+    document.getElementById('viz-mode').classList.toggle('hidden', mode !== 'viz');
+    document.getElementById('btn-pm').classList.toggle('active', mode === 'pipeline');
+    document.getElementById('btn-vm').classList.toggle('active', mode === 'viz');
+  }
+
+  // ---- Node registration ----
+  function register(type, def) {
+    _typeDefs[type] = def;
+    log(`Registered: ${type}`);
+  }
+
+  function registerElement(key, def) {
+    vizState._elementRegistry[key] = def;
+    log(`Registered element: ${key}`);
+  }
+
+  function registerHeaderElement(key, def) {
+    vizState._headerRegistry[key] = def;
+    log(`Registered header element: ${key}`);
+  }
+
+  // ---- Pipeline: node CRUD ----
+  function _mkNode(type) {
+    const def = _typeDefs[type];
+    return {
+      id: _uid(), type,
+      customName: def?.title || type,
+      isStarred: false,
+      status: 'idle',
+      config: JSON.parse(JSON.stringify(def?.defaultConfig || {})),
+      output: null, errorMsg: null
+    };
+  }
+
+  function addNode(type, atIdx) {
+    const node = _mkNode(type);
+    pipeline.nodes.splice(atIdx, 0, node);
+    renderTrack();
+    selectNode(node.id);
+    log(`Added: ${_typeDefs[type]?.title || type}`);
+  }
+
+  function selectNode(id) {
+    pipeline.activeNodeId = id;
+    renderTrack();
+    renderActiveNode();
+    // Show output in inspector if node has run
+    const node = pipeline.nodes.find(n => n.id === id);
+    if (node?.output) renderDataInspector(node.output);
+  }
+
+  // ---- Pipeline execution ----
+  function runFrom(nodeId) {
+    const startIdx = nodeId
+      ? pipeline.nodes.findIndex(n => n.id === nodeId)
+      : 0;
+    if (startIdx < 0) { log(`Node ${nodeId} not found`, 'error'); return; }
+
+    let input = startIdx > 0 ? (pipeline.nodes[startIdx - 1].output || null) : null;
+
+    for (let i = startIdx; i < pipeline.nodes.length; i++) {
+      const node = pipeline.nodes[i];
+      const def  = _typeDefs[node.type];
+      if (!def) { log(`Unknown type: ${node.type}`, 'error'); break; }
+
+      node.status = 'running';
+      _updateCard(node.id);
+
+      try {
+        def.execute(node, input);
+        node.status = 'ok';
+        input = node.output || null;
+        log(`✓ ${node.customName || def.title}`, 'success');
+      } catch (e) {
+        node.status = 'error';
+        node.errorMsg = e.message;
+        _updateCard(node.id);
+        log(`✗ ${node.customName || def.title}: ${e.message}`, 'error');
+        break;
+      }
+      _updateCard(node.id);
+    }
+
+    // Show active node's output (or last node's)
+    const active = pipeline.nodes.find(n => n.id === pipeline.activeNodeId);
+    const target = (active?.output ? active : pipeline.nodes[pipeline.nodes.length - 1]);
+    if (target?.output) renderDataInspector(target.output);
+  }
+
+  // ---- Split divider ----
+  function _initSplitDivider() {
+    const divider  = document.getElementById('split-divider');
+    const main     = document.getElementById('pipeline-main');
+    const cfgPanel = document.getElementById('config-panel');
+    if (!divider || !main || !cfgPanel) return;
+
+    function applyH(h) {
+      cfgPanel.style.flexBasis = h + 'px';
+    }
+
+    function clampH(raw) {
+      const rect = main.getBoundingClientRect();
+      return Math.max(120, Math.min(rect.height - 120 - 6, raw));
+    }
+
+    // Restore saved ratio
+    const savedRatio = parseFloat(localStorage.getItem('dwb_split_ratio') || '0.35');
+    requestAnimationFrame(() => {
+      const rect = main.getBoundingClientRect();
+      if (rect.height > 0) applyH(clampH(rect.height * savedRatio));
+    });
+
+    // Mouse drag
+    let dragging = false;
+    divider.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      dragging = true;
+      e.preventDefault();
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    function onMove(e) {
+      if (!dragging) return;
+      const h = clampH(e.clientY - main.getBoundingClientRect().top);
+      applyH(h);
+      localStorage.setItem('dwb_split_ratio', (h / main.getBoundingClientRect().height).toFixed(3));
+    }
+    function onUp() {
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+
+    // Touch drag
+    divider.addEventListener('touchstart', () => {
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+    }, { passive: true });
+    function onTouchMove(e) {
+      e.preventDefault();
+      const h = clampH(e.touches[0].clientY - main.getBoundingClientRect().top);
+      applyH(h);
+      localStorage.setItem('dwb_split_ratio', (h / main.getBoundingClientRect().height).toFixed(3));
+    }
+    function onTouchEnd() {
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    }
+  }
+
+  // ---- Config panel ----
+  function renderActiveNode() {
+    const node = pipeline.nodes.find(n => n.id === pipeline.activeNodeId);
+    const body  = document.getElementById('config-body');
+    const title = document.getElementById('config-title');
+    const panel = document.getElementById('config-panel');
+
+    if (!node) {
+      body.innerHTML  = '<div class="config-empty">Select a node to configure it.</div>';
+      title.textContent = 'Node Config';
+      panel.classList.remove('has-overflow');
+      return;
+    }
+    const def = _typeDefs[node.type];
+    title.textContent = `${def?.icon || ''} ${node.customName}`;
+    panel.classList.remove('collapsed');
+
+    const idx = pipeline.nodes.indexOf(node);
+    const prevData = idx > 0 ? (pipeline.nodes[idx - 1].output || null) : null;
+
+    if (def?.renderConfig) {
+      def.renderConfig(node, prevData);
+    } else {
+      body.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text-muted)">
+        Type: <strong>${node.type}</strong><br>No config UI for this node.
+      </div>`;
+    }
+
+    panel.classList.toggle('has-overflow', body.scrollHeight > body.clientHeight);
+  }
+
+  // ---- Pipeline track ----
+  function renderTrack() {
+    const list  = document.getElementById('node-list');
+    const nodes = _quickView ? pipeline.nodes.filter(n => n.isStarred) : pipeline.nodes;
+
+    let html = `<button class="add-btn" onclick="DWB.openPicker(0)">＋ Add Node</button>`;
+
+    if (_quickView && !nodes.length) {
+      html += `<div style="padding:12px;text-align:center;font-size:11px;color:var(--text-faint)">No starred nodes.</div>`;
+    }
+
+    nodes.forEach(node => {
+      const def = _typeDefs[node.type] || {};
+      const realIdx = pipeline.nodes.indexOf(node) + 1;
+      const sel = node.id === pipeline.activeNodeId ? ' selected' : '';
+      html += `
+      <div class="node-card${sel}" data-nid="${node.id}" onclick="DWB.selectNode('${node.id}')">
+        <span class="node-icon">${def.icon || '⬜'}</span>
+        <div class="node-info">
+          <div class="node-name">${node.customName}</div>
+          <div class="node-type-sub">${def.title || node.type}</div>
+        </div>
+        <button class="node-star${node.isStarred?' starred':''}"
+          onclick="event.stopPropagation();DWB._toggleStar('${node.id}')"
+          title="${node.isStarred?'Unstar':'Star'}">★</button>
+        <span class="status-dot ${node.status}"></span>
+        <button class="node-del"
+          onclick="event.stopPropagation();DWB.deleteNode('${node.id}')"
+          title="Delete node">×</button>
+      </div>
+      <button class="add-btn" onclick="DWB.openPicker(${realIdx})">＋</button>`;
+    });
+
+    list.innerHTML = html;
+  }
+
+  function _updateCard(nodeId) {
+    const node = pipeline.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const card = document.querySelector(`[data-nid="${nodeId}"]`);
+    if (!card) { renderTrack(); return; }
+    const dot = card.querySelector('.status-dot');
+    if (dot) dot.className = `status-dot ${node.status}`;
+  }
+
+  function _toggleStar(nodeId) {
+    const node = pipeline.nodes.find(n => n.id === nodeId);
+    if (node) { node.isStarred = !node.isStarred; renderTrack(); }
+  }
+
+  function deleteNode(nodeId) {
+    const idx = pipeline.nodes.findIndex(n => n.id === nodeId);
+    if (idx < 0) return;
+    const node = pipeline.nodes[idx];
+    const def  = _typeDefs[node.type] || {};
+
+    if (node.output !== null) {
+      if (!confirm(`Delete "${node.customName || def.title}"?`)) return;
+    }
+
+    const wasActive = pipeline.activeNodeId === nodeId;
+    pipeline.nodes.splice(idx, 1);
+    if (wasActive) pipeline.activeNodeId = null;
+
+    renderTrack();
+    renderActiveNode();
+
+    if (pipeline.nodes.length === 0) {
+      renderDataInspector(null);
+    } else if (idx < pipeline.nodes.length) {
+      runFrom(pipeline.nodes[idx].id);
+    }
+
+    log(`Deleted: ${node.customName || def.title}`);
+  }
+
+  // ---- Quick View ----
+  function toggleQuickView() {
+    _quickView = !_quickView;
+    document.getElementById('qv-toggle').classList.toggle('on', _quickView);
+    renderTrack();
+  }
+
+  // ---- Node picker ----
+  function openPicker(idx) {
+    _insertIdx = idx;
+    _renderPickerList('');
+    document.getElementById('picker-overlay').classList.remove('hidden');
+    const s = document.getElementById('picker-search');
+    s.value = ''; s.focus();
+  }
+
+  function closePicker() {
+    document.getElementById('picker-overlay').classList.add('hidden');
+  }
+
+  function _renderPickerList(q) {
+    const list = document.getElementById('picker-list');
+    const lq   = q.toLowerCase();
+    const byCat = {};
+    for (const [type, def] of Object.entries(_typeDefs)) {
+      if (!def.implemented) continue;
+      if (lq && !def.title.toLowerCase().includes(lq) && !(def.desc||'').toLowerCase().includes(lq)) continue;
+      const cat = def.category || 'Other';
+      (byCat[cat] = byCat[cat] || []).push({ type, def });
+    }
+    if (!Object.keys(byCat).length) {
+      list.innerHTML = `<div style="padding:16px;color:var(--text-faint);font-size:12px">No nodes match.</div>`;
+      return;
+    }
+    list.innerHTML = Object.entries(byCat).map(([cat, items]) =>
+      `<div class="picker-cat">${cat}</div>` +
+      items.map(({ type, def }) =>
+        `<div class="picker-item" onclick="DWB._pickNode('${type}')">
+          <span class="picker-item-icon">${def.icon || '⬜'}</span>
+          <div>
+            <div class="picker-item-title">${def.title}</div>
+            <div class="picker-item-desc">${def.desc || ''}</div>
+          </div>
+        </div>`
+      ).join('')
+    ).join('');
+  }
+
+  function _filterPicker(q) { _renderPickerList(q); }
+
+  function _pickNode(type) {
+    closePicker();
+    addNode(type, _insertIdx);
+  }
+
+  // ---- Data Inspector ----
+  function renderDataInspector(data) {
+    const wrap = document.getElementById('inspector-table-wrap');
+    const meta = document.getElementById('inspector-meta');
+
+    const insp = document.getElementById('data-inspector');
+    if (!data?.headers?.length) {
+      wrap.innerHTML = `<div class="inspector-empty">
+        <span class="ei-icon">📋</span><span>No data to display.</span>
+      </div>`;
+      meta.textContent = 'No data';
+      insp?.classList.remove('has-overflow');
+      return;
+    }
+
+    const MAX = 200;
+    const display = data.rows.slice(0, MAX);
+    meta.textContent = `Showing ${display.length.toLocaleString()} of ${data.rows.length.toLocaleString()} rows · ${data.headers.length} columns`;
+
+    // VDP stats
+    const stats = data.headers.map((_, ci) => {
+      const vals   = data.rows.map(r => r[ci] ?? '');
+      const filled = vals.filter(v => v !== '');
+      const unique = new Set(filled).size;
+      const freq   = {};
+      filled.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+      const top = Object.values(freq).sort((a,b) => b-a)[0] || 0;
+      const topPct = filled.length ? Math.round((top / filled.length) * 100) : 0;
+      return { total: data.rows.length, filled: filled.length, unique, topPct };
+    });
+
+    let html = `<table class="data-table"><thead><tr>
+      <th><div style="padding:6px 8px;font-size:11px;color:var(--text-faint)">#</div>
+          <div class="vdp"><div class="vdp-stats"><span>row</span></div></div></th>`;
+
+    data.headers.forEach((h, ci) => {
+      const s = stats[ci];
+      html += `<th>
+        <div class="col-header-name" title="${h}">${h}</div>
+        <div class="vdp">
+          <div class="vdp-stats">
+            <span title="Non-empty values">${s.filled.toLocaleString()} vals</span>
+            <span title="Unique values">${s.unique.toLocaleString()} uniq</span>
+          </div>
+          <div class="vdp-bar-track">
+            <div class="vdp-bar-fill" style="width:${s.topPct}%" title="Top value: ${s.topPct}% of filled"></div>
+          </div>
+        </div>
+      </th>`;
+    });
+
+    html += '</tr></thead><tbody>';
+    display.forEach((row, ri) => {
+      html += `<tr><td class="row-num-cell">${ri + 1}</td>`;
+      data.headers.forEach((_, ci) => {
+        const v = String(row[ci] ?? '');
+        html += `<td title="${v.replace(/"/g,'&quot;')}">${v}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    insp?.classList.toggle('has-overflow', wrap.scrollHeight > wrap.clientHeight);
+  }
+
+  // ---- Viz CSV drop ----
+  function _vizDrop(event) {
+    event.preventDefault();
+    const f = event.dataTransfer.files[0];
+    if (f) _loadVizCSV(f);
+  }
+
+  function _vizFileInput(input) {
+    if (input.files[0]) _loadVizCSV(input.files[0]);
+  }
+
+  function _loadVizCSV(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const data = parseCSV(e.target.result);
+      const label = file.name.replace(/\.csv$/i, '');
+      const ingest = { id: _uid(), type: 'INGEST', customName: file.name, isStarred: false,
+        status: 'ok', config: { fileName: file.name }, output: data, errorMsg: null };
+      const push   = { id: _uid(), type: 'PUSH_TO_VIZ', customName: label, isStarred: false,
+        status: 'ok', config: { datasetName: label }, output: data, errorMsg: null };
+      pipeline.nodes.push(ingest, push);
+      renderTrack();
+      promoteToActive(label, data);
+      if (vizState.onDatasetPromoted) vizState.onDatasetPromoted(label);
+    };
+    reader.readAsText(file);
+  }
+
+  // ---- Workflow ----
+  function _serialize(name) {
+    return {
+      version: '1.0', name,
+      savedAt: new Date().toISOString(),
+      nodes: pipeline.nodes.map(n => ({
+        id: n.id, type: n.type, customName: n.customName,
+        isStarred: n.isStarred,
+        config: Object.fromEntries(Object.entries(n.config).filter(([k]) => k !== 'fileData'))
+      })),
+      stashNames: Object.keys(stashes)
+    };
+  }
+
+  function _apply(wf) {
+    pipeline.nodes = (wf.nodes || []).map(n =>
+      ({ ...n, status: 'idle', output: null, errorMsg: null })
+    );
+    pipeline.activeNodeId = null;
+    renderTrack();
+    renderActiveNode();
+    log(`Workflow "${wf.name}" applied (${pipeline.nodes.length} nodes)`, 'success');
+  }
+
+  function saveWorkflow() {
+    const name = prompt('Workflow name:', `workflow_${new Date().toISOString().slice(0,10)}`);
+    if (!name) return;
+    const store = JSON.parse(localStorage.getItem('dwb_workflows') || '{}');
+    store[name] = _serialize(name);
+    localStorage.setItem('dwb_workflows', JSON.stringify(store));
+    log(`Saved workflow "${name}"`, 'success');
+  }
+
+  function showLoadModal() {
+    const store = JSON.parse(localStorage.getItem('dwb_workflows') || '{}');
+    const names = Object.keys(store);
+    const list = document.getElementById('wf-list');
+    list.innerHTML = names.length
+      ? names.map(n => {
+          const wf = store[n];
+          const dt = wf.savedAt ? new Date(wf.savedAt).toLocaleString() : '';
+          return `<div class="wf-item">
+            <span class="wf-item-name" onclick="DWB._loadWf('${n}');DWB.closeWfModal()">${n}</span>
+            <span class="wf-item-date">${dt}</span>
+            <button class="wf-item-del" onclick="DWB._delWf('${n}')">✕</button>
+          </div>`;
+        }).join('')
+      : '<div class="wf-item" style="color:var(--text-faint)">No saved workflows.</div>';
+    document.getElementById('wf-overlay').classList.remove('hidden');
+  }
+
+  function closeWfModal() { document.getElementById('wf-overlay').classList.add('hidden'); }
+
+  function _loadWf(name) {
+    const store = JSON.parse(localStorage.getItem('dwb_workflows') || '{}');
+    if (store[name]) _apply(store[name]);
+  }
+
+  function _delWf(name) {
+    const store = JSON.parse(localStorage.getItem('dwb_workflows') || '{}');
+    delete store[name];
+    localStorage.setItem('dwb_workflows', JSON.stringify(store));
+    showLoadModal();
+  }
+
+  function exportWorkflow() {
+    const name = prompt('Export as:', `workflow_${new Date().toISOString().slice(0,10)}`);
+    if (!name) return;
+    const blob = new Blob([JSON.stringify(_serialize(name), null, 2)], { type: 'application/json' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${name}.json` });
+    a.click();
+    log(`Exported "${name}.json"`, 'success');
+  }
+
+  function _importWorkflowFile(input) {
+    const f = input.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { _apply(JSON.parse(e.target.result)); }
+      catch(err) { log(`Import failed: ${err.message}`, 'error'); }
+    };
+    reader.readAsText(f);
+  }
+
+  // ---- Init ----
+  function _init() {
+    _applyTheme();
+    _initSplitDivider();
+    renderTrack();
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        closePicker();
+        closeWfModal();
+        if (document.documentElement.classList.contains('presentation-mode')) {
+          if (vizState.togglePresentation) vizState.togglePresentation();
+        }
+      }
+      if ((e.key === 'f' || e.key === 'F') && _mode === 'viz') {
+        const tag = document.activeElement ? document.activeElement.tagName : '';
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          if (vizState.togglePresentation) vizState.togglePresentation();
+        }
+      }
+    });
+    log('Data Workbench ready.', 'success');
+  }
+
+  // ---- Public API (Spec §5.3) ----
+  return {
+    // state (readable)
+    get nodes()             { return _typeDefs; },
+    get pipeline()          { return pipeline; },
+    get stashes()           { return stashes; },
+    get activeDataset()     { return activeDataset; },
+    get promotedDatasets()  { return promotedDatasets; },
+    get viz()               { return vizState; },
+    // registration
+    register, registerElement, registerHeaderElement,
+    // utilities
+    parseCSV, generateOptions, toObjects, fromObjects,
+    passthroughCopy, inferTypes, updateConfig,
+    // execution
+    runFrom, renderActiveNode, renderDataInspector,
+    // node mgmt
+    addNode, selectNode, renderTrack, deleteNode,
+    _toggleStar,
+    // stash
+    getStash, setStash, listStashes, _deleteStash,
+    // active dataset
+    promoteToActive, getColumnMeta,
+    // console
+    log, clearConsole,
+    // ui
+    togglePanel, toggleTheme, setMode, toggleQuickView,
+    openPicker, closePicker, _filterPicker, _pickNode,
+    saveWorkflow, showLoadModal, closeWfModal, exportWorkflow,
+    _loadWf, _delWf, _importWorkflowFile,
+    _vizDrop, _vizFileInput,
+    // init
+    _init
+  };
+})();
+
+DWB._init();
+</script>
+
+<script>
+/* injected by compiler/build.js */
+
+/* --- src\nodes\01_ingest.js --- */
+DWB.register('INGEST', {
+  title: 'Ingest CSV',
+  icon: '📁',
+  category: 'Input & Output',
+  desc: 'Load a CSV file into the pipeline.',
+  implemented: true,
+  defaultConfig: { fileData: null, fileName: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    const statusHtml = node.config.fileName
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Loaded: ${node.config.fileName}</div>`
+      : '';
+
+    const errorHtml = node.status === 'error'
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--danger)">${node.errorMsg || 'Error'}</div>`
+      : '';
+
+    body.innerHTML = `
+      <div id="ingest-dz-${node.id}"
+        style="border:2px dashed var(--border-strong);border-radius:6px;
+               padding:20px 12px;text-align:center;cursor:pointer;
+               transition:border-color 0.15s,background 0.15s">
+        <div style="font-size:28px;margin-bottom:6px">📁</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+          Drop a CSV file here, or click Browse
+        </div>
+        <label style="display:inline-block;padding:5px 16px;background:var(--accent);
+                      color:#fff;border-radius:4px;font-size:12px;cursor:pointer;
+                      border:none;font-family:inherit">
+          Browse…
+          <input type="file" accept=".csv" style="display:none" id="ingest-fi-${node.id}">
+        </label>
+      </div>
+      ${statusHtml}${errorHtml}`;
+
+    function handleFile(file) {
+      if (!file || !file.name.match(/\.csv$/i)) {
+        DWB.log('Please select a .csv file', 'warn');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = ev => {
+        node.config.fileData = ev.target.result;
+        node.config.fileName = file.name;
+        node.customName = file.name;
+        DWB.renderTrack();
+        DWB.runFrom(node.id);
+        DWB.renderActiveNode();
+      };
+      reader.readAsText(file);
+    }
+
+    const fi = document.getElementById(`ingest-fi-${node.id}`);
+    fi.addEventListener('change', e => handleFile(e.target.files[0]));
+
+    const dz = document.getElementById(`ingest-dz-${node.id}`);
+    dz.addEventListener('dragover', e => {
+      e.preventDefault();
+      dz.style.borderColor = 'var(--accent)';
+      dz.style.background  = 'var(--accent-light)';
+    });
+    dz.addEventListener('dragleave', () => {
+      dz.style.borderColor = 'var(--border-strong)';
+      dz.style.background  = '';
+    });
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.style.borderColor = 'var(--border-strong)';
+      dz.style.background  = '';
+      handleFile(e.dataTransfer.files[0]);
+    });
+  },
+
+  execute(node, inputData) {
+    if (!node.config.fileData) throw new Error('No file uploaded.');
+    const parsed = DWB.parseCSV(node.config.fileData);
+    if (parsed.headers.length === 0) throw new Error('CSV appears to be empty.');
+    node.output = parsed;
+    DWB.log(`Ingested ${node.config.fileName}: ${parsed.rows.length} rows, ${parsed.headers.length} columns`);
+  }
+});
+
+/* --- src\nodes\02_push_to_viz.js --- */
+DWB.register('PUSH_TO_VIZ', {
+  title: 'Push to Viz',
+  icon: '📊',
+  category: 'Input & Output',
+  desc: 'Promote current dataset to the Viz dashboard. Non-destructive — data passes through unchanged.',
+  implemented: true,
+  defaultConfig: { datasetName: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    const warn = !node.config.datasetName
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--warning)">⚠ Name required to push.</div>`
+      : '';
+
+    const status = node.output && node.config.datasetName
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Promoted as: ${node.config.datasetName}</div>`
+      : node.output
+        ? `<div style="margin-top:10px;font-size:12px;color:var(--text-muted)">Data is passing through — set a name to push to Viz.</div>`
+        : '';
+
+    const rows = prevData ? prevData.rows.length : null;
+    const cols = prevData ? prevData.headers.length : null;
+    const dataInfo = rows !== null
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--text-faint)">${rows.toLocaleString()} rows · ${cols} columns upstream</div>`
+      : `<div style="margin-top:8px;font-size:11px;color:var(--text-faint)">No upstream data yet.</div>`;
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Dataset Name</label>
+        <input type="text" id="pviz-name-${node.id}"
+          value="${node.config.datasetName}"
+          placeholder="e.g. final_results"
+          style="width:100%">
+        ${warn}${status}${dataInfo}
+        <button id="pviz-run-${node.id}"
+          style="margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;
+                 border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          ▶ Push to Viz
+        </button>
+      </div>`;
+
+    const input = document.getElementById(`pviz-name-${node.id}`);
+    input.addEventListener('input', () => {
+      DWB.updateConfig(node.id, 'datasetName', input.value.trim());
+    });
+
+    document.getElementById(`pviz-run-${node.id}`).addEventListener('click', () => {
+      node.config.datasetName = input.value.trim();
+      DWB.runFrom(node.id);
+      DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No data to push.');
+    node.output = DWB.passthroughCopy(inputData);
+    if (!node.config.datasetName) {
+      DWB.log('Push to Viz: no dataset name — passing through without promoting.', 'warn');
+      return;
+    }
+    DWB.promoteToActive(node.config.datasetName, inputData);
+    DWB.log(`Pushed to Viz as: ${node.config.datasetName} (${inputData.rows.length} rows)`);
+    if (DWB.viz && DWB.viz.onDatasetPromoted) DWB.viz.onDatasetPromoted(node.config.datasetName);
+  }
+});
+
+/* --- src\nodes\03_stash_save.js --- */
+DWB.register('STASH_SAVE', {
+  title: 'Save to Stash',
+  icon: '📌',
+  category: 'Input & Output',
+  desc: 'Save current dataset to a named stash. Non-destructive.',
+  implemented: true,
+  defaultConfig: { stashName: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const existing = DWB.listStashes();
+
+    const warn = !node.config.stashName
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--warning)">⚠ Name required.</div>`
+      : existing.includes(node.config.stashName)
+        ? `<div style="margin-top:8px;font-size:11px;color:var(--warning)">⚠ Will overwrite existing stash "${node.config.stashName}"</div>`
+        : '';
+
+    const status = node.output && node.config.stashName
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Stashed as: ${node.config.stashName}</div>`
+      : '';
+
+    const stashRef = existing.length
+      ? `<div style="margin-top:6px;font-size:11px;color:var(--text-faint)">Existing stashes: ${existing.join(', ')}</div>`
+      : `<div style="margin-top:6px;font-size:11px;color:var(--text-faint)">No stashes yet.</div>`;
+
+    const dataInfo = prevData
+      ? `<div style="margin-top:4px;font-size:11px;color:var(--text-faint)">${prevData.rows.length.toLocaleString()} rows · ${prevData.headers.length} columns to stash</div>`
+      : `<div style="margin-top:4px;font-size:11px;color:var(--text-faint)">No upstream data yet.</div>`;
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Stash Name</label>
+        <input type="text" id="stsh-name-${node.id}"
+          value="${node.config.stashName}"
+          placeholder="e.g. pre_match_snapshot"
+          style="width:100%">
+        ${warn}${status}${stashRef}${dataInfo}
+        <button id="stsh-run-${node.id}"
+          style="margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;
+                 border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          📌 Save to Stash
+        </button>
+      </div>`;
+
+    const input = document.getElementById(`stsh-name-${node.id}`);
+    input.addEventListener('input', () => {
+      DWB.updateConfig(node.id, 'stashName', input.value.trim());
+    });
+
+    document.getElementById(`stsh-run-${node.id}`).addEventListener('click', () => {
+      node.config.stashName = input.value.trim();
+      DWB.runFrom(node.id);
+      DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No data to stash.');
+    if (!node.config.stashName) throw new Error('Stash name is required.');
+    DWB.setStash(node.config.stashName, inputData, node.id);
+    node.output = DWB.passthroughCopy(inputData);
+    DWB.log(`Stashed as: ${node.config.stashName} (${inputData.rows.length} rows)`);
+  }
+});
+
+/* --- src\nodes\04_stash_restore.js --- */
+DWB.register('STASH_RESTORE', {
+  title: 'Restore from Stash',
+  icon: '📤',
+  category: 'Input & Output',
+  desc: 'Replace current pipeline data with a named stash. Ignores upstream input.',
+  implemented: true,
+  defaultConfig: { stashName: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const names = DWB.listStashes();
+
+    if (!names.length) {
+      body.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;
+                    justify-content:center;height:100%;gap:8px;color:var(--text-faint)">
+          <span style="font-size:28px">📤</span>
+          <span style="font-size:12px">No stashes saved yet.</span>
+          <span style="font-size:11px">Use a Stash Save node upstream to create one.</span>
+        </div>`;
+      return;
+    }
+
+    const stash = DWB.getStash(node.config.stashName);
+
+    let metaHtml = '';
+    if (stash) {
+      const ts = stash.timestamp instanceof Date
+        ? stash.timestamp.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+        : '';
+      metaHtml = `
+        <div style="margin-top:8px;padding:8px;background:var(--bg-raised);
+                    border-radius:4px;font-size:11px;color:var(--text-muted);line-height:1.7">
+          Rows: <strong>${stash.data.rows.length.toLocaleString()}</strong> ·
+          Columns: <strong>${stash.data.headers.length}</strong> ·
+          Saved: <strong>${ts}</strong>
+        </div>`;
+    }
+
+    const status = node.output && node.config.stashName
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--success)">✓ Restored: ${node.config.stashName}</div>`
+      : '';
+
+    const options = [`<option value="">-- Select a stash --</option>`,
+      ...names.map(n =>
+        `<option value="${n}"${n === node.config.stashName ? ' selected' : ''}>${n}</option>`)
+    ].join('');
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Select Stash</label>
+        <select id="srest-sel-${node.id}" style="width:100%">${options}</select>
+        ${metaHtml}${status}
+        <div style="margin-top:4px;font-size:11px;color:var(--text-faint)">
+          ℹ This node replaces upstream data with the stash contents.
+        </div>
+      </div>`;
+
+    document.getElementById(`srest-sel-${node.id}`).addEventListener('change', e => {
+      node.config.stashName = e.target.value;
+      DWB.runFrom(node.id);
+      DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    // Source node — ignores inputData entirely
+    if (!node.config.stashName) throw new Error('No stash selected.');
+    const stash = DWB.getStash(node.config.stashName);
+    if (!stash) throw new Error(`Stash "${node.config.stashName}" not found. It may have been deleted.`);
+    node.output = DWB.passthroughCopy(stash.data);
+    DWB.log(`Restored stash: ${node.config.stashName} (${node.output.rows.length} rows)`);
+  }
+});
+
+/* --- src\nodes\05_export_csv.js --- */
+DWB.register('EXPORT_CSV', {
+  title: 'Export to CSV',
+  icon: '💾',
+  category: 'Input & Output',
+  desc: 'Download the current pipeline data as a CSV file.',
+  implemented: true,
+  defaultConfig: { fileName: 'export.csv' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const hasData = !!prevData;
+    const rows = hasData ? prevData.rows.length : 0;
+    const cols = hasData ? prevData.headers.length : 0;
+
+    const dataInfo = hasData
+      ? `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+           ${rows.toLocaleString()} rows × ${cols} columns ready to export
+         </div>`
+      : `<div style="margin-top:8px;font-size:12px;color:var(--text-faint)">
+           No data — run an upstream node first.
+         </div>`;
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Filename</label>
+        <input type="text" id="exp-fname-${node.id}"
+          value="${node.config.fileName}"
+          placeholder="export.csv"
+          style="width:100%">
+        ${dataInfo}
+        <button id="exp-dl-${node.id}" ${hasData ? '' : 'disabled'}
+          style="margin-top:8px;padding:8px 16px;font-size:13px;font-weight:600;
+                 background:${hasData ? 'var(--accent)' : 'var(--bg-raised)'};
+                 color:${hasData ? '#fff' : 'var(--text-faint)'};
+                 border:1px solid ${hasData ? 'transparent' : 'var(--border)'};
+                 border-radius:5px;cursor:${hasData ? 'pointer' : 'not-allowed'}">
+          ⬇ Download CSV
+        </button>
+      </div>`;
+
+    document.getElementById(`exp-fname-${node.id}`).addEventListener('input', e => {
+      node.config.fileName = e.target.value.trim() || 'export.csv';
+    });
+
+    if (hasData) {
+      document.getElementById(`exp-dl-${node.id}`).addEventListener('click', () => {
+        // Run execute to ensure node.output is set and pipeline state is current
+        DWB.runFrom(node.id);
+        const data = node.output;
+        if (!data) { DWB.log('Export failed — no output data', 'error'); return; }
+
+        const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const lines = [
+          data.headers.map(escape).join(','),
+          ...data.rows.map(row => row.map(escape).join(','))
+        ];
+        const csv  = lines.join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const fname = node.config.fileName.endsWith('.csv')
+          ? node.config.fileName
+          : node.config.fileName + '.csv';
+        const a = Object.assign(document.createElement('a'), { href: url, download: fname });
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        DWB.log(`Exported "${fname}" (${data.rows.length} rows, ${data.headers.length} columns)`, 'success');
+      });
+    }
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No data to export.');
+    node.output = DWB.passthroughCopy(inputData);
+  }
+});
+
+/* --- src\nodes\06_filter.js --- */
+DWB.register('FILTER', {
+  title: 'Filter Rows',
+  icon: '🔍',
+  category: 'Row Operations',
+  desc: 'Keep only rows matching a condition.',
+  implemented: true,
+  defaultConfig: { colIndex: 0, operator: 'contains', value: '', caseSensitive: false },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    const hideValue = cfg.operator === 'is empty' || cfg.operator === 'is not empty';
+
+    const colOpts = prevData.headers.map((h, i) =>
+      `<option value="${i}"${i == cfg.colIndex ? ' selected' : ''}>${h}</option>`
+    ).join('');
+
+    const operators = [
+      'contains', 'not contains', 'equals', 'not equals',
+      'starts with', 'ends with', 'greater than', 'less than',
+      'is empty', 'is not empty'
+    ];
+    const opOpts = operators.map(op =>
+      `<option value="${op}"${op === cfg.operator ? ' selected' : ''}>${op}</option>`
+    ).join('');
+
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:8px;font-size:12px;color:var(--success)">✓ ${node.output.rows.length.toLocaleString()} rows kept of ${prevData.rows.length.toLocaleString()} total</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:8px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Column</label>
+          <select id="flt-col-${node.id}" style="width:100%">${colOpts}</select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Operator</label>
+          <select id="flt-op-${node.id}" style="width:100%">${opOpts}</select>
+        </div>
+        ${!hideValue ? `
+        <div id="flt-val-wrap-${node.id}">
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Value</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="flt-val-${node.id}" value="${cfg.value.replace(/"/g,'&quot;')}"
+              placeholder="Filter value…" style="flex:1">
+            <button id="flt-run-${node.id}"
+              style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+              Apply
+            </button>
+          </div>
+        </div>` : ''}
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer">
+          <input type="checkbox" id="flt-cs-${node.id}" ${cfg.caseSensitive ? 'checked' : ''}>
+          Case sensitive
+        </label>
+        ${status}
+      </div>`;
+
+    document.getElementById(`flt-col-${node.id}`).addEventListener('change', e => {
+      node.config.colIndex = parseInt(e.target.value, 10);
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    document.getElementById(`flt-op-${node.id}`).addEventListener('change', e => {
+      node.config.operator = e.target.value;
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    if (!hideValue) {
+      const valEl = document.getElementById(`flt-val-${node.id}`);
+      valEl.addEventListener('input', e => { node.config.value = e.target.value; });
+      document.getElementById(`flt-run-${node.id}`).addEventListener('click', () => {
+        node.config.value = valEl.value;
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    }
+
+    document.getElementById(`flt-cs-${node.id}`).addEventListener('change', e => {
+      node.config.caseSensitive = e.target.checked;
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { colIndex, operator, value, caseSensitive } = node.config;
+    const total = inputData.rows.length;
+
+    const filtered = inputData.rows.filter(row => {
+      let cell = String(row[colIndex] ?? '');
+
+      if (operator === 'is empty')     return cell.trim() === '';
+      if (operator === 'is not empty') return cell.trim() !== '';
+
+      let cmp = value;
+      if (!caseSensitive) { cell = cell.toLowerCase(); cmp = cmp.toLowerCase(); }
+
+      if (operator === 'greater than' || operator === 'less than') {
+        const cn = parseFloat(cell), vn = parseFloat(cmp);
+        if (isNaN(cn) || isNaN(vn)) return false;
+        return operator === 'greater than' ? cn > vn : cn < vn;
+      }
+
+      switch (operator) {
+        case 'contains':     return cell.includes(cmp);
+        case 'not contains': return !cell.includes(cmp);
+        case 'equals':       return cell === cmp;
+        case 'not equals':   return cell !== cmp;
+        case 'starts with':  return cell.startsWith(cmp);
+        case 'ends with':    return cell.endsWith(cmp);
+        default: return true;
+      }
+    });
+
+    const out = DWB.passthroughCopy(inputData);
+    out.rows = filtered;
+    node.output = out;
+    DWB.log(`Filter: kept ${filtered.length} of ${total} rows`);
+  }
+});
+
+/* --- src\nodes\07_sort.js --- */
+DWB.register('SORT', {
+  title: 'Sort Rows',
+  icon: '↕️',
+  category: 'Row Operations',
+  desc: 'Sort rows by one or more columns.',
+  implemented: true,
+  defaultConfig: { sorts: [{ colIndex: 0, direction: 'asc' }] },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    if (!cfg.sorts || !cfg.sorts.length) cfg.sorts = [{ colIndex: 0, direction: 'asc' }];
+
+    const sortRows = cfg.sorts.map((s, i) => {
+      const colOpts = prevData.headers.map((h, ci) =>
+        `<option value="${ci}"${ci == s.colIndex ? ' selected' : ''}>${h}</option>`
+      ).join('');
+      const canRemove = cfg.sorts.length > 1;
+      return `
+        <div style="display:flex;gap:6px;align-items:center" id="sort-row-${node.id}-${i}">
+          <select id="sort-col-${node.id}-${i}" style="flex:1">${colOpts}</select>
+          <button id="sort-dir-${node.id}-${i}"
+            style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;
+                   background:${s.direction === 'asc' ? 'var(--accent-light)' : 'var(--bg-raised)'};
+                   color:${s.direction === 'asc' ? 'var(--accent)' : 'var(--text-muted)'};
+                   font-size:12px;cursor:pointer;white-space:nowrap;min-width:62px">
+            ${s.direction === 'asc' ? '↑ Asc' : '↓ Desc'}
+          </button>
+          <button id="sort-del-${node.id}-${i}"
+            ${canRemove ? '' : 'disabled'}
+            style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;
+                   background:transparent;color:${canRemove ? 'var(--danger)' : 'var(--text-faint)'};
+                   font-size:12px;cursor:${canRemove ? 'pointer' : 'default'}">×</button>
+        </div>`;
+    }).join('');
+
+    const canAdd = cfg.sorts.length < 3;
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ ${node.output.rows.length.toLocaleString()} rows sorted</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted)">Sort Keys</div>
+        <div style="display:flex;flex-direction:column;gap:5px" id="sort-keys-${node.id}">${sortRows}</div>
+        ${canAdd ? `<button id="sort-add-${node.id}"
+          style="margin-top:2px;padding:5px;border:1px dashed var(--border-strong);border-radius:4px;
+                 background:transparent;color:var(--text-faint);font-size:11px;cursor:pointer;width:100%">
+          + Add Sort Key
+        </button>` : ''}
+        ${status}
+      </div>`;
+
+    // Attach handlers for each sort row
+    cfg.sorts.forEach((s, i) => {
+      document.getElementById(`sort-col-${node.id}-${i}`).addEventListener('change', e => {
+        cfg.sorts[i].colIndex = parseInt(e.target.value, 10);
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+
+      document.getElementById(`sort-dir-${node.id}-${i}`).addEventListener('click', () => {
+        cfg.sorts[i].direction = cfg.sorts[i].direction === 'asc' ? 'desc' : 'asc';
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+
+      const delBtn = document.getElementById(`sort-del-${node.id}-${i}`);
+      if (cfg.sorts.length > 1) {
+        delBtn.addEventListener('click', () => {
+          cfg.sorts.splice(i, 1);
+          DWB.runFrom(node.id); DWB.renderActiveNode();
+        });
+      }
+    });
+
+    if (canAdd) {
+      document.getElementById(`sort-add-${node.id}`).addEventListener('click', () => {
+        cfg.sorts.push({ colIndex: 0, direction: 'asc' });
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    }
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { sorts } = node.config;
+
+    const rows = [...inputData.rows];
+    rows.sort((a, b) => {
+      for (const { colIndex, direction } of sorts) {
+        const av = a[colIndex] ?? '', bv = b[colIndex] ?? '';
+        const an = parseFloat(av),    bn = parseFloat(bv);
+        const cmp = (!isNaN(an) && !isNaN(bn))
+          ? an - bn
+          : String(av).localeCompare(String(bv));
+        if (cmp !== 0) return direction === 'desc' ? -cmp : cmp;
+      }
+      return 0;
+    });
+
+    const desc = sorts.map(s =>
+      `${inputData.headers[s.colIndex] || s.colIndex} ${s.direction}`
+    ).join(', ');
+
+    const out = DWB.passthroughCopy(inputData);
+    out.rows = rows;
+    node.output = out;
+    DWB.log(`Sorted by ${desc}`);
+  }
+});
+
+/* --- src\nodes\08_drop_columns.js --- */
+DWB.register('DROP_COLS', {
+  title: 'Drop Column(s)',
+  icon: '🗑️',
+  category: 'Column Operations',
+  desc: 'Remove one or more columns.',
+  implemented: true,
+  defaultConfig: { dropIndices: [] },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    const allDropped = cfg.dropIndices.length === prevData.headers.length;
+    const keepCount  = prevData.headers.length - cfg.dropIndices.length;
+
+    const warn = allDropped
+      ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">⚠ Cannot drop all columns.</div>`
+      : '';
+
+    const status = (node.output && node.status === 'ok' && !allDropped)
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Keeping ${node.output.headers.length} of ${prevData.headers.length} columns</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    const checks = prevData.headers.map((h, i) => {
+      const checked = cfg.dropIndices.includes(i);
+      return `
+        <label style="display:flex;align-items:center;gap:7px;padding:4px 2px;
+                      font-size:12px;cursor:pointer;color:${checked ? 'var(--danger)' : 'var(--text-main)'}">
+          <input type="checkbox" data-idx="${i}" ${checked ? 'checked' : ''}>
+          <span style="${checked ? 'text-decoration:line-through;color:var(--text-faint)' : ''}">${h}</span>
+        </label>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:2px">
+          Check columns to drop
+        </div>
+        <div id="drop-checks-${node.id}" style="max-height:130px;overflow-y:auto;
+             border:1px solid var(--border);border-radius:4px;padding:4px 8px">
+          ${checks}
+        </div>
+        ${warn}${status}
+      </div>`;
+
+    document.getElementById(`drop-checks-${node.id}`).addEventListener('change', e => {
+      if (e.target.type !== 'checkbox') return;
+      const idx = parseInt(e.target.dataset.idx, 10);
+      if (e.target.checked) {
+        if (!cfg.dropIndices.includes(idx)) cfg.dropIndices.push(idx);
+      } else {
+        cfg.dropIndices = cfg.dropIndices.filter(i => i !== idx);
+      }
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { dropIndices } = node.config;
+
+    if (dropIndices.length === inputData.headers.length) {
+      throw new Error('Cannot drop all columns.');
+    }
+
+    const keepIndices = inputData.headers.map((_, i) => i).filter(i => !dropIndices.includes(i));
+    const out = {
+      headers: keepIndices.map(i => inputData.headers[i]),
+      rows:    inputData.rows.map(r => keepIndices.map(i => r[i]))
+    };
+    if (inputData.columnTypes) {
+      out.columnTypes = keepIndices.map(i => inputData.columnTypes[i] || 'text');
+    }
+    if (inputData.columnTypeMeta) {
+      out.columnTypeMeta = {};
+      keepIndices.forEach((origIdx, newIdx) => {
+        if (inputData.columnTypeMeta[origIdx]) out.columnTypeMeta[newIdx] = inputData.columnTypeMeta[origIdx];
+      });
+    }
+    node.output = out;
+
+    DWB.log(`Dropped ${dropIndices.length} columns, ${keepIndices.length} remaining`);
+  }
+});
+
+/* --- src\nodes\09_rename_column.js --- */
+DWB.register('RENAME_COL', {
+  title: 'Rename Column',
+  icon: '✏️',
+  category: 'Column Operations',
+  desc: 'Rename one or more column headers.',
+  implemented: true,
+  defaultConfig: { renames: {} },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    const renameCount = Object.values(cfg.renames).filter(v => v && v.trim()).length;
+
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ ${renameCount} column${renameCount !== 1 ? 's' : ''} renamed</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    const rows = prevData.headers.map((h, i) => {
+      const val = (cfg.renames[i] !== undefined ? cfg.renames[i] : '').replace(/"/g, '&quot;');
+      return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:center;
+                    padding:3px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+               title="${h}">${h}</div>
+          <input type="text" id="ren-inp-${node.id}-${i}"
+            value="${val}" placeholder="${h}"
+            style="width:100%;font-size:12px">
+        </div>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;
+                    font-size:10px;font-weight:700;color:var(--text-faint);
+                    text-transform:uppercase;letter-spacing:0.06em;padding:0 0 4px">
+          <span>Current Name</span><span>New Name</span>
+        </div>
+        <div id="ren-rows-${node.id}" style="max-height:130px;overflow-y:auto">${rows}</div>
+        ${status}
+        <button id="ren-run-${node.id}"
+          style="margin-top:6px;padding:6px 14px;background:var(--accent);color:#fff;
+                 border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          ✏️ Apply All
+        </button>
+      </div>`;
+
+    // oninput: update config only
+    prevData.headers.forEach((_, i) => {
+      const inp = document.getElementById(`ren-inp-${node.id}-${i}`);
+      if (!inp) return;
+      inp.addEventListener('input', () => {
+        const val = inp.value;
+        if (val) cfg.renames[i] = val;
+        else delete cfg.renames[i];
+      });
+    });
+
+    document.getElementById(`ren-run-${node.id}`).addEventListener('click', () => {
+      // Sync any pending values before running
+      prevData.headers.forEach((_, i) => {
+        const inp = document.getElementById(`ren-inp-${node.id}-${i}`);
+        if (!inp) return;
+        if (inp.value) cfg.renames[i] = inp.value;
+        else delete cfg.renames[i];
+      });
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { renames } = node.config;
+
+    const newHeaders = inputData.headers.map((h, i) => {
+      const r = renames[i];
+      return (r && r.trim()) ? r.trim() : h;
+    });
+
+    const renameCount = Object.values(renames).filter(v => v && v.trim()).length;
+    const out = DWB.passthroughCopy(inputData);
+    out.headers = newHeaders;
+    node.output = out;
+    DWB.log(`Renamed ${renameCount} column${renameCount !== 1 ? 's' : ''}`);
+  }
+});
+
+/* --- src\nodes\10_add_column.js --- */
+DWB.register('ADD_COL', {
+  title: 'Add Column',
+  icon: '➕',
+  category: 'Column Operations',
+  desc: 'Append a new column — blank, copied from another, or a static value.',
+  implemented: true,
+  defaultConfig: { newName: 'New_Column', mode: 'blank', sourceColIndex: 0, staticValue: '' },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+
+    const modeOpts = ['blank', 'copy', 'static'].map(m =>
+      `<option value="${m}"${m === cfg.mode ? ' selected' : ''}>${
+        m === 'blank' ? 'Blank (empty)' : m === 'copy' ? 'Copy column' : 'Static value'
+      }</option>`
+    ).join('');
+
+    const copyPicker = (cfg.mode === 'copy') ? `
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Source Column</label>
+        <select id="addcol-src-${node.id}" style="width:100%">
+          ${prevData.headers.map((h, i) =>
+            `<option value="${i}"${i == cfg.sourceColIndex ? ' selected' : ''}>${h}</option>`
+          ).join('')}
+        </select>
+      </div>` : '';
+
+    const staticInput = (cfg.mode === 'static') ? `
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Static Value</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="addcol-static-${node.id}"
+            value="${cfg.staticValue.replace(/"/g,'&quot;')}"
+            placeholder="Value for every row…" style="flex:1">
+          <button id="addcol-srun-${node.id}"
+            style="padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+            Apply
+          </button>
+        </div>
+      </div>` : '';
+
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Added column: ${node.output.headers[node.output.headers.length - 1]}</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Column Name</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="addcol-name-${node.id}"
+              value="${cfg.newName.replace(/"/g,'&quot;')}"
+              placeholder="New_Column" style="flex:1">
+            <button id="addcol-nrun-${node.id}"
+              style="padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+              Apply
+            </button>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Mode</label>
+          <select id="addcol-mode-${node.id}" style="width:100%">${modeOpts}</select>
+        </div>
+        ${copyPicker}${staticInput}
+        ${status}
+      </div>`;
+
+    // Column name: oninput updates config, Apply button runs
+    const nameEl = document.getElementById(`addcol-name-${node.id}`);
+    nameEl.addEventListener('input', () => { cfg.newName = nameEl.value; });
+    document.getElementById(`addcol-nrun-${node.id}`).addEventListener('click', () => {
+      cfg.newName = nameEl.value;
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    // Mode: onchange → rebuild UI + run
+    document.getElementById(`addcol-mode-${node.id}`).addEventListener('change', e => {
+      cfg.mode = e.target.value;
+      DWB.renderActiveNode(); DWB.runFrom(node.id);
+    });
+
+    // Copy source picker
+    if (cfg.mode === 'copy') {
+      document.getElementById(`addcol-src-${node.id}`).addEventListener('change', e => {
+        cfg.sourceColIndex = parseInt(e.target.value, 10);
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    }
+
+    // Static value: oninput updates config, Apply button runs
+    if (cfg.mode === 'static') {
+      const staticEl = document.getElementById(`addcol-static-${node.id}`);
+      staticEl.addEventListener('input', () => { cfg.staticValue = staticEl.value; });
+      document.getElementById(`addcol-srun-${node.id}`).addEventListener('click', () => {
+        cfg.staticValue = staticEl.value;
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    }
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { newName, mode, sourceColIndex, staticValue } = node.config;
+    const name = (newName || '').trim() || 'Untitled';
+
+    const newRows = inputData.rows.map(r => {
+      let val = '';
+      if (mode === 'copy')   val = r[sourceColIndex] ?? '';
+      if (mode === 'static') val = staticValue;
+      return [...r, val];
+    });
+
+    const out = DWB.passthroughCopy(inputData);
+    out.headers = [...inputData.headers, name];
+    out.rows = newRows;
+    if (inputData.columnTypes) out.columnTypes = [...inputData.columnTypes, 'text'];
+    node.output = out;
+    DWB.log(`Added column: ${name}`);
+  }
+});
+
+/* --- src\nodes\11_set_types.js --- */
+const LIKERT_TEMPLATES = {
+  numeric_5:    { label: '1–5 Scale',        scale: ['1','2','3','4','5'],                                                                     midpoint: 2, positiveEnd: 'high' },
+  agree_5:      { label: 'Agreement (5)',     scale: ['Strongly Disagree','Disagree','Neutral','Agree','Strongly Agree'],                       midpoint: 2, positiveEnd: 'high' },
+  satisfy_5:    { label: 'Satisfaction (5)',  scale: ['Very Dissatisfied','Dissatisfied','Neutral','Satisfied','Very Satisfied'],               midpoint: 2, positiveEnd: 'high' },
+  always_never: { label: 'Frequency (5)',     scale: ['Never','Rarely','Sometimes','Often','Always'],                                          midpoint: 2, positiveEnd: 'high' },
+  numeric_4:    { label: '1–4 Scale',         scale: ['1','2','3','4'],                                                                       midpoint: -1, positiveEnd: 'high' },
+  custom:       { label: 'Custom',            scale: [],                                                                                      midpoint: -1, positiveEnd: 'high' }
+};
+
+const TYPE_COLORS = {
+  number:      'var(--info)',
+  date:        'var(--success)',
+  categorical: '#7c3aed',
+  likert:      'var(--accent-gold)',
+  text:        'var(--text-faint)'
+};
+
+function _stAutoTemplate(data, ci) {
+  const unique = new Set(data.rows.map(r => String(r[ci] ?? '')).filter(v => v !== ''));
+  for (const [key, tmpl] of Object.entries(LIKERT_TEMPLATES)) {
+    if (key === 'custom' || !tmpl.scale.length) continue;
+    const tmplLower = new Set(tmpl.scale.map(s => s.toLowerCase()));
+    if ([...unique].every(v => tmplLower.has(v.toLowerCase())) && unique.size <= tmpl.scale.length) return key;
+  }
+  return null;
+}
+
+DWB.register('SET_TYPES', {
+  title: 'Set Column Types',
+  icon: '🏷️',
+  category: 'Column Operations',
+  desc: 'Override inferred column types and configure Likert scale metadata.',
+  implemented: true,
+  defaultConfig: { overrides: {}, likertMeta: {} },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg       = node.config;
+    const baseTypes = prevData.columnTypes || DWB.inferTypes(prevData);
+
+    const rows = prevData.headers.map((h, ci) => {
+      const inferred = baseTypes[ci] || 'text';
+      const override = cfg.overrides[ci] || '';
+      const active   = override || inferred;
+      const meta     = cfg.likertMeta[ci] || {};
+
+      // Sample values
+      const allVals = prevData.rows.map(r => String(r[ci] ?? '')).filter(v => v !== '');
+      const unique  = [...new Set(allVals)];
+      const sample  = unique.slice(0, 5).map(v => v.length > 12 ? v.slice(0, 12) + '…' : v).join(', ');
+      const sampleTitle = unique.join(', ');
+
+      // Type dropdown — Auto shows inferred type in label
+      const typeOpts = [
+        `<option value=""${!override ? ' selected' : ''}>Auto (${inferred})</option>`,
+        `<option disabled>────</option>`,
+        `<option value="text"${override === 'text' ? ' selected' : ''}>Text</option>`,
+        `<option value="number"${override === 'number' ? ' selected' : ''}>Number</option>`,
+        `<option value="date"${override === 'date' ? ' selected' : ''}>Date</option>`,
+        `<option value="categorical"${override === 'categorical' ? ' selected' : ''}>Categorical</option>`,
+        `<option value="likert"${override === 'likert' ? ' selected' : ''}>Likert</option>`,
+      ].join('');
+
+      const dotColor = TYPE_COLORS[active] || 'var(--text-faint)';
+      const hSafe    = h.replace(/"/g, '&quot;');
+      const hDisplay = h.length > 20 ? h.slice(0, 20) + '…' : h;
+
+      let likertSection = '';
+      if (active === 'likert') {
+        const autoKey = _stAutoTemplate(prevData, ci);
+        const tmplKey = meta.template || autoKey || 'custom';
+        const tmpl    = LIKERT_TEMPLATES[tmplKey] || LIKERT_TEMPLATES.custom;
+        const scale   = meta.scale && meta.scale.length ? meta.scale : [...tmpl.scale];
+        const displayLabels = meta.displayLabels || {};
+        const midpoint = meta.midpoint !== undefined ? meta.midpoint : tmpl.midpoint;
+
+        const tmplOpts = Object.entries(LIKERT_TEMPLATES).map(([k, t]) =>
+          `<option value="${k}"${k === tmplKey ? ' selected' : ''}>${t.label}</option>`
+        ).join('');
+
+        const scaleItems = scale.map((v, si) => {
+          const dispLabel = (displayLabels[v] || '').replace(/"/g, '&quot;');
+          const canUp = si > 0, canDown = si < scale.length - 1;
+          return `
+            <div style="display:flex;gap:4px;align-items:center;margin-bottom:3px">
+              <button class="st-ord-btn" data-ci="${ci}" data-si="${si}" data-dir="up"
+                ${!canUp ? 'disabled' : ''}
+                style="padding:1px 5px;font-size:10px;border:1px solid var(--border);border-radius:3px;
+                       background:transparent;color:${canUp ? 'var(--text-muted)' : 'var(--text-faint)'};
+                       cursor:${canUp ? 'pointer' : 'default'}">↑</button>
+              <button class="st-ord-btn" data-ci="${ci}" data-si="${si}" data-dir="down"
+                ${!canDown ? 'disabled' : ''}
+                style="padding:1px 5px;font-size:10px;border:1px solid var(--border);border-radius:3px;
+                       background:transparent;color:${canDown ? 'var(--text-muted)' : 'var(--text-faint)'};
+                       cursor:${canDown ? 'pointer' : 'default'}">↓</button>
+              <span style="font-size:11px;min-width:60px;color:var(--text-main)">${v}</span>
+              <span style="font-size:10px;color:var(--text-faint);margin:0 2px">→</span>
+              <input type="text" class="st-lbl-inp"
+                data-ci="${ci}" data-si="${si}" data-val="${v.replace(/"/g,'&quot;')}"
+                value="${dispLabel}" placeholder="Display label…"
+                style="flex:1;font-size:11px;padding:2px 5px">
+            </div>`;
+        }).join('');
+
+        const midOpts = [
+          `<option value="-1"${midpoint === -1 ? ' selected' : ''}>None</option>`,
+          ...scale.map((v, i) => `<option value="${i}"${i === midpoint ? ' selected' : ''}>${v}</option>`)
+        ].join('');
+
+        const dataUnique = new Set(prevData.rows.map(r => String(r[ci] ?? '')).filter(v => v !== ''));
+        const scaleSet   = new Set(scale);
+        const missing    = [...dataUnique].filter(v => !scaleSet.has(v));
+        const warnHtml   = missing.length
+          ? `<div style="margin-top:4px;font-size:10px;color:var(--warning)">⚠ Values not in scale: ${missing.slice(0,3).map(v => `"${v}"`).join(', ')}${missing.length > 3 ? ` +${missing.length - 3} more` : ''}</div>`
+          : '';
+
+        likertSection = `
+          <div style="background:var(--bg-raised);border-radius:4px;padding:8px;margin:2px 0 6px 24px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);white-space:nowrap">Template:</label>
+              <select id="st-tmpl-${node.id}-${ci}" style="flex:1;font-size:11px">${tmplOpts}</select>
+            </div>
+            <div style="font-size:10px;font-weight:700;color:var(--text-faint);text-transform:uppercase;
+                        letter-spacing:0.06em;margin-bottom:4px">Scale Order → Display Label</div>
+            <div>${scaleItems}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);white-space:nowrap">Midpoint:</label>
+              <select id="st-mid-${node.id}-${ci}" style="flex:1;font-size:11px">${midOpts}</select>
+            </div>
+            ${warnHtml}
+          </div>`;
+      }
+
+      return `
+        <div style="display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 150px;
+                    gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text-faint);text-align:right">${ci}</div>
+          <div style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+               title="${hSafe}">${hDisplay}</div>
+          <div style="font-size:10px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+               title="${sampleTitle.replace(/"/g,'&quot;')}">${sample || '—'}</div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;
+                         background:${dotColor};display:inline-block"></span>
+            <select id="st-type-${node.id}-${ci}" data-ci="${ci}"
+              style="flex:1;font-size:11px">${typeOpts}</select>
+          </div>
+        </div>
+        ${likertSection}`;
+    }).join('');
+
+    const status = (node.output && node.status === 'ok')
+      ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Types applied to ${prevData.headers.length} columns</div>`
+      : node.status === 'error'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--danger)">${node.errorMsg}</div>`
+        : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column">
+        <div style="display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 150px;
+                    gap:6px;font-size:10px;font-weight:700;color:var(--text-faint);text-transform:uppercase;
+                    letter-spacing:0.06em;padding:0 0 4px;border-bottom:2px solid var(--border-strong)">
+          <span>#</span><span>Column</span><span>Sample Values</span><span style="padding-left:13px">Type</span>
+        </div>
+        <div style="overflow-y:auto">${rows}</div>
+        ${status}
+        <button id="st-run-${node.id}"
+          style="margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;
+                 border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          🏷️ Apply Types
+        </button>
+      </div>`;
+
+    // Type override dropdowns
+    prevData.headers.forEach((_, ci) => {
+      const sel = document.getElementById(`st-type-${node.id}-${ci}`);
+      if (!sel) return;
+      sel.addEventListener('change', e => {
+        const val = e.target.value;
+        if (val) cfg.overrides[ci] = val;
+        else delete cfg.overrides[ci];
+        if (val !== 'likert') delete cfg.likertMeta[ci];
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+
+      const activeType = cfg.overrides[ci] || baseTypes[ci] || 'text';
+      if (activeType !== 'likert') return;
+
+      // Template picker
+      const tmplSel = document.getElementById(`st-tmpl-${node.id}-${ci}`);
+      if (tmplSel) {
+        tmplSel.addEventListener('change', e => {
+          const key  = e.target.value;
+          const tmpl = LIKERT_TEMPLATES[key];
+          cfg.likertMeta[ci] = {
+            template: key,
+            scale: tmpl.scale.length ? [...tmpl.scale] : (cfg.likertMeta[ci]?.scale || []),
+            displayLabels: {},
+            midpoint: tmpl.midpoint,
+            positiveEnd: tmpl.positiveEnd
+          };
+          DWB.runFrom(node.id); DWB.renderActiveNode();
+        });
+      }
+
+      // Midpoint — updates config without re-render
+      const midSel = document.getElementById(`st-mid-${node.id}-${ci}`);
+      if (midSel) {
+        midSel.addEventListener('change', e => {
+          if (!cfg.likertMeta[ci]) cfg.likertMeta[ci] = {};
+          cfg.likertMeta[ci].midpoint = parseInt(e.target.value, 10);
+        });
+      }
+    });
+
+    // Scale reorder buttons — direct listeners on each newly created element
+    body.querySelectorAll('.st-ord-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ci   = parseInt(btn.dataset.ci, 10);
+        const si   = parseInt(btn.dataset.si, 10);
+        const dir  = btn.dataset.dir;
+        const meta = cfg.likertMeta[ci];
+        if (!meta?.scale) return;
+        const swap = dir === 'up' ? si - 1 : si + 1;
+        if (swap < 0 || swap >= meta.scale.length) return;
+        [meta.scale[si], meta.scale[swap]] = [meta.scale[swap], meta.scale[si]];
+        DWB.runFrom(node.id); DWB.renderActiveNode();
+      });
+    });
+
+    // Display label inputs — update config without re-render
+    body.querySelectorAll('.st-lbl-inp').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const ci  = parseInt(inp.dataset.ci, 10);
+        const val = inp.dataset.val;
+        if (!cfg.likertMeta[ci]) cfg.likertMeta[ci] = {};
+        if (!cfg.likertMeta[ci].displayLabels) cfg.likertMeta[ci].displayLabels = {};
+        const label = inp.value.trim();
+        if (label) cfg.likertMeta[ci].displayLabels[val] = label;
+        else delete cfg.likertMeta[ci].displayLabels[val];
+      });
+    });
+
+    document.getElementById(`st-run-${node.id}`).addEventListener('click', () => {
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const baseTypes  = inputData.columnTypes || DWB.inferTypes(inputData);
+    const overrides  = node.config.overrides  || {};
+    const likertMeta = node.config.likertMeta || {};
+
+    const columnTypes    = baseTypes.map((t, i) => overrides[i] || t);
+    const columnTypeMeta = {};
+    columnTypes.forEach((t, i) => {
+      if (t === 'likert' && likertMeta[i]) columnTypeMeta[i] = likertMeta[i];
+    });
+
+    const out = DWB.passthroughCopy(inputData);
+    out.columnTypes    = columnTypes;
+    out.columnTypeMeta = columnTypeMeta;
+    node.output = out;
+
+    const n = { number: 0, date: 0, categorical: 0, likert: 0, text: 0 };
+    columnTypes.forEach(t => { if (n[t] !== undefined) n[t]++; else n.text++; });
+    DWB.log(`Set types: ${n.number} number, ${n.date} date, ${n.categorical} categorical, ${n.likert} likert, ${n.text} text`);
+  }
+});
+
+/* --- src\nodes\passthrough.js --- */
+DWB.register('PASSTHROUGH', {
+  title: 'Passthrough',
+  icon: '➡️',
+  category: 'Transform',
+  desc: 'Passes data through unchanged. Useful as a checkpoint.',
+  implemented: true,
+  defaultConfig: {},
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const rows = prevData ? prevData.rows.length : 0;
+    const cols = prevData ? prevData.headers.length : 0;
+    body.innerHTML = `
+      <div style="font-size:12px;color:var(--text-muted);padding:4px 0">
+        <p>No configuration — data passes through unchanged.</p>
+        <p style="margin-top:8px;color:var(--text-faint)">
+          Upstream: ${rows.toLocaleString()} rows · ${cols} columns
+        </p>
+        <button onclick="DWB.runFrom('${node.id}')"
+          style="margin-top:12px;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">
+          ▶ Run
+        </button>
+      </div>`;
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data');
+    node.output = { headers: [...inputData.headers], rows: inputData.rows.map(r => [...r]) };
+  }
+});
+
+/* --- src\viz\canvas\canvas.js --- */
+// canvas.js — Block/slot/element model, filter coordinator, canvas rendering
+(function () {
+  'use strict';
+
+  const viz = DWB.viz;
+
+  // ---- Full state on vizState ----
+  viz.blocks            = [];
+  viz.headerElements    = [];
+  viz.activeDatasetName = null;
+  viz.activeElementId   = null;
+  viz.filters           = [];
+
+  // ---- Add-block dialog internal state ----
+  let _addBlockLayout       = '1col';
+  let _addBlockSelectedRatio = null;
+  let _addBlockTargetIdx    = null;
+  let _addBlockChangeId     = null;
+
+  // ---- Element picker internal state ----
+  let _pickerSlotId          = null;
+  let _pickerInsertAfterId   = null;
+
+  // ---- ID generation ----
+  viz.generateId = function () {
+    return Math.random().toString(36).slice(2, 9) + Math.random().toString(36).slice(2, 6);
+  };
+
+  // ---- Dataset picker ----
+  viz.onDatasetPickerChange = function (name) {
+    viz.activeDatasetName = name || null;
+    viz.renderAllElements();
+  };
+
+  viz.onDatasetPromoted = function (name) {
+    const picker = document.getElementById('viz-dataset-picker');
+    if (!picker) return;
+
+    // Drop the "no datasets" placeholder once we have real data
+    if (Object.keys(DWB.promotedDatasets).length === 1) {
+      const placeholder = picker.querySelector('option[value=""]');
+      if (placeholder) placeholder.remove();
+    }
+
+    // Add option if not already present
+    const already = Array.from(picker.options).find(o => o.value === name);
+    if (!already) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      picker.appendChild(opt);
+    }
+
+    // Auto-select if first dataset
+    if (viz.activeDatasetName === null) {
+      viz.activeDatasetName = name;
+      picker.value = name;
+    }
+
+    viz.renderAllElements();
+  };
+
+  // ---- Finders ----
+  viz.findElement = function (elementId) {
+    for (const block of viz.blocks) {
+      for (const slot of block.slots) {
+        for (const element of slot.elements) {
+          if (element.id === elementId) return { block, slot, element };
+        }
+      }
+    }
+    return null;
+  };
+
+  viz.getActiveDataset = function (element) {
+    const name = (element && element.datasetName) || viz.activeDatasetName;
+    return name ? DWB.promotedDatasets[name] : null;
+  };
+
+  // ---- Filter coordinator ----
+  viz.addFilter = function (column, value, sourceElementId) {
+    const strVal = String(value);
+    const idx = viz.filters.findIndex(
+      f => f.column === column && String(f.value).toLowerCase() === strVal.toLowerCase()
+    );
+    if (idx >= 0) {
+      viz.filters.splice(idx, 1);
+    } else {
+      viz.filters.push({ column, value: strVal, source: sourceElementId });
+    }
+    viz._updateFilterBar();
+    viz.onFiltersChanged();
+  };
+
+  viz.removeFilter = function (column, value) {
+    viz.filters = viz.filters.filter(
+      f => !(f.column === column && String(f.value).toLowerCase() === String(value).toLowerCase())
+    );
+    viz._updateFilterBar();
+    viz.onFiltersChanged();
+  };
+
+  viz.clearFilters = function () {
+    viz.filters = [];
+    viz._updateFilterBar();
+    viz.onFiltersChanged();
+  };
+
+  viz._updateFilterBar = function () {
+    const bar   = document.getElementById('viz-filter-bar');
+    const chips = document.getElementById('viz-filter-chips');
+    if (!bar || !chips) return;
+    if (viz.filters.length === 0) {
+      bar.classList.add('hidden');
+      chips.innerHTML = '';
+      return;
+    }
+    bar.classList.remove('hidden');
+    chips.innerHTML = viz.filters.map(f => {
+      const col = f.column.replace(/'/g, "\\'");
+      const val = String(f.value).replace(/'/g, "\\'");
+      return `<span class="dwb-filter-chip">
+        ${f.column}: ${f.value}
+        <button class="dwb-filter-chip-remove"
+          onclick="DWB.viz.removeFilter('${col}','${val}')">✕</button>
+      </span>`;
+    }).join('');
+  };
+
+  viz.onFiltersChanged = function () {
+    viz.renderAllElements();
+  };
+
+  viz.getFilteredData = function (datasetName) {
+    const ds = DWB.promotedDatasets[datasetName || viz.activeDatasetName];
+    if (!ds) return null;
+    if (viz.filters.length === 0) return ds;
+    const filtered = ds.rows.filter(row =>
+      viz.filters.every(f => {
+        const ci = ds.headers.indexOf(f.column);
+        if (ci < 0) return true;
+        return String(row[ci] ?? '').toLowerCase() === String(f.value).toLowerCase();
+      })
+    );
+    return { ...ds, rows: filtered, rowCount: filtered.length };
+  };
+
+  // ---- Render all / single element ----
+  viz.renderAllElements = function () {
+    for (const block of viz.blocks) {
+      for (const slot of block.slots) {
+        for (const element of slot.elements) {
+          viz.renderElement(element.id);
+        }
+      }
+    }
+  };
+
+  viz.renderElement = function (elementId) {
+    const found = viz.findElement(elementId);
+    if (!found) return;
+    const { element } = found;
+    const def = viz._elementRegistry[element.type];
+    if (!def) return;
+    const dataset = viz.getFilteredData(element.datasetName);
+    try {
+      def.render(element, dataset, viz.filters);
+    } catch (e) {
+      const c = document.getElementById('element-content-' + elementId);
+      if (c) c.innerHTML = `<div class="dwb-empty-state" style="color:var(--danger)">Render error: ${e.message}</div>`;
+    }
+  };
+
+  // ---- Sidebar ----
+  viz.renderSidebar = function (elementId) {
+    viz.activeElementId = elementId;
+    const sidebar = document.getElementById('viz-config-sidebar');
+    if (!sidebar) return;
+
+    if (!elementId) {
+      sidebar.innerHTML = '<div class="sidebar-empty-msg">Select an element to configure</div>';
+      return;
+    }
+
+    const found = viz.findElement(elementId);
+    if (!found) { sidebar.innerHTML = '<div class="sidebar-empty-msg">Element not found</div>'; return; }
+
+    const { element } = found;
+    const def = viz._elementRegistry[element.type];
+    if (!def) { sidebar.innerHTML = '<div class="sidebar-empty-msg">Unknown element type</div>'; return; }
+
+    const dataset  = viz.getActiveDataset(element);
+    const datasets = Object.keys(DWB.promotedDatasets);
+    const dsOptions = '<option value="">Use canvas dataset</option>' +
+      datasets.map(n =>
+        `<option value="${n}"${element.datasetName === n ? ' selected' : ''}>${n}</option>`
+      ).join('');
+
+    sidebar.innerHTML = `
+      <div class="sidebar-section">
+        <label class="sidebar-label">Title</label>
+        <input type="text" class="sidebar-input"
+          value="${(element.title || '').replace(/"/g, '&quot;')}"
+          oninput="DWB.viz._updateElementTitle('${elementId}',this.value)">
+        <label class="sidebar-label">Dataset override</label>
+        <select class="sidebar-input"
+          onchange="DWB.viz._updateElementDataset('${elementId}',this.value)">
+          ${dsOptions}
+        </select>
+      </div>
+      <div class="sidebar-section" id="sidebar-element-config"></div>
+      <div style="padding:12px">
+        <button class="sidebar-apply-btn"
+          onclick="DWB.viz.renderElement('${elementId}')">▶ Apply / Re-render</button>
+      </div>`;
+
+    if (def.renderConfig) {
+      const configContainer = document.getElementById('sidebar-element-config');
+      try {
+        const html = def.renderConfig(element, dataset);
+        if (typeof html === 'string' && configContainer) configContainer.innerHTML = html;
+      } catch (e) {
+        if (configContainer) configContainer.innerHTML =
+          `<div style="color:var(--danger);font-size:12px;padding:8px">Config error: ${e.message}</div>`;
+      }
+    }
+  };
+
+  viz._updateElementTitle = function (elementId, title) {
+    const found = viz.findElement(elementId);
+    if (!found) return;
+    found.element.title = title;
+    const inp = document.getElementById('el-title-' + elementId);
+    if (inp && inp !== document.activeElement) inp.value = title;
+  };
+
+  viz._updateElementDataset = function (elementId, datasetName) {
+    const found = viz.findElement(elementId);
+    if (!found) return;
+    found.element.datasetName = datasetName || null;
+    viz.renderSidebar(elementId);
+    viz.renderElement(elementId);
+  };
+
+  // ---- Canvas rendering ----
+  viz.renderCanvas = function () {
+    const canvas = document.getElementById('viz-canvas');
+    if (!canvas) return;
+
+    if (viz.blocks.length === 0) {
+      canvas.innerHTML = `
+        <div class="dwb-empty-state" style="flex-direction:column;gap:16px;min-height:300px">
+          <div style="font-size:40px">📊</div>
+          <div>No blocks yet.<br>Click <strong>＋ Add Block</strong> in the toolbar to start.</div>
+        </div>
+        <div class="dwb-add-block-row">
+          <button class="dwb-add-block-btn" onclick="DWB.viz.showAddBlockDialog(0)">＋ Add Block</button>
+        </div>`;
+      return;
+    }
+
+    let html = '';
+    viz.blocks.forEach((block, bi) => {
+      html += viz._renderBlockHtml(block, bi);
+      html += `<div class="dwb-add-block-row">
+        <button class="dwb-add-block-btn" onclick="DWB.viz.showAddBlockDialog(${bi + 1})">＋ Add Block</button>
+      </div>`;
+    });
+    canvas.innerHTML = html;
+
+    viz.renderAllElements();
+  };
+
+  viz._renderBlockHtml = function (block, bi) {
+    const labels = { '1col': '1 Column', '2col': '2 Columns', '3col': '3 Columns' };
+    let slotsHtml = '';
+    block.slots.forEach((slot, si) => {
+      const pct = block.colRatios[si] || Math.floor(100 / block.slots.length);
+      slotsHtml += `<div class="dwb-slot" style="flex:0 0 ${pct}%;max-width:${pct}%" data-slot-id="${slot.id}">`;
+      slot.elements.forEach(el => { slotsHtml += viz._renderElementCardHtml(el, slot.id); });
+      slotsHtml += `<button class="dwb-add-element-btn"
+        onclick="DWB.viz.showElementPicker('${slot.id}',null)">＋ Add Element</button>`;
+      slotsHtml += '</div>';
+    });
+    return `<div class="dwb-block" data-block-id="${block.id}">
+      <div class="dwb-block-header">
+        <span class="dwb-block-handle">⠿</span>
+        <span class="dwb-block-label">${labels[block.layout] || block.layout}</span>
+        <button class="dwb-block-menu-btn"
+          onclick="DWB.viz._showBlockMenu(event,'${block.id}')">⋯</button>
+      </div>
+      <div class="dwb-block-slots" data-block-title="${labels[block.layout] || block.layout}">${slotsHtml}</div>
+    </div>`;
+  };
+
+  viz._renderElementCardHtml = function (element, slotId) {
+    const def      = viz._elementRegistry[element.type] || {};
+    const selected = viz.activeElementId === element.id ? ' selected' : '';
+    return `<div class="dwb-element-card${selected}" id="elcard-${element.id}"
+      onclick="DWB.viz.selectElement('${element.id}')">
+      <div class="dwb-element-header">
+        <span>${def.icon || '📦'}</span>
+        <input type="text" class="dwb-element-title-input" id="el-title-${element.id}"
+          value="${(element.title || '').replace(/"/g, '&quot;')}"
+          oninput="DWB.viz._updateElementTitle('${element.id}',this.value)"
+          onclick="event.stopPropagation()">
+        <span class="dwb-element-type-badge">${def.title || element.type}</span>
+        <button class="dwb-element-menu-btn"
+          onclick="event.stopPropagation();DWB.viz._showElementMenu(event,'${element.id}','${slotId}')">⋯</button>
+      </div>
+      <div class="dwb-element-content" id="element-content-${element.id}">
+        <div class="dwb-empty-state" style="min-height:80px">Loading…</div>
+      </div>
+    </div>`;
+  };
+
+  viz.selectElement = function (elementId) {
+    viz.activeElementId = elementId;
+    document.querySelectorAll('.dwb-element-card').forEach(c => c.classList.remove('selected'));
+    const card = document.getElementById('elcard-' + elementId);
+    if (card) card.classList.add('selected');
+    viz.renderSidebar(elementId);
+  };
+
+  // ---- Block context menu ----
+  viz._showBlockMenu = function (e, blockId) {
+    e.stopPropagation();
+    viz._closeCtxMenu();
+    const bi = viz.blocks.findIndex(b => b.id === blockId);
+    const items = [
+      { label: 'Move Up',       fn: () => viz._moveBlock(bi, -1),           off: bi === 0 },
+      { label: 'Move Down',     fn: () => viz._moveBlock(bi, 1),            off: bi === viz.blocks.length - 1 },
+      { label: 'Change Layout', fn: () => viz.showAddBlockDialog(null, blockId) },
+      { label: 'Delete Block',  fn: () => viz._deleteBlock(blockId), danger: true }
+    ];
+    viz._openCtxMenu(e, items);
+  };
+
+  viz._showElementMenu = function (e, elementId, slotId) {
+    e.stopPropagation();
+    viz._closeCtxMenu();
+    const found = viz.findElement(elementId);
+    if (!found) return;
+    const { slot, element } = found;
+    const ei = slot.elements.indexOf(element);
+    const items = [
+      { label: 'Edit Config',   fn: () => viz.selectElement(elementId) },
+      { label: 'Move Up',       fn: () => viz._moveElement(elementId, -1), off: ei === 0 },
+      { label: 'Move Down',     fn: () => viz._moveElement(elementId, 1),  off: ei === slot.elements.length - 1 },
+      { label: 'Duplicate',     fn: () => viz._duplicateElement(elementId) },
+      { label: 'Delete',        fn: () => viz._deleteElement(elementId), danger: true }
+    ];
+    viz._openCtxMenu(e, items);
+  };
+
+  viz._openCtxMenu = function (e, items) {
+    const menu = document.createElement('div');
+    menu.className = 'dwb-ctx-menu';
+    menu.id = 'dwb-ctx-menu';
+    menu.style.left = e.clientX + 'px';
+    menu.style.top  = e.clientY + 'px';
+    menu.innerHTML = items.map((item, i) =>
+      `<button class="dwb-ctx-item${item.danger ? ' danger' : ''}"
+        ${item.off ? 'disabled style="opacity:0.4"' : ''}
+        data-i="${i}">${item.label}</button>`
+    ).join('');
+    document.body.appendChild(menu);
+    menu.querySelectorAll('[data-i]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        viz._closeCtxMenu();
+        items[parseInt(btn.dataset.i)].fn();
+      });
+    });
+    setTimeout(() => document.addEventListener('click', viz._closeCtxMenu, { once: true }), 0);
+  };
+
+  viz._closeCtxMenu = function () {
+    const m = document.getElementById('dwb-ctx-menu');
+    if (m) m.remove();
+  };
+
+  // ---- Block operations ----
+  viz._moveBlock = function (idx, dir) {
+    const ni = idx + dir;
+    if (ni < 0 || ni >= viz.blocks.length) return;
+    [viz.blocks[idx], viz.blocks[ni]] = [viz.blocks[ni], viz.blocks[idx]];
+    viz.renderCanvas();
+  };
+
+  viz._deleteBlock = function (blockId) {
+    if (!confirm('Delete this block and all its elements?')) return;
+    const idx = viz.blocks.findIndex(b => b.id === blockId);
+    if (idx < 0) return;
+    viz.blocks.splice(idx, 1);
+    if (viz.activeElementId && !viz.findElement(viz.activeElementId)) {
+      viz.activeElementId = null;
+      viz.renderSidebar(null);
+    }
+    viz.renderCanvas();
+  };
+
+  // ---- Element operations ----
+  viz._moveElement = function (elementId, dir) {
+    const found = viz.findElement(elementId);
+    if (!found) return;
+    const { slot, element } = found;
+    const idx = slot.elements.indexOf(element);
+    const ni  = idx + dir;
+    if (ni < 0 || ni >= slot.elements.length) return;
+    slot.elements.splice(idx, 1);
+    slot.elements.splice(ni, 0, element);
+    viz.renderCanvas();
+  };
+
+  viz._duplicateElement = function (elementId) {
+    const found = viz.findElement(elementId);
+    if (!found) return;
+    const { slot, element } = found;
+    const copy = JSON.parse(JSON.stringify(element));
+    copy.id = 'element-' + viz.generateId();
+    copy._instance = null;
+    slot.elements.splice(slot.elements.indexOf(element) + 1, 0, copy);
+    viz.renderCanvas();
+  };
+
+  viz._deleteElement = function (elementId) {
+    for (const block of viz.blocks) {
+      for (const slot of block.slots) {
+        const idx = slot.elements.findIndex(el => el.id === elementId);
+        if (idx >= 0) {
+          slot.elements.splice(idx, 1);
+          if (viz.activeElementId === elementId) {
+            viz.activeElementId = null;
+            viz.renderSidebar(null);
+          }
+          viz.renderCanvas();
+          return;
+        }
+      }
+    }
+  };
+
+  // ---- Add Block Dialog ----
+  viz.showAddBlockDialog = function (insertAfterIdx, changeBlockId) {
+    _addBlockTargetIdx     = (insertAfterIdx !== null && insertAfterIdx !== undefined) ? insertAfterIdx : null;
+    _addBlockChangeId      = changeBlockId || null;
+    _addBlockLayout        = '1col';
+    _addBlockSelectedRatio = null;
+
+    // Reset layout button states
+    document.querySelectorAll('.layout-opt-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.layout === '1col');
+    });
+    document.getElementById('add-block-ratio-section').style.display = 'none';
+    document.getElementById('add-block-ratio-btns').innerHTML = '';
+
+    document.getElementById('add-block-overlay').classList.remove('hidden');
+  };
+
+  viz.closeAddBlockDialog = function () {
+    document.getElementById('add-block-overlay').classList.add('hidden');
+  };
+
+  viz._selectBlockLayout = function (layout, btn) {
+    _addBlockLayout = layout;
+    document.querySelectorAll('.layout-opt-btn').forEach(b => b.classList.remove('selected'));
+    if (btn) btn.classList.add('selected');
+
+    const presets = {
+      '1col': [],
+      '2col': [[50, 50], [60, 40], [70, 30]],
+      '3col': [[33, 34, 33], [50, 25, 25]]
+    };
+
+    const ps            = presets[layout] || [];
+    const ratioSection  = document.getElementById('add-block-ratio-section');
+    const ratioBtns     = document.getElementById('add-block-ratio-btns');
+
+    if (ps.length) {
+      ratioSection.style.display = '';
+      _addBlockSelectedRatio = ps[0];
+      ratioBtns.innerHTML = ps.map((p, i) => {
+        const diagCols = p.map(v => `<div class="rd-col" style="flex:${v}"></div>`).join('');
+        return `<button class="ratio-opt-btn${i === 0 ? ' selected' : ''}"
+          onclick="DWB.viz._selectRatio(this,[${p}])">
+          <div class="ratio-diagram">${diagCols}</div>
+          ${p.join('/')}%
+        </button>`;
+      }).join('');
+    } else {
+      ratioSection.style.display = 'none';
+      _addBlockSelectedRatio = null;
+    }
+  };
+
+  viz._selectRatio = function (btn, ratios) {
+    _addBlockSelectedRatio = ratios;
+    document.querySelectorAll('.ratio-opt-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  };
+
+  viz.confirmAddBlock = function () {
+    const layout   = _addBlockLayout || '1col';
+    const colCount = layout === '1col' ? 1 : layout === '2col' ? 2 : 3;
+    let ratios     = _addBlockSelectedRatio;
+
+    if (!ratios) {
+      const even = Math.floor(100 / colCount);
+      ratios = Array(colCount).fill(even);
+      ratios[0] += 100 - even * colCount;
+    }
+
+    if (_addBlockChangeId) {
+      const block = viz.blocks.find(b => b.id === _addBlockChangeId);
+      if (block) {
+        block.layout   = layout;
+        block.colRatios = ratios;
+        while (block.slots.length < colCount)
+          block.slots.push({ id: 'slot-' + viz.generateId(), elements: [] });
+        // Merge excess slots into slot[0] before trimming
+        while (block.slots.length > colCount) {
+          const extra = block.slots.pop();
+          extra.elements.forEach(el => block.slots[0].elements.push(el));
+        }
+      }
+    } else {
+      const block = {
+        id: 'block-' + viz.generateId(),
+        layout,
+        colRatios: ratios,
+        slots: Array.from({ length: colCount }, () => ({
+          id: 'slot-' + viz.generateId(),
+          elements: []
+        }))
+      };
+      if (_addBlockTargetIdx !== null) {
+        viz.blocks.splice(_addBlockTargetIdx, 0, block);
+      } else {
+        viz.blocks.push(block);
+      }
+    }
+
+    viz.closeAddBlockDialog();
+    viz.renderCanvas();
+  };
+
+  // ---- Element Picker ----
+  viz.showElementPicker = function (slotId, insertAfterElementId) {
+    _pickerSlotId        = slotId;
+    _pickerInsertAfterId = insertAfterElementId;
+
+    const list = document.getElementById('element-picker-list');
+    if (!list) return;
+
+    const ds          = viz.getActiveDataset(null);
+    const activeTypes = ds ? (ds.columnTypes || []) : [];
+
+    const byCat = {};
+    for (const [key, def] of Object.entries(viz._elementRegistry)) {
+      const cat = def.category || 'Other';
+      (byCat[cat] = byCat[cat] || []).push({ key, def });
+    }
+
+    if (!Object.keys(byCat).length) {
+      list.innerHTML = '<div class="sidebar-empty-msg">No elements registered yet.</div>';
+    } else {
+      list.innerHTML = Object.entries(byCat).map(([cat, items]) =>
+        `<div class="element-picker-cat">${cat}</div>` +
+        `<div class="element-picker-grid">` +
+        items.map(({ key, def }) => {
+          const rec = def.columnAffinity && def.columnAffinity.primary
+            ? def.columnAffinity.primary.some(t => activeTypes.includes(t))
+            : false;
+          return `<div class="element-picker-item" onclick="DWB.viz._pickElement('${key}')">
+            <span class="element-picker-icon">${def.icon || '📦'}</span>
+            <div>
+              <div class="element-picker-title" style="position:relative">${def.title}${rec ? '<span class="element-recommended">Recommended</span>' : ''}</div>
+              <div class="element-picker-desc">${def.desc || ''}</div>
+            </div>
+          </div>`;
+        }).join('') +
+        `</div>`
+      ).join('');
+    }
+
+    document.getElementById('element-picker-overlay').classList.remove('hidden');
+  };
+
+  viz.closeElementPicker = function () {
+    document.getElementById('element-picker-overlay').classList.add('hidden');
+  };
+
+  viz._pickElement = function (type) {
+    viz.closeElementPicker();
+    if (!_pickerSlotId) return;
+
+    let targetSlot = null;
+    for (const block of viz.blocks) {
+      for (const slot of block.slots) {
+        if (slot.id === _pickerSlotId) { targetSlot = slot; break; }
+      }
+      if (targetSlot) break;
+    }
+    if (!targetSlot) return;
+
+    const def = viz._elementRegistry[type];
+    const element = {
+      id: 'element-' + viz.generateId(),
+      type,
+      title: def ? def.title : type,
+      datasetName: null,
+      config: {},
+      _instance: null
+    };
+
+    if (_pickerInsertAfterId) {
+      const idx = targetSlot.elements.findIndex(el => el.id === _pickerInsertAfterId);
+      targetSlot.elements.splice(idx + 1, 0, element);
+    } else {
+      targetSlot.elements.push(element);
+    }
+
+    viz.renderCanvas();
+    viz.selectElement(element.id);
+  };
+
+  // ---- Presentation Mode ----
+  viz.togglePresentation = function () {
+    document.documentElement.classList.toggle('presentation-mode');
+    const on  = document.documentElement.classList.contains('presentation-mode');
+    const btn = document.getElementById('btn-presentation');
+    if (btn) btn.textContent = on ? '✕ Exit' : '⛶ Presentation';
+  };
+
+  // ---- Theme change ----
+  new MutationObserver(() => {
+    for (const block of viz.blocks) {
+      for (const slot of block.slots) {
+        for (const element of slot.elements) {
+          const def = viz._elementRegistry[element.type];
+          if (def && def.onThemeChange) def.onThemeChange(element);
+        }
+      }
+    }
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // ---- Table search utility (used by DATA_TABLE element) ----
+  viz.tableSearch = function (elementId) {
+    const inp   = document.getElementById('search-' + elementId);
+    const table = document.getElementById('table-' + elementId);
+    if (!inp || !table) return;
+    const term = inp.value.toLowerCase();
+    table.querySelectorAll('tbody tr').forEach(row => {
+      const cells   = row.querySelectorAll('td');
+      const matches = !term || [...cells].some(c => c.textContent.toLowerCase().includes(term));
+      row.style.display = matches ? '' : 'none';
+      cells.forEach(cell => {
+        const val = cell.dataset.val || '';
+        if (term && val.toLowerCase().includes(term)) {
+          const i = val.toLowerCase().indexOf(term);
+          cell.innerHTML =
+            val.slice(0, i) +
+            '<mark>' + val.slice(i, i + term.length) + '</mark>' +
+            val.slice(i + term.length);
+        } else {
+          cell.textContent = val;
+        }
+      });
+    });
+  };
+
+  // ---- Initial canvas render ----
+  viz.renderCanvas();
+
+  DWB.log('Canvas engine ready.', 'success');
+})();
+
+/* --- src\viz\elements\e01_bar_vertical.js --- */
+DWB.registerElement('BAR_V', {
+  title: 'Bar Chart (Vertical)',
+  icon: '📈',
+  category: 'Charts',
+  desc: 'Vertical bar chart with aggregation, sort, and click-to-filter.',
+  headerCompatible: false,
+  columnAffinity: { primary: ['categorical', 'text', 'number'] },
+
+  _colorSchemes: {
+    navy:    ['#1B3A6B','#005EB8','#4A90D9','#7BB3E8','#A8CFEF','#C8E0F7'],
+    warm:    ['#C0392B','#E67E22','#F1C40F','#27AE60','#2980B9','#8E44AD'],
+    cool:    ['#2C3E50','#2980B9','#1ABC9C','#3498DB','#27AE60','#16A085'],
+    mono:    ['#1B3A6B','#2D5FA0','#4A82C8','#6FA0D8','#96BBE4','#BDD3F0'],
+    golden:  ['#B8860B','#DAA520','#F0C040','#C8A200','#A07800','#805800'],
+  },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const colOpts = (name) => headers.map((h, i) =>
+      `<option value="${i}" ${cfg[name] === i ? 'selected' : ''}>${h}</option>`
+    ).join('');
+
+    const aggOpts = ['count','sum','avg','min','max'].map(a =>
+      `<option value="${a}" ${(cfg.aggregation||'count') === a ? 'selected' : ''}>${a.toUpperCase()}</option>`
+    ).join('');
+
+    const sortOpts = [['value-desc','Value ↓'],['value-asc','Value ↑'],['label-asc','Label A–Z'],['label-desc','Label Z–A']].map(([v,l]) =>
+      `<option value="${v}" ${(cfg.sort||'value-desc') === v ? 'selected' : ''}>${l}</option>`
+    ).join('');
+
+    const schemeOpts = Object.keys(this._colorSchemes).map(k =>
+      `<option value="${k}" ${(cfg.colorScheme||'navy') === k ? 'selected' : ''}>${k.charAt(0).toUpperCase()+k.slice(1)}</option>`
+    ).join('');
+
+    const maxItems   = cfg.maxItems   !== undefined ? cfg.maxItems   : 20;
+    const showValues = cfg.showValues !== false;
+    const labelRotate = cfg.labelRotate !== undefined ? cfg.labelRotate : 45;
+
+    return `
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Category column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','categoryCol',parseInt(this.value))">
+          <option value="">— none —</option>${colOpts('categoryCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Value column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','valueCol',this.value===''?null:parseInt(this.value))">
+          <option value="">— none (count) —</option>${colOpts('valueCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Aggregation</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','aggregation',this.value)">${aggOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Sort</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','sort',this.value)">${sortOpts}</select>
+        </div>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Color scheme</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','colorScheme',this.value)">${schemeOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Max bars</label>
+          <input type="number" class="sidebar-input" value="${maxItems}" min="1" max="200"
+            oninput="DWB.updateConfig_viz('${element.id}','maxItems',parseInt(this.value)||20)">
+        </div>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Label rotation (°)</label>
+        <input type="number" class="sidebar-input" value="${labelRotate}" min="0" max="90" step="15"
+          oninput="DWB.updateConfig_viz('${element.id}','labelRotate',parseInt(this.value)||0)">
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-checkbox-item">
+          <input type="checkbox" ${showValues ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showValues',this.checked)">
+          Show value labels
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available.</div>';
+      return;
+    }
+
+    const cfg      = element.config || {};
+    const catIdx   = cfg.categoryCol !== undefined && cfg.categoryCol !== null ? cfg.categoryCol : null;
+    const valIdx   = cfg.valueCol    !== undefined && cfg.valueCol    !== null ? cfg.valueCol    : null;
+    const agg      = cfg.aggregation || 'count';
+    const sort     = cfg.sort || 'value-desc';
+    const scheme   = this._colorSchemes[cfg.colorScheme || 'navy'];
+    const maxItems = cfg.maxItems || 20;
+    const labelRotate = cfg.labelRotate !== undefined ? cfg.labelRotate : 45;
+
+    if (catIdx === null) {
+      container.innerHTML = '<div class="dwb-empty-state">Select a category column.</div>';
+      return;
+    }
+
+    // Aggregate
+    const buckets = {};
+    for (const row of dataset.rows) {
+      const key = String(row[catIdx] ?? '(blank)');
+      const num = valIdx !== null ? parseFloat(row[valIdx]) : NaN;
+      if (!buckets[key]) buckets[key] = { sum: 0, count: 0, min: Infinity, max: -Infinity };
+      const b = buckets[key];
+      b.count++;
+      if (!isNaN(num)) { b.sum += num; b.min = Math.min(b.min, num); b.max = Math.max(b.max, num); }
+    }
+
+    let data = Object.entries(buckets).map(([label, b]) => {
+      let value;
+      switch (agg) {
+        case 'sum':   value = b.sum; break;
+        case 'avg':   value = b.count > 0 ? b.sum / b.count : 0; break;
+        case 'min':   value = isFinite(b.min) ? b.min : 0; break;
+        case 'max':   value = isFinite(b.max) ? b.max : 0; break;
+        default:      value = b.count;
+      }
+      return { label, value };
+    });
+
+    // Sort
+    if (sort === 'value-desc') data.sort((a, b) => b.value - a.value);
+    else if (sort === 'value-asc') data.sort((a, b) => a.value - b.value);
+    else if (sort === 'label-asc') data.sort((a, b) => a.label.localeCompare(b.label));
+    else if (sort === 'label-desc') data.sort((a, b) => b.label.localeCompare(a.label));
+
+    data = data.slice(0, maxItems);
+
+    if (!window.echarts) {
+      container.innerHTML = '<div class="dwb-empty-state">ECharts not loaded.</div>';
+      return;
+    }
+
+    const bottomPad = labelRotate > 0 ? Math.round(labelRotate * 1.4) : 24;
+    container.style.minHeight = '200px';
+
+    if (element._instance) {
+      element._instance.dispose();
+      element._instance = null;
+    }
+    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+
+    const chart = echarts.init(container, null, { renderer: 'canvas' });
+    element._instance = chart;
+
+    const catCol = dataset.headers[catIdx];
+    const colors = data.map((_, i) => scheme[i % scheme.length]);
+
+    chart.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: '2%', right: '2%', top: cfg.showValues !== false ? 28 : 12, bottom: bottomPad, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: data.map(d => d.label),
+        axisLabel: {
+          fontSize: 11,
+          rotate: labelRotate,
+          width: 80,
+          overflow: 'truncate',
+          interval: 0
+        }
+      },
+      yAxis: { type: 'value', axisLabel: { fontSize: 11 } },
+      series: [{
+        type: 'bar',
+        data: data.map((d, i) => ({ value: d.value, itemStyle: { color: colors[i] } })),
+        label: cfg.showValues !== false
+          ? { show: true, position: 'top', fontSize: 10,
+              formatter: p => typeof p.value === 'number' && !Number.isInteger(p.value)
+                ? p.value.toFixed(2) : String(p.value) }
+          : { show: false }
+      }]
+    });
+
+    chart.on('click', params => {
+      if (params.componentType === 'series') {
+        DWB.viz.addFilter(catCol, params.name, element.id);
+      }
+    });
+
+    element._resizeObs = new ResizeObserver(() => {
+      if (element._instance && !element._instance.isDisposed()) {
+        element._instance.resize();
+      }
+    });
+    element._resizeObs.observe(container);
+  },
+
+  onFilterChange(element, dataset, filters) {
+    this.render(element, dataset, filters);
+  },
+
+  onThemeChange(element) {
+    if (element._instance && !element._instance.isDisposed()) {
+      element._instance.resize();
+    }
+  },
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    const cfg = element.config || {};
+    const cat = cfg.categoryCol !== undefined ? dataset.headers[cfg.categoryCol] : '(unset)';
+    const val = cfg.valueCol    !== undefined ? dataset.headers[cfg.valueCol]    : 'count';
+    return `Vertical Bar: category=${cat}, value=${val}, agg=${cfg.aggregation||'count'}, rows=${dataset.rowCount}.`;
+  },
+
+  getEchartsInstance(element) { return element._instance || null; }
+});
+
+/* --- src\viz\elements\e02_bar_horizontal.js --- */
+DWB.registerElement('BAR_H', {
+  title: 'Bar Chart (Horizontal)',
+  icon: '📊',
+  category: 'Charts',
+  desc: 'Horizontal bar chart with aggregation, sort, and click-to-filter.',
+  headerCompatible: false,
+  columnAffinity: { primary: ['categorical', 'text', 'number'] },
+
+  _colorSchemes: {
+    navy:    ['#1B3A6B','#005EB8','#4A90D9','#7BB3E8','#A8CFEF','#C8E0F7'],
+    warm:    ['#C0392B','#E67E22','#F1C40F','#27AE60','#2980B9','#8E44AD'],
+    cool:    ['#2C3E50','#2980B9','#1ABC9C','#3498DB','#27AE60','#16A085'],
+    mono:    ['#1B3A6B','#2D5FA0','#4A82C8','#6FA0D8','#96BBE4','#BDD3F0'],
+    golden:  ['#B8860B','#DAA520','#F0C040','#C8A200','#A07800','#805800'],
+  },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const colOpts = (selected, name) => headers.map((h, i) =>
+      `<option value="${i}" ${cfg[name] === i ? 'selected' : ''}>${h}</option>`
+    ).join('');
+
+    const aggOpts = ['count','sum','avg','min','max'].map(a =>
+      `<option value="${a}" ${(cfg.aggregation||'count') === a ? 'selected' : ''}>${a.toUpperCase()}</option>`
+    ).join('');
+
+    const sortOpts = [['value-desc','Value ↓'],['value-asc','Value ↑'],['label-asc','Label A–Z'],['label-desc','Label Z–A']].map(([v,l]) =>
+      `<option value="${v}" ${(cfg.sort||'value-desc') === v ? 'selected' : ''}>${l}</option>`
+    ).join('');
+
+    const schemeOpts = Object.keys(this._colorSchemes).map(k =>
+      `<option value="${k}" ${(cfg.colorScheme||'navy') === k ? 'selected' : ''}>${k.charAt(0).toUpperCase()+k.slice(1)}</option>`
+    ).join('');
+
+    const maxItems = cfg.maxItems !== undefined ? cfg.maxItems : 20;
+    const showValues = cfg.showValues !== false;
+
+    return `
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Category column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','categoryCol',parseInt(this.value))">
+          <option value="">— none —</option>${colOpts(cfg.categoryCol,'categoryCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Value column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','valueCol',this.value===''?null:parseInt(this.value))">
+          <option value="">— none (count) —</option>${colOpts(cfg.valueCol,'valueCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Aggregation</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','aggregation',this.value)">${aggOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Sort</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','sort',this.value)">${sortOpts}</select>
+        </div>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Color scheme</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','colorScheme',this.value)">${schemeOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Max bars</label>
+          <input type="number" class="sidebar-input" value="${maxItems}" min="1" max="200"
+            oninput="DWB.updateConfig_viz('${element.id}','maxItems',parseInt(this.value)||20)">
+        </div>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-checkbox-item">
+          <input type="checkbox" ${showValues ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showValues',this.checked)">
+          Show value labels
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available.</div>';
+      return;
+    }
+
+    const cfg      = element.config || {};
+    const catIdx   = cfg.categoryCol !== undefined && cfg.categoryCol !== null ? cfg.categoryCol : null;
+    const valIdx   = cfg.valueCol    !== undefined && cfg.valueCol    !== null ? cfg.valueCol    : null;
+    const agg      = cfg.aggregation || 'count';
+    const sort     = cfg.sort || 'value-desc';
+    const scheme   = this._colorSchemes[cfg.colorScheme || 'navy'];
+    const maxItems = cfg.maxItems || 20;
+
+    if (catIdx === null) {
+      container.innerHTML = '<div class="dwb-empty-state">Select a category column.</div>';
+      return;
+    }
+
+    // Aggregate
+    const buckets = {};
+    for (const row of dataset.rows) {
+      const key = String(row[catIdx] ?? '(blank)');
+      const num = valIdx !== null ? parseFloat(row[valIdx]) : NaN;
+      if (!buckets[key]) buckets[key] = { sum: 0, count: 0, min: Infinity, max: -Infinity, vals: [] };
+      const b = buckets[key];
+      b.count++;
+      if (!isNaN(num)) { b.sum += num; b.vals.push(num); b.min = Math.min(b.min, num); b.max = Math.max(b.max, num); }
+    }
+
+    let data = Object.entries(buckets).map(([label, b]) => {
+      let value;
+      switch (agg) {
+        case 'sum':   value = b.sum; break;
+        case 'avg':   value = b.count > 0 ? b.sum / b.count : 0; break;
+        case 'min':   value = isFinite(b.min) ? b.min : 0; break;
+        case 'max':   value = isFinite(b.max) ? b.max : 0; break;
+        default:      value = b.count; // count
+      }
+      return { label, value };
+    });
+
+    // Sort
+    if (sort === 'value-desc') data.sort((a, b) => b.value - a.value);
+    else if (sort === 'value-asc') data.sort((a, b) => a.value - b.value);
+    else if (sort === 'label-asc') data.sort((a, b) => a.label.localeCompare(b.label));
+    else if (sort === 'label-desc') data.sort((a, b) => b.label.localeCompare(a.label));
+
+    data = data.slice(0, maxItems);
+
+    // ECharts
+    if (!window.echarts) {
+      container.innerHTML = '<div class="dwb-empty-state">ECharts not loaded.</div>';
+      return;
+    }
+
+    container.style.minHeight = Math.max(160, data.length * 28 + 40) + 'px';
+
+    if (element._instance) {
+      element._instance.dispose();
+      element._instance = null;
+    }
+    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+
+    const chart = echarts.init(container, null, { renderer: 'canvas' });
+    element._instance = chart;
+
+    const catCol = dataset.headers[catIdx];
+    const colors = data.map((_, i) => scheme[i % scheme.length]);
+
+    chart.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: '2%', right: cfg.showValues !== false ? '6%' : '2%', top: 8, bottom: 8, containLabel: true },
+      xAxis: { type: 'value', axisLabel: { fontSize: 11 } },
+      yAxis: {
+        type: 'category',
+        data: data.map(d => d.label),
+        axisLabel: { fontSize: 11, width: 100, overflow: 'truncate' },
+        inverse: false
+      },
+      series: [{
+        type: 'bar',
+        data: data.map((d, i) => ({ value: d.value, itemStyle: { color: colors[i] } })),
+        label: cfg.showValues !== false
+          ? { show: true, position: 'right', fontSize: 10,
+              formatter: p => typeof p.value === 'number' && !Number.isInteger(p.value)
+                ? p.value.toFixed(2) : String(p.value) }
+          : { show: false }
+      }]
+    });
+
+    chart.on('click', params => {
+      if (params.componentType === 'series') {
+        DWB.viz.addFilter(catCol, params.name, element.id);
+      }
+    });
+
+    element._resizeObs = new ResizeObserver(() => {
+      if (element._instance && !element._instance.isDisposed()) {
+        element._instance.resize();
+      }
+    });
+    element._resizeObs.observe(container);
+  },
+
+  onFilterChange(element, dataset, filters) {
+    this.render(element, dataset, filters);
+  },
+
+  onThemeChange(element) {
+    if (element._instance && !element._instance.isDisposed()) {
+      element._instance.resize();
+    }
+  },
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    const cfg = element.config || {};
+    const cat = cfg.categoryCol !== undefined ? dataset.headers[cfg.categoryCol] : '(unset)';
+    const val = cfg.valueCol    !== undefined ? dataset.headers[cfg.valueCol]    : 'count';
+    return `Horizontal Bar: category=${cat}, value=${val}, agg=${cfg.aggregation||'count'}, rows=${dataset.rowCount}.`;
+  },
+
+  getEchartsInstance(element) { return element._instance || null; }
+});
+
+/* --- src\viz\elements\e03_pie.js --- */
+DWB.registerElement('PIE', {
+  title: 'Pie / Donut Chart',
+  icon: '🥧',
+  category: 'Charts',
+  desc: 'Pie or donut chart with aggregation and click-to-filter.',
+  headerCompatible: false,
+  columnAffinity: { primary: ['categorical', 'text'] },
+
+  _colorSchemes: {
+    navy:    ['#1B3A6B','#005EB8','#4A90D9','#7BB3E8','#A8CFEF','#C8E0F7'],
+    warm:    ['#C0392B','#E67E22','#F1C40F','#27AE60','#2980B9','#8E44AD'],
+    cool:    ['#2C3E50','#2980B9','#1ABC9C','#3498DB','#27AE60','#16A085'],
+    mono:    ['#1B3A6B','#2D5FA0','#4A82C8','#6FA0D8','#96BBE4','#BDD3F0'],
+    golden:  ['#B8860B','#DAA520','#F0C040','#C8A200','#A07800','#805800'],
+  },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const colOpts = (name) => headers.map((h, i) =>
+      `<option value="${i}" ${cfg[name] === i ? 'selected' : ''}>${h}</option>`
+    ).join('');
+
+    const aggOpts = ['count','sum','avg'].map(a =>
+      `<option value="${a}" ${(cfg.aggregation||'count') === a ? 'selected' : ''}>${a.toUpperCase()}</option>`
+    ).join('');
+
+    const schemeOpts = Object.keys(this._colorSchemes).map(k =>
+      `<option value="${k}" ${(cfg.colorScheme||'navy') === k ? 'selected' : ''}>${k.charAt(0).toUpperCase()+k.slice(1)}</option>`
+    ).join('');
+
+    const radius   = cfg.radius   !== undefined ? cfg.radius   : 0;
+    const maxSlices = cfg.maxSlices !== undefined ? cfg.maxSlices : 12;
+    const showLabels = cfg.showLabels !== false;
+
+    return `
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Category column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','categoryCol',parseInt(this.value))">
+          <option value="">— none —</option>${colOpts('categoryCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Value column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','valueCol',this.value===''?null:parseInt(this.value))">
+          <option value="">— none (count) —</option>${colOpts('valueCol')}
+        </select>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Aggregation</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','aggregation',this.value)">${aggOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Color scheme</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','colorScheme',this.value)">${schemeOpts}</select>
+        </div>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Inner radius % (0=pie)</label>
+          <input type="number" class="sidebar-input" value="${radius}" min="0" max="80" step="5"
+            oninput="DWB.updateConfig_viz('${element.id}','radius',parseInt(this.value)||0)">
+        </div>
+        <div>
+          <label class="sidebar-label">Max slices</label>
+          <input type="number" class="sidebar-input" value="${maxSlices}" min="2" max="50"
+            oninput="DWB.updateConfig_viz('${element.id}','maxSlices',parseInt(this.value)||12)">
+        </div>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-checkbox-item">
+          <input type="checkbox" ${showLabels ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showLabels',this.checked)">
+          Show slice labels
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available.</div>';
+      return;
+    }
+
+    const cfg       = element.config || {};
+    const catIdx    = cfg.categoryCol !== undefined && cfg.categoryCol !== null ? cfg.categoryCol : null;
+    const valIdx    = cfg.valueCol    !== undefined && cfg.valueCol    !== null ? cfg.valueCol    : null;
+    const agg       = cfg.aggregation || 'count';
+    const scheme    = this._colorSchemes[cfg.colorScheme || 'navy'];
+    const innerR    = cfg.radius    !== undefined ? cfg.radius    : 0;
+    const maxSlices = cfg.maxSlices !== undefined ? cfg.maxSlices : 12;
+
+    if (catIdx === null) {
+      container.innerHTML = '<div class="dwb-empty-state">Select a category column.</div>';
+      return;
+    }
+
+    const buckets = {};
+    for (const row of dataset.rows) {
+      const key = String(row[catIdx] ?? '(blank)');
+      const num = valIdx !== null ? parseFloat(row[valIdx]) : NaN;
+      if (!buckets[key]) buckets[key] = { sum: 0, count: 0 };
+      buckets[key].count++;
+      if (!isNaN(num)) buckets[key].sum += num;
+    }
+
+    let data = Object.entries(buckets).map(([name, b]) => {
+      const value = agg === 'sum' ? b.sum : agg === 'avg' ? (b.count ? b.sum / b.count : 0) : b.count;
+      return { name, value };
+    }).sort((a, b) => b.value - a.value);
+
+    // Roll up tail into "Other"
+    if (data.length > maxSlices) {
+      const tail  = data.slice(maxSlices - 1);
+      const other = tail.reduce((s, d) => s + d.value, 0);
+      data = data.slice(0, maxSlices - 1);
+      data.push({ name: `Other (${tail.length})`, value: other });
+    }
+
+    if (!window.echarts) {
+      container.innerHTML = '<div class="dwb-empty-state">ECharts not loaded.</div>';
+      return;
+    }
+
+    container.style.minHeight = '200px';
+
+    if (element._instance) { element._instance.dispose(); element._instance = null; }
+    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+
+    const chart = echarts.init(container, null, { renderer: 'canvas' });
+    element._instance = chart;
+
+    const catCol = dataset.headers[catIdx];
+    const outerR = '70%';
+    const innerRStr = innerR > 0 ? innerR + '%' : '0';
+
+    chart.setOption({
+      tooltip: {
+        trigger: 'item',
+        formatter: p => `${p.name}<br/>${p.value} (${p.percent}%)`
+      },
+      legend: { show: false },
+      color: scheme,
+      series: [{
+        type: 'pie',
+        radius: [innerRStr, outerR],
+        center: ['50%', '50%'],
+        data: data.map(d => ({ name: d.name, value: d.value })),
+        label: cfg.showLabels !== false
+          ? { show: true, fontSize: 10, formatter: '{b}: {d}%' }
+          : { show: false },
+        emphasis: {
+          itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.3)' }
+        }
+      }]
+    });
+
+    chart.on('click', params => {
+      if (params.componentType === 'series' && params.name !== `Other (${data.length})`) {
+        DWB.viz.addFilter(catCol, params.name, element.id);
+      }
+    });
+
+    element._resizeObs = new ResizeObserver(() => {
+      if (element._instance && !element._instance.isDisposed()) element._instance.resize();
+    });
+    element._resizeObs.observe(container);
+  },
+
+  onFilterChange(element, dataset, filters) { this.render(element, dataset, filters); },
+
+  onThemeChange(element) {
+    if (element._instance && !element._instance.isDisposed()) element._instance.resize();
+  },
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    const cfg = element.config || {};
+    const cat = cfg.categoryCol !== undefined ? dataset.headers[cfg.categoryCol] : '(unset)';
+    return `Pie chart: category=${cat}, agg=${cfg.aggregation||'count'}, rows=${dataset.rowCount}.`;
+  },
+
+  getEchartsInstance(element) { return element._instance || null; }
+});
+
+/* --- src\viz\elements\e04_kpi_stat.js --- */
+DWB.registerElement('KPI_STAT', {
+  title: 'KPI Stat',
+  icon: '🔢',
+  category: 'Data',
+  desc: 'Single metric card: aggregate a column and display as a large statistic.',
+  headerCompatible: true,
+  columnAffinity: { primary: ['number'] },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const colOpts = headers.map((h, i) =>
+      `<option value="${i}" ${cfg.valueCol === i ? 'selected' : ''}>${h}</option>`
+    ).join('');
+
+    const aggOpts = ['count','sum','avg','min','max','distinct'].map(a =>
+      `<option value="${a}" ${(cfg.aggregation||'count') === a ? 'selected' : ''}>${a.toUpperCase()}</option>`
+    ).join('');
+
+    const fmtOpts = [['auto','Auto'],['number','Number'],['currency','Currency ($)'],['percent','Percent (%)'],['compact','Compact (1.2K)']].map(([v,l]) =>
+      `<option value="${v}" ${(cfg.format||'auto') === v ? 'selected' : ''}>${l}</option>`
+    ).join('');
+
+    const prefix = cfg.prefix || '';
+    const suffix = cfg.suffix || '';
+    const showLabel = cfg.showLabel !== false;
+
+    return `
+      <div class="dwb-config-group">
+        <label class="sidebar-label">Value column</label>
+        <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','valueCol',this.value===''?null:parseInt(this.value))">
+          <option value="">— none —</option>${colOpts}
+        </select>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Aggregation</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','aggregation',this.value)">${aggOpts}</select>
+        </div>
+        <div>
+          <label class="sidebar-label">Format</label>
+          <select class="sidebar-input" onchange="DWB.updateConfig_viz('${element.id}','format',this.value)">${fmtOpts}</select>
+        </div>
+      </div>
+      <div class="dwb-config-group dwb-config-inline">
+        <div>
+          <label class="sidebar-label">Prefix</label>
+          <input type="text" class="sidebar-input" value="${prefix.replace(/"/g,'&quot;')}" placeholder="e.g. $"
+            oninput="DWB.updateConfig_viz('${element.id}','prefix',this.value)">
+        </div>
+        <div>
+          <label class="sidebar-label">Suffix</label>
+          <input type="text" class="sidebar-input" value="${suffix.replace(/"/g,'&quot;')}" placeholder="e.g. %"
+            oninput="DWB.updateConfig_viz('${element.id}','suffix',this.value)">
+        </div>
+      </div>
+      <div class="dwb-config-group">
+        <label class="sidebar-checkbox-item">
+          <input type="checkbox" ${showLabel ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showLabel',this.checked)">
+          Show metric label below value
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available.</div>';
+      return;
+    }
+
+    const cfg    = element.config || {};
+    const valIdx = cfg.valueCol !== undefined && cfg.valueCol !== null ? cfg.valueCol : null;
+    const agg    = cfg.aggregation || 'count';
+
+    let computed;
+    let label;
+
+    if (agg === 'count') {
+      computed = dataset.rows.length;
+      label = 'Row Count';
+    } else if (agg === 'distinct' && valIdx !== null) {
+      const uniq = new Set(dataset.rows.map(r => r[valIdx]));
+      computed = uniq.size;
+      label = `Distinct ${dataset.headers[valIdx]}`;
+    } else if (valIdx !== null) {
+      const nums = dataset.rows.map(r => parseFloat(r[valIdx])).filter(n => !isNaN(n));
+      if (nums.length === 0) { computed = 0; }
+      else if (agg === 'sum') { computed = nums.reduce((a, b) => a + b, 0); }
+      else if (agg === 'avg') { computed = nums.reduce((a, b) => a + b, 0) / nums.length; }
+      else if (agg === 'min') { computed = Math.min(...nums); }
+      else if (agg === 'max') { computed = Math.max(...nums); }
+      label = `${agg.toUpperCase()} of ${dataset.headers[valIdx]}`;
+    } else {
+      container.innerHTML = '<div class="dwb-empty-state">Select a value column.</div>';
+      return;
+    }
+
+    const formatted = this._format(computed, cfg.format || 'auto', cfg.prefix || '', cfg.suffix || '');
+
+    container.innerHTML = `
+      <div class="dwb-kpi-stat">
+        <div class="dwb-kpi-value">${formatted}</div>
+        ${cfg.showLabel !== false ? `<div class="dwb-kpi-label">${label}</div>` : ''}
+        <div class="dwb-kpi-rows">${dataset.rows.length.toLocaleString()} rows</div>
+      </div>`;
+  },
+
+  _format(value, fmt, prefix, suffix) {
+    let str;
+    if (fmt === 'currency') {
+      str = '
+
+<script>
+(function() {
+  const n = Object.keys(DWB.nodes).length;
+  DWB.log(`${n} node plugin(s) loaded.`);
+})();
+</script>
+
+</body>
+</html>
+ + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else if (fmt === 'percent') {
+      str = value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+    } else if (fmt === 'compact') {
+      str = this._compact(value);
+    } else if (fmt === 'number') {
+      str = Number.isInteger(value)
+        ? value.toLocaleString()
+        : value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else {
+      // auto
+      str = Number.isInteger(value)
+        ? value.toLocaleString()
+        : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+    return prefix + str + suffix;
+  },
+
+  _compact(value) {
+    const abs = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+    if (abs >= 1e9)  return sign + (abs / 1e9).toFixed(1)  + 'B';
+    if (abs >= 1e6)  return sign + (abs / 1e6).toFixed(1)  + 'M';
+    if (abs >= 1e3)  return sign + (abs / 1e3).toFixed(1)  + 'K';
+    return sign + abs.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  },
+
+  onFilterChange(element, dataset, filters) { this.render(element, dataset, filters); },
+  onThemeChange() {},
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    const cfg = element.config || {};
+    const col = cfg.valueCol !== undefined ? dataset.headers[cfg.valueCol] : '(unset)';
+    return `KPI Stat: agg=${cfg.aggregation||'count'}, column=${col}, rows=${dataset.rowCount}.`;
+  },
+
+  getEchartsInstance() { return null; }
+});
+
+/* --- src\viz\elements\e10_data_table.js --- */
+DWB.registerElement('DATA_TABLE', {
+  title: 'Data Table',
+  icon: '📋',
+  category: 'Data',
+  desc: 'Displays filtered data as a formatted, searchable table.',
+  headerCompatible: false,
+  columnAffinity: { primary: ['text', 'categorical', 'number', 'date'] },
+
+  renderConfig(element, dataset) {
+    const cfg     = element.config || {};
+    const headers = dataset ? dataset.headers : [];
+
+    const selected = cfg.selectedColumns && cfg.selectedColumns.length > 0
+      ? cfg.selectedColumns
+      : headers.map((_, i) => i);
+
+    const colChecks = headers.map((h, i) =>
+      `<label class="sidebar-checkbox-item">
+        <input type="checkbox" ${selected.includes(i) ? 'checked' : ''}
+          onchange="DWB.viz._tableToggleCol('${element.id}',${i},this.checked)">
+        ${h}
+      </label>`
+    ).join('');
+
+    const maxRows     = cfg.maxRows !== undefined ? cfg.maxRows : 100;
+    const showCount   = cfg.showRowCount !== false;
+
+    return `
+      <div style="padding:8px 12px 0">
+        <div class="sidebar-label">Columns to display</div>
+        <div class="sidebar-checkbox-list" style="margin-bottom:10px">
+          ${colChecks || '<span style="color:var(--text-faint);font-size:12px">No dataset loaded</span>'}
+        </div>
+        <label class="sidebar-label">Max rows</label>
+        <input type="number" class="sidebar-input" value="${maxRows}" min="1" max="5000"
+          oninput="DWB.updateConfig_viz('${element.id}','maxRows',parseInt(this.value)||100)">
+        <label class="sidebar-checkbox-item" style="margin-top:4px">
+          <input type="checkbox" ${showCount ? 'checked' : ''}
+            onchange="DWB.updateConfig_viz('${element.id}','showRowCount',this.checked)">
+          Show row count
+        </label>
+      </div>`;
+  },
+
+  render(element, dataset, filters) {
+    const container = document.getElementById('element-content-' + element.id);
+    if (!container) return;
+
+    if (!dataset || !dataset.rows || dataset.rows.length === 0) {
+      container.innerHTML = '<div class="dwb-empty-state">No data available. Push a dataset from the pipeline.</div>';
+      return;
+    }
+
+    const cfg     = element.config || {};
+    const maxRows = cfg.maxRows || 100;
+    const allHdrs = dataset.headers;
+    const selCols = (cfg.selectedColumns && cfg.selectedColumns.length > 0)
+      ? cfg.selectedColumns.filter(i => i < allHdrs.length)
+      : allHdrs.map((_, i) => i);
+
+    const rows    = dataset.rows.slice(0, maxRows);
+    const searchId = 'search-' + element.id;
+    const tableId  = 'table-'  + element.id;
+
+    let html = '<div class="dwb-table-wrapper"><div class="dwb-table-toolbar">';
+    if (cfg.showRowCount !== false) {
+      html += `<span class="dwb-row-count">${dataset.rows.length.toLocaleString()} row${dataset.rows.length !== 1 ? 's' : ''}`;
+      if (dataset.rows.length > maxRows) html += ` (showing ${maxRows})`;
+      html += '</span>';
+    } else {
+      html += '<span></span>';
+    }
+    html += `<input type="text" id="${searchId}" class="dwb-search-input" placeholder="Search…"
+      oninput="DWB.viz.tableSearch('${element.id}')">`;
+    html += '</div>';
+
+    html += `<div class="dwb-table-scroll"><table id="${tableId}" class="dwb-data-table"><thead><tr>`;
+    selCols.forEach(ci => { html += `<th>${allHdrs[ci]}</th>`; });
+    html += '</tr></thead><tbody>';
+
+    rows.forEach(row => {
+      html += '<tr>';
+      selCols.forEach(ci => {
+        const val = String(row[ci] ?? '');
+        html += `<td data-val="${val.replace(/"/g, '&quot;')}">${val}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table></div></div>';
+    container.innerHTML = html;
+  },
+
+  onFilterChange(element, dataset, filters) {
+    DWB.viz._elementRegistry['DATA_TABLE'].render(element, dataset, filters);
+  },
+
+  onThemeChange() { /* table uses CSS vars — no action needed */ },
+
+  getPromptContext(element, dataset, filters) {
+    if (!dataset) return 'No data.';
+    return `Data Table: ${dataset.rowCount} rows, ${dataset.headers.length} columns. ` +
+      'Filters: ' + (filters.length ? filters.map(f => `${f.column}=${f.value}`).join(', ') : 'none');
+  },
+
+  getEchartsInstance() { return null; }
+});
+
+// Helper for updating element config from sidebar without triggering full re-render
+DWB.updateConfig_viz = function (elementId, key, value) {
+  const found = DWB.viz.findElement(elementId);
+  if (found) found.element.config[key] = value;
+};
+
+// Helper for toggling column selection in DATA_TABLE config
+DWB.viz._tableToggleCol = function (elementId, colIdx, checked) {
+  const found = DWB.viz.findElement(elementId);
+  if (!found) return;
+  const cfg = found.element.config;
+  const ds  = DWB.viz.getActiveDataset(found.element);
+  if (!cfg.selectedColumns || cfg.selectedColumns.length === 0) {
+    cfg.selectedColumns = ds ? ds.headers.map((_, i) => i) : [];
+  }
+  if (checked) {
+    if (!cfg.selectedColumns.includes(colIdx)) cfg.selectedColumns.push(colIdx);
+  } else {
+    cfg.selectedColumns = cfg.selectedColumns.filter(i => i !== colIdx);
+  }
+};
+</script>
+
+<script>
+(function() {
+  const n = Object.keys(DWB.nodes).length;
+  DWB.log(`${n} node plugin(s) loaded.`);
+})();
+</script>
+
+</body>
+</html>

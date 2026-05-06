@@ -2,6 +2,10 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.4] — 2026-05-06
+_Release notes: (edit this line before committing)_
+- Build: 185.1 KB, 18 plugin(s)
+
 ## [v0.3] — 2026-05-06
 _Release notes: (edit this line before committing)_
 - Build: 185.1 KB, 18 plugin(s)
