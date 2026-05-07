@@ -4717,6 +4717,318 @@ DWB.register('PASSTHROUGH', {
 });
 })();
 
+/* --- src\nodes\r03_append.js --- */
+(function(){
+DWB.register('APPEND_ROWS', {
+  title: 'Append Rows',
+  icon: '⬇️',
+  category: 'Row Operations',
+  desc: 'Append rows from a stash to the current dataset.',
+  implemented: true,
+  defaultConfig: { stashName: '', matchMode: 'name', dedup: false },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    const cfg = node.config;
+    const stashNames = DWB.listStashes();
+
+    if (!stashNames.length) {
+      body.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:var(--text-faint)">
+          <span style="font-size:28px">⬇️</span>
+          <span style="font-size:12px">No stashes available.</span>
+          <span style="font-size:11px">Use a Save to Stash node upstream first.</span>
+        </div>`;
+      return;
+    }
+
+    const stashOpts = [
+      `<option value="">-- Select a stash --</option>`,
+      ...stashNames.map(n => `<option value="${n}"${n===cfg.stashName?' selected':''}>${n}</option>`)
+    ].join('');
+
+    const matchOpts = [['name','By name (match column headers)'],['position','By position (match by index)']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="app-match-${node.id}" value="${v}" ${cfg.matchMode===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    function previewHtml() {
+      if (!cfg.stashName || !prevData) return `<div style="font-size:11px;color:var(--text-faint)">Select a stash to see preview.</div>`;
+      const stash = DWB.getStash(cfg.stashName);
+      if (!stash) return `<div style="font-size:11px;color:var(--danger)">Stash not found.</div>`;
+      const active = prevData.rows.length;
+      const stashRows = stash.data.rows.length;
+      const total = active + stashRows;
+      return `<div style="font-size:12px;color:var(--text-muted);padding:6px 8px;background:var(--bg-raised);border-radius:4px">
+        Active: <strong>${active.toLocaleString()}</strong> rows &nbsp;+&nbsp;
+        Stash: <strong>${stashRows.toLocaleString()}</strong> rows &nbsp;=&nbsp;
+        <strong>${total.toLocaleString()}</strong> total
+      </div>`;
+    }
+
+    const status = node.status === 'ok' && node.output
+      ? `<div style="font-size:12px;color:var(--success)">✓ ${node.output.rows.length.toLocaleString()} rows total</div>`
+      : node.status === 'error'
+        ? `<div style="font-size:11px;color:var(--danger)">${node.errorMsg}</div>` : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Stash</label>
+          <select id="app-stash-${node.id}" style="width:100%">${stashOpts}</select>
+        </div>
+        <div id="app-preview-${node.id}">${previewHtml()}</div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Column Matching</div>
+          <div style="display:flex;flex-direction:column;gap:3px">${matchOpts}</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="app-dedup-${node.id}" ${cfg.dedup?'checked':''}> Remove duplicate rows after appending
+        </label>
+        <button id="app-run-${node.id}"
+          style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          ⬇️ Append
+        </button>
+        ${status}
+      </div>`;
+
+    document.getElementById(`app-stash-${node.id}`).addEventListener('change', e => {
+      cfg.stashName = e.target.value;
+      document.getElementById(`app-preview-${node.id}`).innerHTML = previewHtml();
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    document.querySelectorAll(`input[name="app-match-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.matchMode = r.value; DWB.runFrom(node.id); DWB.renderActiveNode(); });
+    });
+
+    document.getElementById(`app-dedup-${node.id}`).addEventListener('change', e => {
+      cfg.dedup = e.target.checked; DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    document.getElementById(`app-run-${node.id}`).addEventListener('click', () => {
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { stashName, matchMode, dedup } = node.config;
+    if (!stashName) throw new Error('No stash selected.');
+    const stash = DWB.getStash(stashName);
+    if (!stash) throw new Error(`Stash "${stashName}" not found.`);
+
+    const activeHeaders = inputData.headers;
+    const stashData = stash.data;
+    let mergedHeaders, activeRows, stashRows;
+
+    if (matchMode === 'name') {
+      // Union of both header sets (preserve active order first, then stash-only headers)
+      const extra = stashData.headers.filter(h => !activeHeaders.includes(h));
+      mergedHeaders = [...activeHeaders, ...extra];
+
+      activeRows = inputData.rows.map(r => {
+        return mergedHeaders.map((h, i) => {
+          const ai = i < activeHeaders.length ? i : -1;
+          return ai >= 0 ? (r[ai] ?? '') : '';
+        });
+      });
+
+      stashRows = stashData.rows.map(r => {
+        return mergedHeaders.map(h => {
+          const si = stashData.headers.indexOf(h);
+          return si >= 0 ? (r[si] ?? '') : '';
+        });
+      });
+    } else {
+      // By position: use active headers, truncate/pad stash rows
+      mergedHeaders = activeHeaders;
+      activeRows = inputData.rows;
+      stashRows = stashData.rows.map(r => {
+        const padded = [...r];
+        while (padded.length < mergedHeaders.length) padded.push('');
+        return padded.slice(0, mergedHeaders.length);
+      });
+    }
+
+    let combined = [...activeRows, ...stashRows];
+
+    if (dedup) {
+      const seen = new Set();
+      combined = combined.filter(r => {
+        const key = JSON.stringify(r);
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
+      });
+    }
+
+    node.output = { headers: mergedHeaders, rows: combined };
+    DWB.log(`Append Rows: appended ${stashRows.length} rows from stash "${stashName}". Total: ${combined.length} rows.`);
+  }
+});
+})();
+
+/* --- src\nodes\r04_dedup.js --- */
+(function(){
+DWB.register('REMOVE_DUPS', {
+  title: 'Remove Duplicates',
+  icon: '🗑️',
+  category: 'Row Operations',
+  desc: 'Remove duplicate rows based on one or more columns.',
+  implemented: true,
+  defaultConfig: { colIndices: 'all', keepFirst: true, caseSensitive: false },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    const allSelected = cfg.colIndices === 'all';
+    const selectedSet = allSelected
+      ? new Set(prevData.headers.map((_, i) => i))
+      : new Set(Array.isArray(cfg.colIndices) ? cfg.colIndices : []);
+
+    function computePreview(indices, cs) {
+      const idxArr = [...indices];
+      const seen = new Set();
+      let dups = 0;
+      for (const row of prevData.rows) {
+        const key = JSON.stringify(idxArr.map(i => cs ? (row[i] ?? '') : String(row[i] ?? '').toLowerCase()));
+        if (seen.has(key)) dups++;
+        else seen.add(key);
+      }
+      return { total: prevData.rows.length, kept: prevData.rows.length - dups, dups };
+    }
+
+    const preview = computePreview(selectedSet, cfg.caseSensitive);
+
+    const colChecks = prevData.headers.map((h, i) => {
+      const checked = selectedSet.has(i);
+      return `<label style="display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:12px;cursor:pointer;${allSelected?'opacity:0.5':''}">
+        <input type="checkbox" class="dd-col" data-idx="${i}" ${checked?'checked':''} ${allSelected?'disabled':''}> ${h}
+      </label>`;
+    }).join('');
+
+    const keepOpts = [['true','First occurrence'],['false','Last occurrence']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="dd-keep-${node.id}" value="${v}" ${String(cfg.keepFirst)===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    const status = node.status === 'ok' && node.output
+      ? `<div style="font-size:12px;color:var(--success)">✓ ${node.output.rows.length.toLocaleString()} rows remain</div>`
+      : node.status === 'error'
+        ? `<div style="font-size:11px;color:var(--danger)">${node.errorMsg}</div>` : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div id="dd-preview-${node.id}"
+          style="font-size:12px;color:var(--text-muted);padding:6px 8px;background:var(--bg-raised);border-radius:4px">
+          ${prevData.rows.length.toLocaleString()} rows → <strong>${preview.kept.toLocaleString()}</strong> rows
+          (${preview.dups.toLocaleString()} duplicate${preview.dups===1?'':'s'} removed)
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Columns to Consider</div>
+          <label style="display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:12px;cursor:pointer;font-weight:600">
+            <input type="checkbox" id="dd-all-${node.id}" ${allSelected?'checked':''}> All columns
+          </label>
+          <div id="dd-cols-${node.id}" style="max-height:130px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-top:4px">
+            ${colChecks}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Keep</div>
+          <div style="display:flex;gap:12px">${keepOpts}</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="dd-cs-${node.id}" ${cfg.caseSensitive?'checked':''}> Case sensitive
+        </label>
+        <button id="dd-run-${node.id}"
+          style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          🗑️ Apply
+        </button>
+        ${status}
+      </div>`;
+
+    function updatePreview() {
+      const idxs = cfg.colIndices === 'all'
+        ? new Set(prevData.headers.map((_, i) => i))
+        : new Set(Array.isArray(cfg.colIndices) ? cfg.colIndices : []);
+      const p = computePreview(idxs, cfg.caseSensitive);
+      const el = document.getElementById(`dd-preview-${node.id}`);
+      if (el) el.innerHTML = `${prevData.rows.length.toLocaleString()} rows → <strong>${p.kept.toLocaleString()}</strong> rows (${p.dups.toLocaleString()} duplicate${p.dups===1?'':'s'} removed)`;
+    }
+
+    document.getElementById(`dd-all-${node.id}`).addEventListener('change', e => {
+      cfg.colIndices = e.target.checked ? 'all' : prevData.headers.map((_, i) => i);
+      DWB.renderActiveNode(); DWB.runFrom(node.id);
+    });
+
+    document.getElementById(`dd-cols-${node.id}`).addEventListener('change', e => {
+      if (e.target.type !== 'checkbox') return;
+      if (!Array.isArray(cfg.colIndices)) cfg.colIndices = prevData.headers.map((_, i) => i);
+      const idx = parseInt(e.target.dataset.idx, 10);
+      if (e.target.checked) { if (!cfg.colIndices.includes(idx)) cfg.colIndices.push(idx); }
+      else { cfg.colIndices = cfg.colIndices.filter(i => i !== idx); }
+      updatePreview(); DWB.runFrom(node.id);
+    });
+
+    document.querySelectorAll(`input[name="dd-keep-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.keepFirst = r.value === 'true'; DWB.runFrom(node.id); DWB.renderActiveNode(); });
+    });
+
+    document.getElementById(`dd-cs-${node.id}`).addEventListener('change', e => {
+      cfg.caseSensitive = e.target.checked; updatePreview(); DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    document.getElementById(`dd-run-${node.id}`).addEventListener('click', () => {
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { colIndices, keepFirst, caseSensitive } = node.config;
+
+    const indices = colIndices === 'all'
+      ? inputData.headers.map((_, i) => i)
+      : (Array.isArray(colIndices) ? colIndices : inputData.headers.map((_, i) => i));
+
+    function makeKey(row) {
+      return JSON.stringify(indices.map(i => {
+        const v = String(row[i] ?? '');
+        return caseSensitive ? v : v.toLowerCase();
+      }));
+    }
+
+    let result;
+    if (keepFirst) {
+      const seen = new Set();
+      result = inputData.rows.filter(row => {
+        const key = makeKey(row);
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
+      });
+    } else {
+      const seen = new Set();
+      result = [];
+      for (let i = inputData.rows.length - 1; i >= 0; i--) {
+        const key = makeKey(inputData.rows[i]);
+        if (!seen.has(key)) { seen.add(key); result.unshift(inputData.rows[i]); }
+      }
+    }
+
+    const removed = inputData.rows.length - result.length;
+    const out = DWB.passthroughCopy(inputData);
+    out.rows = result;
+    node.output = out;
+    DWB.log(`Remove Duplicates: removed ${removed} duplicate row(s). ${result.length} rows remain.`);
+  }
+});
+})();
+
 /* --- src\nodes\t01_trim.js --- */
 (function(){
 DWB.register('TRIM_WHITESPACE', {
@@ -5725,6 +6037,1156 @@ DWB.register('AUTOINCREMENT', {
 
     node.output = out;
     DWB.log(`AutoIncrement: added column "${name}"${warned ? ' (renamed due to collision)' : ''}`);
+  }
+});
+})();
+
+/* --- src\nodes\t08_date_format.js --- */
+(function(){
+DWB.register('DATE_FORMAT', {
+  title: 'Date Format',
+  icon: '📅',
+  category: 'Transform',
+  desc: 'Parse and reformat date values in a column to a target format.',
+  implemented: true,
+  defaultConfig: {
+    colIndex: 0, outputMode: 'overwrite', newColName: '',
+    inputFmt: 'auto', outputFmt: 'YYYY-MM-DD', customFmt: '',
+    onError: 'leave', appendTime: false, appendTimeVal: '08:00:00'
+  },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    if (!cfg.newColName) cfg.newColName = (prevData.headers[cfg.colIndex] || 'date') + '_formatted';
+
+    const colOpts = prevData.headers.map((h, i) =>
+      `<option value="${i}"${i == cfg.colIndex ? ' selected' : ''}>${h}</option>`
+    ).join('');
+
+    const inputFmts = [
+      ['auto','Auto-detect (default)'],
+      ['YYYY-MM-DD','YYYY-MM-DD'],['MM/DD/YYYY','MM/DD/YYYY'],['DD/MM/YYYY','DD/MM/YYYY'],
+      ['MM-DD-YYYY','MM-DD-YYYY'],['DD-MM-YYYY','DD-MM-YYYY'],['MM/DD/YY','MM/DD/YY'],
+      ['DD Mon YYYY','DD Mon YYYY (e.g. 15 Jan 2024)'],['Mon DD YYYY','Mon DD YYYY (e.g. Jan 15 2024)'],
+      ['unix_s','Unix timestamp (seconds)'],['unix_ms','Unix timestamp (milliseconds)']
+    ];
+    const outputFmts = [
+      ['YYYY-MM-DD','YYYY-MM-DD'],['MM/DD/YYYY','MM/DD/YYYY'],['DD/MM/YYYY','DD/MM/YYYY'],
+      ['MMM-DD-YYYY','MMM-DD-YYYY (e.g. Jan-15-2024)'],['MMM DD, YYYY','MMM DD, YYYY (e.g. Jan 15, 2024)'],
+      ['MMM-DD-YYYY HH:mm:ss','MMM-DD-YYYY HH:MM:SS (e.g. Jan-15-2024 08:00:00)'],
+      ['DD MMM YYYY','DD MMM YYYY'],['YYYY','YYYY'],['MM/YYYY','MM/YYYY'],
+      ['Day, MMM DD YYYY','Day, MMM DD YYYY (e.g. Monday, Jan 15 2024)'],
+      ['unix_s','Unix timestamp (seconds)'],['custom','Custom...']
+    ];
+
+    const inOpts = inputFmts.map(([v,l]) =>
+      `<option value="${v}"${v===cfg.inputFmt?' selected':''}>${l}</option>`).join('');
+    const outOpts = outputFmts.map(([v,l]) =>
+      `<option value="${v}"${v===cfg.outputFmt?' selected':''}>${l}</option>`).join('');
+
+    const outModeOpts = [['overwrite','Overwrite source'],['new','New column']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="df-out-${node.id}" value="${v}" ${cfg.outputMode===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    const newColRow = cfg.outputMode === 'new' ? `
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">New Column Name</label>
+        <input type="text" id="df-newcol-${node.id}" value="${cfg.newColName.replace(/"/g,'&quot;')}" style="width:100%">
+      </div>` : '';
+
+    const customRow = cfg.outputFmt === 'custom' ? `
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Custom Format String</label>
+        <input type="text" id="df-custom-${node.id}" value="${cfg.customFmt.replace(/"/g,'&quot;')}" placeholder="e.g. YYYY/MM/DD" style="width:100%">
+        <div style="font-size:10px;color:var(--text-faint);margin-top:2px">Tokens: YYYY YY MM DD HH mm ss MMM MMMM Day Dy</div>
+      </div>` : '';
+
+    const onErrOpts = [['leave','Leave original'],['clear','Clear cell'],['err','Output ERR_DATE']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="df-err-${node.id}" value="${v}" ${cfg.onError===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    const appendRow = cfg.appendTime ? `
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Time to Append (HH:MM:SS)</label>
+        <input type="text" id="df-time-${node.id}" value="${cfg.appendTimeVal.replace(/"/g,'&quot;')}" placeholder="08:00:00" style="width:120px">
+      </div>` : '';
+
+    const status = node.status === 'ok'
+      ? `<div style="font-size:12px;color:var(--success)">✓ Done</div>`
+      : node.status === 'error'
+        ? `<div style="font-size:11px;color:var(--danger)">${node.errorMsg}</div>` : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Source Column</label>
+          <select id="df-col-${node.id}" style="width:100%">${colOpts}</select>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Output</div>
+          <div style="display:flex;gap:12px">${outModeOpts}</div>
+        </div>
+        ${newColRow}
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Input Format</label>
+          <select id="df-infmt-${node.id}" style="width:100%">${inOpts}</select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Output Format</label>
+          <select id="df-outfmt-${node.id}" style="width:100%">${outOpts}</select>
+        </div>
+        ${customRow}
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">On Parse Error</div>
+          <div style="display:flex;flex-direction:column;gap:3px">${onErrOpts}</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="df-append-${node.id}" ${cfg.appendTime?'checked':''}> Append static time
+        </label>
+        ${appendRow}
+        <button id="df-run-${node.id}"
+          style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          📅 Apply
+        </button>
+        ${status}
+      </div>`;
+
+    document.getElementById(`df-col-${node.id}`).addEventListener('change', e => {
+      cfg.colIndex = parseInt(e.target.value, 10);
+      cfg.newColName = prevData.headers[cfg.colIndex] + '_formatted';
+      DWB.renderActiveNode(); DWB.runFrom(node.id);
+    });
+    document.querySelectorAll(`input[name="df-out-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.outputMode = r.value; DWB.renderActiveNode(); DWB.runFrom(node.id); });
+    });
+    if (cfg.outputMode === 'new') {
+      const nc = document.getElementById(`df-newcol-${node.id}`);
+      nc.addEventListener('input', () => { cfg.newColName = nc.value; });
+    }
+    document.getElementById(`df-infmt-${node.id}`).addEventListener('change', e => {
+      cfg.inputFmt = e.target.value; DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+    document.getElementById(`df-outfmt-${node.id}`).addEventListener('change', e => {
+      cfg.outputFmt = e.target.value; DWB.renderActiveNode(); DWB.runFrom(node.id);
+    });
+    if (cfg.outputFmt === 'custom') {
+      const cEl = document.getElementById(`df-custom-${node.id}`);
+      cEl.addEventListener('input', () => { cfg.customFmt = cEl.value; });
+    }
+    document.querySelectorAll(`input[name="df-err-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.onError = r.value; DWB.runFrom(node.id); DWB.renderActiveNode(); });
+    });
+    document.getElementById(`df-append-${node.id}`).addEventListener('change', e => {
+      cfg.appendTime = e.target.checked; DWB.renderActiveNode(); DWB.runFrom(node.id);
+    });
+    if (cfg.appendTime) {
+      const tEl = document.getElementById(`df-time-${node.id}`);
+      tEl.addEventListener('input', () => { cfg.appendTimeVal = tEl.value; });
+    }
+    document.getElementById(`df-run-${node.id}`).addEventListener('click', () => {
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { colIndex, outputMode, newColName, inputFmt, outputFmt, customFmt, onError, appendTime, appendTimeVal } = node.config;
+
+    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const MONTHS_LONG  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const DAYS_LONG    = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const DAYS_SHORT   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function validDate(y, m, d) {
+      if (m < 0 || m > 11 || d < 1 || d > 31) return null;
+      const dt = new Date(y, m, d);
+      return (dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d) ? dt : null;
+    }
+
+    function parseMonthName(v) {
+      const s = String(v).trim();
+      // DD Mon YYYY
+      let m = s.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
+      if (m) {
+        const mo = MONTHS_SHORT.findIndex(mn => mn.toLowerCase() === m[2].toLowerCase().slice(0, 3));
+        if (mo >= 0) return validDate(+m[3], mo, +m[1]);
+      }
+      // Mon DD YYYY
+      m = s.match(/^([A-Za-z]{3,9})\s+(\d{1,2})\s+(\d{4})$/);
+      if (m) {
+        const mo = MONTHS_SHORT.findIndex(mn => mn.toLowerCase() === m[1].toLowerCase().slice(0, 3));
+        if (mo >= 0) return validDate(+m[3], mo, +m[2]);
+      }
+      return null;
+    }
+
+    const PARSE_MAP = {
+      'YYYY-MM-DD': v => {
+        const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? validDate(+m[1], +m[2]-1, +m[3]) : null;
+      },
+      'MM/DD/YYYY': v => {
+        const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        return m ? validDate(+m[3], +m[1]-1, +m[2]) : null;
+      },
+      'DD/MM/YYYY': v => {
+        const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        return m ? validDate(+m[3], +m[2]-1, +m[1]) : null;
+      },
+      'MM-DD-YYYY': v => {
+        const m = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+        return m ? validDate(+m[3], +m[1]-1, +m[2]) : null;
+      },
+      'DD-MM-YYYY': v => {
+        const m = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+        return m ? validDate(+m[3], +m[2]-1, +m[1]) : null;
+      },
+      'MM/DD/YY': v => {
+        const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+        if (!m) return null;
+        const yr = +m[3];
+        return validDate(yr < 50 ? 2000+yr : 1900+yr, +m[1]-1, +m[2]);
+      },
+      'DD Mon YYYY': parseMonthName,
+      'Mon DD YYYY': parseMonthName,
+      'unix_s': v => {
+        const n = Number(v.trim());
+        return (!isNaN(n) && /^\d+(\.\d+)?$/.test(v.trim())) ? new Date(n * 1000) : null;
+      },
+      'unix_ms': v => {
+        const n = Number(v.trim());
+        return (!isNaN(n) && /^\d+(\.\d+)?$/.test(v.trim())) ? new Date(n) : null;
+      }
+    };
+
+    const AUTO_ORDER = ['YYYY-MM-DD','MM/DD/YYYY','DD/MM/YYYY','MM-DD-YYYY','DD-MM-YYYY','MM/DD/YY','DD Mon YYYY','Mon DD YYYY','unix_s','unix_ms'];
+
+    function detectFormat(values) {
+      const nonEmpty = values.filter(v => v !== null && v !== undefined && String(v).trim() !== '');
+      if (!nonEmpty.length) return null;
+      for (const key of AUTO_ORDER) {
+        const fn = PARSE_MAP[key];
+        const hits = nonEmpty.filter(v => { const d = fn(String(v)); return d && !isNaN(d.getTime()); }).length;
+        if (hits / nonEmpty.length >= 0.85) return key;
+      }
+      return null;
+    }
+
+    function formatDate(date, fmt, custom) {
+      if (fmt === 'unix_s') return String(Math.floor(date.getTime() / 1000));
+      const f = fmt === 'custom' ? (custom || '') : fmt;
+      const Y = date.getFullYear(), Mo = date.getMonth(), D = date.getDate();
+      const h = date.getHours(), mi = date.getMinutes(), s = date.getSeconds();
+      return f
+        .replace(/MMMM/g, MONTHS_LONG[Mo])
+        .replace(/MMM/g,  MONTHS_SHORT[Mo])
+        .replace(/Day/g,  DAYS_LONG[date.getDay()])
+        .replace(/Dy/g,   DAYS_SHORT[date.getDay()])
+        .replace(/YYYY/g, String(Y))
+        .replace(/YY/g,   String(Y).slice(-2))
+        .replace(/MM/g,   pad2(Mo+1))
+        .replace(/DD/g,   pad2(D))
+        .replace(/HH/g,   pad2(h))
+        .replace(/mm/g,   pad2(mi))
+        .replace(/ss/g,   pad2(s));
+    }
+
+    const colValues = inputData.rows.map(r => r[colIndex]);
+    const activeFmt = inputFmt === 'auto' ? (detectFormat(colValues) || 'YYYY-MM-DD') : inputFmt;
+    const parseFn = PARSE_MAP[activeFmt];
+
+    let parsed = 0, errors = 0;
+    const results = colValues.map(v => {
+      const str = String(v ?? '');
+      if (str.trim() === '') return str;
+      const date = parseFn(str);
+      if (!date || isNaN(date.getTime())) {
+        errors++;
+        if (onError === 'leave') return str;
+        if (onError === 'clear') return '';
+        return 'ERR_DATE';
+      }
+      parsed++;
+      let out = formatDate(date, outputFmt, customFmt);
+      if (appendTime) out += ' ' + (appendTimeVal || '08:00:00');
+      return out;
+    });
+
+    const outObj = DWB.passthroughCopy(inputData);
+    if (outputMode === 'overwrite') {
+      outObj.rows = inputData.rows.map((r, i) => {
+        const row = [...r]; row[colIndex] = results[i]; return row;
+      });
+    } else {
+      const name = (newColName || '').trim() || (inputData.headers[colIndex] + '_formatted');
+      outObj.headers = [...inputData.headers, name];
+      outObj.rows = inputData.rows.map((r, i) => [...r, results[i]]);
+      if (inputData.columnTypes) outObj.columnTypes = [...inputData.columnTypes, 'text'];
+    }
+
+    node.output = outObj;
+    DWB.log(`Date Format: ${parsed} parsed, ${errors} error(s)${inputFmt==='auto' ? ` (auto-detected: ${activeFmt})` : ''}`);
+  }
+});
+})();
+
+/* --- src\nodes\t09_concat.js --- */
+(function(){
+DWB.register('CONCAT_COLS', {
+  title: 'Concatenate',
+  icon: '🔗',
+  category: 'Transform',
+  desc: 'Combine two or more columns into a single new column.',
+  implemented: true,
+  defaultConfig: {
+    parts: [], separator: ' ', outputCol: 'combined',
+    position: 'last', afterCol: 0, handleEmpty: 'skip'
+  },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    if (!cfg.parts.length) {
+      const i0 = 0, i1 = Math.min(1, prevData.headers.length - 1);
+      cfg.parts = [{ type: 'column', colIndex: i0 }, { type: 'column', colIndex: i1 }];
+    }
+
+    const colOptsFn = (selIdx) => prevData.headers.map((h, i) =>
+      `<option value="${i}"${i == selIdx ? ' selected' : ''}>${h}</option>`
+    ).join('');
+
+    function buildPartsHtml() {
+      if (!cfg.parts.length) return `<div style="font-size:11px;color:var(--text-faint);padding:8px;text-align:center">No parts. Add a column or text.</div>`;
+      return cfg.parts.map((part, i) => {
+        const content = part.type === 'column'
+          ? `<select class="cc-part-col" data-idx="${i}" style="flex:1;font-size:12px">${colOptsFn(part.colIndex)}</select>`
+          : `<input type="text" class="cc-part-txt" data-idx="${i}" value="${(part.text||'').replace(/"/g,'&quot;')}" placeholder="Static text…" style="flex:1;font-size:12px">`;
+        return `
+          <div class="cc-row" data-pos="${i}" draggable="true"
+            style="display:flex;align-items:center;gap:5px;padding:4px 6px;
+                   border-bottom:1px solid var(--border);background:var(--bg-surface);user-select:none">
+            <span style="cursor:grab;color:var(--text-faint);font-size:13px">☰</span>
+            <span style="font-size:10px;color:var(--text-faint);min-width:34px;text-align:center">${part.type==='column'?'COL':'TXT'}</span>
+            ${content}
+            <button class="cc-rm" data-idx="${i}"
+              style="padding:1px 6px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px">✕</button>
+          </div>`;
+      }).join('');
+    }
+
+    const posOpts = [['first','First'],['last','Last'],['after','After column']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="cc-pos-${node.id}" value="${v}" ${cfg.position===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    const afterPicker = cfg.position === 'after' ? `
+      <select id="cc-after-${node.id}" style="width:100%;margin-top:4px">
+        ${colOptsFn(cfg.afterCol)}
+      </select>` : '';
+
+    const emptyOpts = [['skip','Skip (omit empty values)'],['include','Include (keep empty)']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="cc-empty-${node.id}" value="${v}" ${cfg.handleEmpty===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    const sepEsc = cfg.separator.replace(/"/g,'&quot;');
+    const status = node.status === 'ok'
+      ? `<div style="font-size:12px;color:var(--success)">✓ Column "${cfg.outputCol}" added</div>`
+      : node.status === 'error'
+        ? `<div style="font-size:11px;color:var(--danger)">${node.errorMsg}</div>` : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Parts (drag to reorder)</div>
+          <div id="cc-list-${node.id}" style="border:1px solid var(--border);border-radius:4px;overflow:hidden;min-height:32px">
+            ${buildPartsHtml()}
+          </div>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <button id="cc-add-col-${node.id}"
+              style="flex:1;padding:4px;background:none;border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer">
+              + Add Column
+            </button>
+            <button id="cc-add-txt-${node.id}"
+              style="flex:1;padding:4px;background:none;border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer">
+              + Add Text
+            </button>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Separator</label>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="cc-sep-${node.id}" value="${sepEsc}" style="width:80px">
+            <button class="cc-sep-preset" data-val=" " style="padding:2px 6px;background:none;border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer">Space</button>
+            <button class="cc-sep-preset" data-val=", " style="padding:2px 6px;background:none;border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer">,</button>
+            <button class="cc-sep-preset" data-val="- " style="padding:2px 6px;background:none;border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer">-</button>
+            <button class="cc-sep-preset" data-val=" | " style="padding:2px 6px;background:none;border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer">|</button>
+            <button class="cc-sep-preset" data-val="" style="padding:2px 6px;background:none;border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer">None</button>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Output Column Name</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="cc-name-${node.id}" value="${cfg.outputCol.replace(/"/g,'&quot;')}" style="flex:1">
+            <button id="cc-run-${node.id}"
+              style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+              Apply
+            </button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Position</div>
+          <div style="display:flex;flex-direction:column;gap:3px">${posOpts}</div>
+          ${afterPicker}
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Handle Empty Values</div>
+          <div style="display:flex;flex-direction:column;gap:3px">${emptyOpts}</div>
+        </div>
+        ${status}
+      </div>`;
+
+    const listEl = document.getElementById(`cc-list-${node.id}`);
+
+    function syncPartsFromDOM() {
+      listEl.querySelectorAll('.cc-part-col').forEach(sel => {
+        const i = parseInt(sel.dataset.idx, 10);
+        if (cfg.parts[i]) cfg.parts[i].colIndex = parseInt(sel.value, 10);
+      });
+      listEl.querySelectorAll('.cc-part-txt').forEach(inp => {
+        const i = parseInt(inp.dataset.idx, 10);
+        if (cfg.parts[i]) cfg.parts[i].text = inp.value;
+      });
+    }
+
+    function rebuildList() {
+      listEl.innerHTML = buildPartsHtml();
+      attachListeners();
+    }
+
+    function attachListeners() {
+      listEl.querySelectorAll('.cc-part-col').forEach(sel => {
+        sel.addEventListener('change', e => {
+          cfg.parts[parseInt(e.target.dataset.idx, 10)].colIndex = parseInt(e.target.value, 10);
+          DWB.runFrom(node.id);
+        });
+      });
+      listEl.querySelectorAll('.cc-part-txt').forEach(inp => {
+        inp.addEventListener('input', e => {
+          cfg.parts[parseInt(e.target.dataset.idx, 10)].text = e.target.value;
+        });
+      });
+      listEl.querySelectorAll('.cc-rm').forEach(btn => {
+        btn.addEventListener('click', e => {
+          syncPartsFromDOM();
+          cfg.parts.splice(parseInt(e.target.dataset.idx, 10), 1);
+          rebuildList(); DWB.runFrom(node.id);
+        });
+      });
+    }
+    attachListeners();
+
+    // Drag-and-drop
+    let dragSrc = null;
+    listEl.addEventListener('dragstart', e => {
+      const row = e.target.closest('.cc-row');
+      if (!row) return;
+      syncPartsFromDOM();
+      dragSrc = parseInt(row.dataset.pos, 10);
+      row.style.opacity = '0.4';
+    });
+    listEl.addEventListener('dragend', e => {
+      const row = e.target.closest('.cc-row');
+      if (row) row.style.opacity = '1';
+    });
+    listEl.addEventListener('dragover', e => {
+      e.preventDefault();
+      const row = e.target.closest('.cc-row');
+      if (row) row.style.background = 'var(--accent-light)';
+    });
+    listEl.addEventListener('dragleave', e => {
+      const row = e.target.closest('.cc-row');
+      if (row) row.style.background = 'var(--bg-surface)';
+    });
+    listEl.addEventListener('drop', e => {
+      e.preventDefault();
+      const row = e.target.closest('.cc-row');
+      if (!row) return;
+      row.style.background = 'var(--bg-surface)';
+      const dropPos = parseInt(row.dataset.pos, 10);
+      if (dragSrc === null || dragSrc === dropPos) return;
+      const [moved] = cfg.parts.splice(dragSrc, 1);
+      cfg.parts.splice(dropPos, 0, moved);
+      dragSrc = null;
+      rebuildList(); DWB.runFrom(node.id);
+    });
+
+    document.getElementById(`cc-add-col-${node.id}`).addEventListener('click', () => {
+      syncPartsFromDOM();
+      cfg.parts.push({ type: 'column', colIndex: 0 });
+      rebuildList(); DWB.runFrom(node.id);
+    });
+    document.getElementById(`cc-add-txt-${node.id}`).addEventListener('click', () => {
+      syncPartsFromDOM();
+      cfg.parts.push({ type: 'text', text: '' });
+      rebuildList();
+    });
+
+    const sepEl = document.getElementById(`cc-sep-${node.id}`);
+    sepEl.addEventListener('input', () => { cfg.separator = sepEl.value; });
+    document.querySelectorAll('.cc-sep-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        cfg.separator = btn.dataset.val;
+        sepEl.value = btn.dataset.val;
+        DWB.runFrom(node.id);
+      });
+    });
+
+    const nameEl = document.getElementById(`cc-name-${node.id}`);
+    nameEl.addEventListener('input', () => { cfg.outputCol = nameEl.value; });
+    document.getElementById(`cc-run-${node.id}`).addEventListener('click', () => {
+      cfg.outputCol = nameEl.value;
+      cfg.separator = sepEl.value;
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+
+    document.querySelectorAll(`input[name="cc-pos-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.position = r.value; DWB.renderActiveNode(); DWB.runFrom(node.id); });
+    });
+    if (cfg.position === 'after') {
+      document.getElementById(`cc-after-${node.id}`).addEventListener('change', e => {
+        cfg.afterCol = parseInt(e.target.value, 10); DWB.runFrom(node.id);
+      });
+    }
+
+    document.querySelectorAll(`input[name="cc-empty-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.handleEmpty = r.value; DWB.runFrom(node.id); });
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { parts, separator, outputCol, position, afterCol, handleEmpty } = node.config;
+    if (!parts || !parts.length) throw new Error('No parts defined. Add at least one column or text.');
+
+    const name = (outputCol || 'combined').trim();
+    const sep = separator ?? ' ';
+
+    const newVals = inputData.rows.map(row => {
+      const pieces = parts.map(p => {
+        if (p.type === 'text') return p.text || '';
+        return String(row[p.colIndex] ?? '');
+      });
+      if (handleEmpty === 'skip') {
+        const filtered = pieces.filter((v, i) => parts[i].type === 'text' || v !== '');
+        return filtered.join(sep);
+      }
+      return pieces.join(sep);
+    });
+
+    const out = DWB.passthroughCopy(inputData);
+    if (position === 'first') {
+      out.headers = [name, ...inputData.headers];
+      out.rows = inputData.rows.map((r, i) => [newVals[i], ...r]);
+      if (inputData.columnTypes) out.columnTypes = ['text', ...inputData.columnTypes];
+    } else if (position === 'after') {
+      const ins = (afterCol ?? 0) + 1;
+      out.headers = [...inputData.headers.slice(0, ins), name, ...inputData.headers.slice(ins)];
+      out.rows = inputData.rows.map((r, i) => [...r.slice(0, ins), newVals[i], ...r.slice(ins)]);
+      if (inputData.columnTypes) out.columnTypes = [...inputData.columnTypes.slice(0, ins), 'text', ...inputData.columnTypes.slice(ins)];
+    } else {
+      out.headers = [...inputData.headers, name];
+      out.rows = inputData.rows.map((r, i) => [...r, newVals[i]]);
+      if (inputData.columnTypes) out.columnTypes = [...inputData.columnTypes, 'text'];
+    }
+
+    node.output = out;
+    DWB.log(`Concatenate: added column "${name}" from ${parts.length} part(s)`);
+  }
+});
+})();
+
+/* --- src\nodes\t10_split.js --- */
+(function(){
+DWB.register('SPLIT_COL', {
+  title: 'Split Column',
+  icon: '✂️',
+  category: 'Transform',
+  desc: 'Split a column into multiple columns by a delimiter or fixed position.',
+  implemented: true,
+  defaultConfig: {
+    colIndex: 0, mode: 'delimiter', delimiter: ',', maxSplits: 0,
+    trimWhitespace: true, widths: '', autoName: true,
+    customNames: [], keepSource: false, insertPos: 'after'
+  },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+
+    const colOpts = prevData.headers.map((h, i) =>
+      `<option value="${i}"${i == cfg.colIndex ? ' selected' : ''}>${h}</option>`
+    ).join('');
+
+    // Estimate expected column count for custom names
+    function expectedCount() {
+      if (cfg.mode === 'delimiter') {
+        if (cfg.maxSplits > 0) return cfg.maxSplits + 1;
+        // Scan up to 100 rows to determine max splits
+        let max = 2;
+        const delim = cfg.delimiter || ',';
+        inputData_scan: for (let i = 0; i < Math.min(prevData.rows.length, 100); i++) {
+          const v = String(prevData.rows[i][cfg.colIndex] ?? '');
+          const parts = v.split(delim).length;
+          if (parts > max) max = parts;
+        }
+        return max;
+      } else {
+        const ws = (cfg.widths || '').split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0);
+        return ws.length || 2;
+      }
+    }
+
+    const count = expectedCount();
+    while (cfg.customNames.length < count) {
+      cfg.customNames.push(`${prevData.headers[cfg.colIndex] || 'col'}_${cfg.customNames.length + 1}`);
+    }
+
+    const modeOpts = [['delimiter','By delimiter'],['fixed','By fixed width']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="sp-mode-${node.id}" value="${v}" ${cfg.mode===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    let modeUI = '';
+    if (cfg.mode === 'delimiter') {
+      modeUI = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Delimiter</label>
+            <input type="text" id="sp-delim-${node.id}" value="${cfg.delimiter.replace(/"/g,'&quot;')}" style="width:100%">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Max splits (0=all)</label>
+            <input type="number" id="sp-max-${node.id}" value="${cfg.maxSplits}" min="0" style="width:100%">
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="sp-trim-${node.id}" ${cfg.trimWhitespace?'checked':''}> Trim whitespace from results
+        </label>`;
+    } else {
+      modeUI = `
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Column widths (comma-separated)</label>
+          <input type="text" id="sp-widths-${node.id}" value="${cfg.widths.replace(/"/g,'&quot;')}" placeholder="e.g. 3,5,4" style="width:100%">
+          <div style="font-size:10px;color:var(--text-faint);margin-top:2px">e.g. "3,5,4" → 3-char, 5-char, 4-char columns</div>
+        </div>`;
+    }
+
+    const autoNameCheck = `
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="sp-auto-${node.id}" ${cfg.autoName?'checked':''}> Auto-name columns ([source]_1, _2, …)
+      </label>`;
+
+    const customNamesUI = !cfg.autoName ? `
+      <div id="sp-names-${node.id}" style="display:flex;flex-direction:column;gap:3px">
+        ${cfg.customNames.slice(0, count).map((n, i) => `
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:11px;color:var(--text-faint);min-width:18px">${i+1}</span>
+            <input type="text" class="sp-cname" data-idx="${i}" value="${n.replace(/"/g,'&quot;')}" style="flex:1;font-size:12px">
+          </div>`).join('')}
+      </div>` : '';
+
+    const insertOpts = [['after','After source column'],['last','Last']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="sp-ins-${node.id}" value="${v}" ${cfg.insertPos===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    const status = node.status === 'ok'
+      ? `<div style="font-size:12px;color:var(--success)">✓ Done</div>`
+      : node.status === 'error'
+        ? `<div style="font-size:11px;color:var(--danger)">${node.errorMsg}</div>` : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Source Column</label>
+          <select id="sp-col-${node.id}" style="width:100%">${colOpts}</select>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Mode</div>
+          <div style="display:flex;gap:12px">${modeOpts}</div>
+        </div>
+        ${modeUI}
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Output Column Names</div>
+          ${autoNameCheck}
+          ${customNamesUI}
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="sp-keep-${node.id}" ${cfg.keepSource?'checked':''}> Keep source column
+        </label>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Insert Position</div>
+          <div style="display:flex;flex-direction:column;gap:3px">${insertOpts}</div>
+        </div>
+        <button id="sp-run-${node.id}"
+          style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          ✂️ Apply
+        </button>
+        ${status}
+      </div>`;
+
+    document.getElementById(`sp-col-${node.id}`).addEventListener('change', e => {
+      cfg.colIndex = parseInt(e.target.value, 10);
+      cfg.customNames = [];
+      DWB.renderActiveNode(); DWB.runFrom(node.id);
+    });
+    document.querySelectorAll(`input[name="sp-mode-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.mode = r.value; DWB.renderActiveNode(); DWB.runFrom(node.id); });
+    });
+
+    if (cfg.mode === 'delimiter') {
+      document.getElementById(`sp-delim-${node.id}`).addEventListener('input', e => { cfg.delimiter = e.target.value; });
+      document.getElementById(`sp-max-${node.id}`).addEventListener('input', e => {
+        cfg.maxSplits = parseInt(e.target.value, 10) || 0;
+        cfg.customNames = []; DWB.renderActiveNode();
+      });
+      document.getElementById(`sp-trim-${node.id}`).addEventListener('change', e => {
+        cfg.trimWhitespace = e.target.checked; DWB.runFrom(node.id);
+      });
+    } else {
+      document.getElementById(`sp-widths-${node.id}`).addEventListener('input', e => {
+        cfg.widths = e.target.value; cfg.customNames = []; DWB.renderActiveNode();
+      });
+    }
+
+    document.getElementById(`sp-auto-${node.id}`).addEventListener('change', e => {
+      cfg.autoName = e.target.checked; DWB.renderActiveNode(); DWB.runFrom(node.id);
+    });
+
+    if (!cfg.autoName) {
+      document.querySelectorAll('.sp-cname').forEach(inp => {
+        inp.addEventListener('input', e => {
+          cfg.customNames[parseInt(e.target.dataset.idx, 10)] = e.target.value;
+        });
+      });
+    }
+
+    document.getElementById(`sp-keep-${node.id}`).addEventListener('change', e => {
+      cfg.keepSource = e.target.checked; DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+    document.querySelectorAll(`input[name="sp-ins-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.insertPos = r.value; DWB.runFrom(node.id); });
+    });
+    document.getElementById(`sp-run-${node.id}`).addEventListener('click', () => {
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { colIndex, mode, delimiter, maxSplits, trimWhitespace, widths, autoName, customNames, keepSource, insertPos } = node.config;
+    const srcHeader = inputData.headers[colIndex];
+
+    function splitRow(val) {
+      const s = String(val ?? '');
+      if (mode === 'delimiter') {
+        const d = delimiter || ',';
+        const limit = maxSplits > 0 ? maxSplits + 1 : undefined;
+        const parts = limit ? s.split(d).slice(0, limit) : s.split(d);
+        // If limited and original had more splits, last part gets remainder
+        if (limit && s.split(d).length > limit) {
+          parts[parts.length - 1] = s.split(d).slice(limit - 1).join(d);
+        }
+        return trimWhitespace ? parts.map(p => p.trim()) : parts;
+      } else {
+        const ws = (widths || '').split(',').map(w => parseInt(w.trim(), 10)).filter(n => !isNaN(n) && n > 0);
+        if (!ws.length) return [s];
+        const parts = [];
+        let pos = 0;
+        for (const w of ws) { parts.push(s.slice(pos, pos + w)); pos += w; }
+        return parts;
+      }
+    }
+
+    // Determine max column count from all rows
+    let maxCols = 2;
+    inputData.rows.forEach(r => {
+      const parts = splitRow(r[colIndex]);
+      if (parts.length > maxCols) maxCols = parts.length;
+    });
+
+    // Build output column names
+    const outNames = Array.from({ length: maxCols }, (_, i) =>
+      autoName ? `${srcHeader}_${i+1}` : (customNames[i] || `${srcHeader}_${i+1}`)
+    );
+
+    // Build output dataset
+    const out = DWB.passthroughCopy(inputData);
+    const newCols = outNames;
+
+    if (!keepSource) {
+      // Replace source column with split columns
+      const srcIdx = colIndex;
+      out.headers = [
+        ...inputData.headers.slice(0, srcIdx),
+        ...newCols,
+        ...inputData.headers.slice(srcIdx + 1)
+      ];
+      out.rows = inputData.rows.map(r => {
+        const parts = splitRow(r[srcIdx]);
+        while (parts.length < maxCols) parts.push('');
+        return [
+          ...r.slice(0, srcIdx),
+          ...parts,
+          ...r.slice(srcIdx + 1)
+        ];
+      });
+      if (inputData.columnTypes) {
+        out.columnTypes = [
+          ...inputData.columnTypes.slice(0, srcIdx),
+          ...newCols.map(() => 'text'),
+          ...inputData.columnTypes.slice(srcIdx + 1)
+        ];
+      }
+    } else if (insertPos === 'after') {
+      const ins = colIndex + 1;
+      out.headers = [...inputData.headers.slice(0, ins), ...newCols, ...inputData.headers.slice(ins)];
+      out.rows = inputData.rows.map(r => {
+        const parts = splitRow(r[colIndex]);
+        while (parts.length < maxCols) parts.push('');
+        return [...r.slice(0, ins), ...parts, ...r.slice(ins)];
+      });
+      if (inputData.columnTypes) {
+        out.columnTypes = [...inputData.columnTypes.slice(0, ins), ...newCols.map(() => 'text'), ...inputData.columnTypes.slice(ins)];
+      }
+    } else {
+      out.headers = [...inputData.headers, ...newCols];
+      out.rows = inputData.rows.map(r => {
+        const parts = splitRow(r[colIndex]);
+        while (parts.length < maxCols) parts.push('');
+        return [...r, ...parts];
+      });
+      if (inputData.columnTypes) out.columnTypes = [...inputData.columnTypes, ...newCols.map(() => 'text')];
+    }
+
+    node.output = out;
+    DWB.log(`Split Column: "${srcHeader}" → ${maxCols} column(s)`);
+  }
+});
+})();
+
+/* --- src\nodes\t11_ifthenelse.js --- */
+(function(){
+DWB.register('IF_THEN_ELSE', {
+  title: 'If / Then / Else',
+  icon: '🔀',
+  category: 'Transform',
+  desc: 'Create a new column based on conditional logic applied to existing columns.',
+  implemented: true,
+  defaultConfig: {
+    outputCol: 'result', position: 'last', afterCol: 0,
+    conditions: [{ colIndex: 0, operator: 'equals', value: '' }],
+    joinLogic: 'all',
+    thenType: 'static', thenValue: '', thenColIndex: 0,
+    elseType: 'static', elseValue: '', elseColIndex: 0,
+    caseSensitive: false
+  },
+
+  renderConfig(node, prevData) {
+    const body = document.getElementById('config-body');
+    if (!prevData) {
+      body.innerHTML = `<div class="config-empty">No upstream data. Connect a source node first.</div>`;
+      return;
+    }
+
+    const cfg = node.config;
+    if (!cfg.conditions.length) cfg.conditions.push({ colIndex: 0, operator: 'equals', value: '' });
+
+    const OPERATORS = ['equals','not equals','contains','not contains','starts with','ends with',
+      'greater than','less than','greater than or equal','less than or equal',
+      'is empty','is not empty','matches regex'];
+    const NO_VALUE_OPS = new Set(['is empty','is not empty']);
+
+    const colOptsFn = (selIdx) => prevData.headers.map((h, i) =>
+      `<option value="${i}"${i == selIdx ? ' selected' : ''}>${h}</option>`
+    ).join('');
+
+    function buildConditions() {
+      return cfg.conditions.map((cond, ci) => {
+        const opOpts = OPERATORS.map(op =>
+          `<option value="${op}"${op===cond.operator?' selected':''}>${op}</option>`).join('');
+        const hideVal = NO_VALUE_OPS.has(cond.operator);
+        return `
+          <div class="ite-cond" data-ci="${ci}"
+            style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px;align-items:center;
+                   padding:4px 6px;border-bottom:1px solid var(--border);background:var(--bg-surface)">
+            <select class="ite-cond-col" data-ci="${ci}" style="font-size:12px">${colOptsFn(cond.colIndex)}</select>
+            <select class="ite-cond-op" data-ci="${ci}" style="font-size:12px;min-width:120px">${opOpts}</select>
+            ${hideVal
+              ? `<input type="text" class="ite-cond-val" data-ci="${ci}" value="" style="font-size:12px;width:90px;visibility:hidden">`
+              : `<input type="text" class="ite-cond-val" data-ci="${ci}" value="${(cond.value||'').replace(/"/g,'&quot;')}" placeholder="value" style="font-size:12px;width:90px">`}
+            <button class="ite-rm-cond" data-ci="${ci}"
+              style="padding:1px 5px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px;${cfg.conditions.length<=1?'opacity:0.3;pointer-events:none':''}">✕</button>
+          </div>`;
+      }).join('');
+    }
+
+    const joinOpts = [['all','ALL conditions (AND)'],['any','ANY condition (OR)']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="ite-join-${node.id}" value="${v}" ${cfg.joinLogic===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    function valueSectionHtml(prefix, selectedType, selectedVal, selectedCol, includeEmpty) {
+      const types = includeEmpty
+        ? [['static','Static text'],['column','Column value'],['empty','Empty string']]
+        : [['static','Static text'],['column','Column value']];
+      const radios = types.map(([v,l]) =>
+        `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+          <input type="radio" name="${prefix}-type-${node.id}" value="${v}" ${selectedType===v?'checked':''}> ${l}
+        </label>`).join('');
+      const inp = selectedType === 'static'
+        ? `<input type="text" id="${prefix}-sval-${node.id}" value="${(selectedVal||'').replace(/"/g,'&quot;')}" style="width:100%;margin-top:4px">`
+        : selectedType === 'column'
+          ? `<select id="${prefix}-cval-${node.id}" style="width:100%;margin-top:4px">${colOptsFn(selectedCol)}</select>`
+          : '';
+      return `<div style="display:flex;gap:8px;flex-wrap:wrap">${radios}</div>${inp}`;
+    }
+
+    const posOpts = [['first','First'],['last','Last'],['after','After column']].map(([v,l]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+        <input type="radio" name="ite-pos-${node.id}" value="${v}" ${cfg.position===v?'checked':''}> ${l}
+      </label>`).join('');
+
+    const afterPicker = cfg.position === 'after' ? `
+      <select id="ite-after-${node.id}" style="width:100%;margin-top:4px">${colOptsFn(cfg.afterCol)}</select>` : '';
+
+    const status = node.status === 'ok'
+      ? `<div style="font-size:12px;color:var(--success)">✓ Column "${cfg.outputCol}" added</div>`
+      : node.status === 'error'
+        ? `<div style="font-size:11px;color:var(--danger)">${node.errorMsg}</div>` : '';
+
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Output Column Name</label>
+          <input type="text" id="ite-name-${node.id}" value="${cfg.outputCol.replace(/"/g,'&quot;')}" style="width:100%">
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Conditions</div>
+          <div id="ite-conds-${node.id}" style="border:1px solid var(--border);border-radius:4px;overflow:hidden">
+            ${buildConditions()}
+          </div>
+          <button id="ite-add-cond-${node.id}"
+            style="margin-top:4px;width:100%;padding:4px;background:none;border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer">
+            + Add Condition
+          </button>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Match Logic</div>
+          <div style="display:flex;gap:12px">${joinOpts}</div>
+        </div>
+        <div style="padding:8px;border:1px solid var(--border);border-radius:4px">
+          <div style="font-size:11px;font-weight:600;color:var(--success);margin-bottom:6px">THEN (if conditions met)</div>
+          ${valueSectionHtml('ite-then', cfg.thenType, cfg.thenValue, cfg.thenColIndex, false)}
+        </div>
+        <div style="padding:8px;border:1px solid var(--border);border-radius:4px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">ELSE (if conditions not met)</div>
+          ${valueSectionHtml('ite-else', cfg.elseType, cfg.elseValue, cfg.elseColIndex, true)}
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="ite-cs-${node.id}" ${cfg.caseSensitive?'checked':''}> Case sensitive matching
+        </label>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Position</div>
+          <div style="display:flex;flex-direction:column;gap:3px">${posOpts}</div>
+          ${afterPicker}
+        </div>
+        <button id="ite-run-${node.id}"
+          style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer">
+          🔀 Apply
+        </button>
+        ${status}
+      </div>`;
+
+    const condsEl = document.getElementById(`ite-conds-${node.id}`);
+
+    function rebuildConds() { condsEl.innerHTML = buildConditions(); attachCondListeners(); }
+
+    function attachCondListeners() {
+      condsEl.querySelectorAll('.ite-cond-col').forEach(sel => {
+        sel.addEventListener('change', e => {
+          cfg.conditions[parseInt(e.target.dataset.ci, 10)].colIndex = parseInt(e.target.value, 10);
+          DWB.runFrom(node.id);
+        });
+      });
+      condsEl.querySelectorAll('.ite-cond-op').forEach(sel => {
+        sel.addEventListener('change', e => {
+          cfg.conditions[parseInt(e.target.dataset.ci, 10)].operator = e.target.value;
+          rebuildConds(); DWB.runFrom(node.id);
+        });
+      });
+      condsEl.querySelectorAll('.ite-cond-val').forEach(inp => {
+        inp.addEventListener('input', e => {
+          cfg.conditions[parseInt(e.target.dataset.ci, 10)].value = e.target.value;
+        });
+      });
+      condsEl.querySelectorAll('.ite-rm-cond').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const ci = parseInt(e.target.dataset.ci, 10);
+          if (cfg.conditions.length <= 1) return;
+          cfg.conditions.splice(ci, 1);
+          rebuildConds(); DWB.runFrom(node.id);
+        });
+      });
+    }
+    attachCondListeners();
+
+    document.getElementById(`ite-add-cond-${node.id}`).addEventListener('click', () => {
+      cfg.conditions.push({ colIndex: 0, operator: 'equals', value: '' });
+      rebuildConds();
+    });
+
+    document.querySelectorAll(`input[name="ite-join-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.joinLogic = r.value; DWB.runFrom(node.id); });
+    });
+
+    document.getElementById(`ite-name-${node.id}`).addEventListener('input', e => { cfg.outputCol = e.target.value; });
+
+    // THEN value section
+    document.querySelectorAll(`input[name="ite-then-type-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.thenType = r.value; DWB.renderActiveNode(); DWB.runFrom(node.id); });
+    });
+    const thenSval = document.getElementById(`ite-then-sval-${node.id}`);
+    if (thenSval) thenSval.addEventListener('input', e => { cfg.thenValue = e.target.value; });
+    const thenCval = document.getElementById(`ite-then-cval-${node.id}`);
+    if (thenCval) thenCval.addEventListener('change', e => { cfg.thenColIndex = parseInt(e.target.value, 10); DWB.runFrom(node.id); });
+
+    // ELSE value section
+    document.querySelectorAll(`input[name="ite-else-type-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.elseType = r.value; DWB.renderActiveNode(); DWB.runFrom(node.id); });
+    });
+    const elseSval = document.getElementById(`ite-else-sval-${node.id}`);
+    if (elseSval) elseSval.addEventListener('input', e => { cfg.elseValue = e.target.value; });
+    const elseCval = document.getElementById(`ite-else-cval-${node.id}`);
+    if (elseCval) elseCval.addEventListener('change', e => { cfg.elseColIndex = parseInt(e.target.value, 10); DWB.runFrom(node.id); });
+
+    document.getElementById(`ite-cs-${node.id}`).addEventListener('change', e => {
+      cfg.caseSensitive = e.target.checked; DWB.runFrom(node.id);
+    });
+
+    document.querySelectorAll(`input[name="ite-pos-${node.id}"]`).forEach(r => {
+      r.addEventListener('change', () => { cfg.position = r.value; DWB.renderActiveNode(); DWB.runFrom(node.id); });
+    });
+    if (cfg.position === 'after') {
+      document.getElementById(`ite-after-${node.id}`).addEventListener('change', e => {
+        cfg.afterCol = parseInt(e.target.value, 10); DWB.runFrom(node.id);
+      });
+    }
+
+    document.getElementById(`ite-run-${node.id}`).addEventListener('click', () => {
+      cfg.outputCol = document.getElementById(`ite-name-${node.id}`).value;
+      if (thenSval) cfg.thenValue = thenSval.value;
+      if (elseSval) cfg.elseValue = elseSval.value;
+      DWB.runFrom(node.id); DWB.renderActiveNode();
+    });
+  },
+
+  execute(node, inputData) {
+    if (!inputData) throw new Error('No input data.');
+    const { outputCol, position, afterCol, conditions, joinLogic, thenType, thenValue, thenColIndex, elseType, elseValue, elseColIndex, caseSensitive } = node.config;
+
+    const cs = caseSensitive;
+
+    function testCondition(cond, row) {
+      let cell = String(row[cond.colIndex] ?? '');
+      const op = cond.operator;
+      if (op === 'is empty')     return cell.trim() === '';
+      if (op === 'is not empty') return cell.trim() !== '';
+      let val = cond.value || '';
+      if (!cs) { cell = cell.toLowerCase(); val = val.toLowerCase(); }
+      if (op === 'greater than' || op === 'less than' || op === 'greater than or equal' || op === 'less than or equal') {
+        const cn = parseFloat(cell), vn = parseFloat(val);
+        if (!isNaN(cn) && !isNaN(vn)) {
+          if (op === 'greater than')          return cn > vn;
+          if (op === 'less than')             return cn < vn;
+          if (op === 'greater than or equal') return cn >= vn;
+          return cn <= vn;
+        }
+        if (op === 'greater than')          return cell > val;
+        if (op === 'less than')             return cell < val;
+        if (op === 'greater than or equal') return cell >= val;
+        return cell <= val;
+      }
+      if (op === 'matches regex') {
+        try { return new RegExp(cond.value || '', cs ? '' : 'i').test(String(row[cond.colIndex] ?? '')); }
+        catch { return false; }
+      }
+      switch (op) {
+        case 'equals':       return cell === val;
+        case 'not equals':   return cell !== val;
+        case 'contains':     return cell.includes(val);
+        case 'not contains': return !cell.includes(val);
+        case 'starts with':  return cell.startsWith(val);
+        case 'ends with':    return cell.endsWith(val);
+        default:             return false;
+      }
+    }
+
+    function evaluate(row) {
+      if (joinLogic === 'any') return conditions.some(c => testCondition(c, row));
+      return conditions.every(c => testCondition(c, row));
+    }
+
+    function getVal(type, staticVal, colIdx, row) {
+      if (type === 'column') return String(row[colIdx] ?? '');
+      if (type === 'empty')  return '';
+      return staticVal || '';
+    }
+
+    const name = (outputCol || 'result').trim();
+    const newVals = inputData.rows.map(row =>
+      evaluate(row) ? getVal(thenType, thenValue, thenColIndex, row) : getVal(elseType, elseValue, elseColIndex, row)
+    );
+
+    const out = DWB.passthroughCopy(inputData);
+    if (position === 'first') {
+      out.headers = [name, ...inputData.headers];
+      out.rows = inputData.rows.map((r, i) => [newVals[i], ...r]);
+      if (inputData.columnTypes) out.columnTypes = ['text', ...inputData.columnTypes];
+    } else if (position === 'after') {
+      const ins = (afterCol ?? 0) + 1;
+      out.headers = [...inputData.headers.slice(0, ins), name, ...inputData.headers.slice(ins)];
+      out.rows = inputData.rows.map((r, i) => [...r.slice(0, ins), newVals[i], ...r.slice(ins)]);
+      if (inputData.columnTypes) out.columnTypes = [...inputData.columnTypes.slice(0, ins), 'text', ...inputData.columnTypes.slice(ins)];
+    } else {
+      out.headers = [...inputData.headers, name];
+      out.rows = inputData.rows.map((r, i) => [...r, newVals[i]]);
+      if (inputData.columnTypes) out.columnTypes = [...inputData.columnTypes, 'text'];
+    }
+
+    node.output = out;
+    DWB.log(`If/Then/Else: added column "${name}" (${conditions.length} condition(s), ${joinLogic.toUpperCase()} logic)`);
   }
 });
 })();

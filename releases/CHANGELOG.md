@@ -4,7 +4,13 @@
 
 ## \[v0.9] — 2026-05-07
 
-*Release notes: Dark mode fixes (table resting state, chart labels/tooltips), block theme-awareness, single-open accordion* 
+*Release notes: 6 new nodes — Date Format, Concatenate, Split Column, If/Then/Else, Append Rows, Remove Duplicates.*
+
+* Build: 403.9 KB, 34 plugin(s)
+
+## \[v0.9] — 2026-05-07
+
+*Release notes: Dark mode fixes (table resting state, chart labels/tooltips), block theme-awareness, single-open accordion*
 
 *dashboard settings, block style system (Outlined/Card/Filled/Borderless), title bar style system Chrome/Header/Centered/Minimal), new Layout \& Chrome settings section.*
 
