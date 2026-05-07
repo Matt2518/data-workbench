@@ -39,11 +39,11 @@ DWB.register('DROP_COLS', {
     }).join('');
 
     body.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:2px">
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-height:0">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:2px;flex-shrink:0">
           Check columns to drop
         </div>
-        <div id="drop-checks-${node.id}" style="max-height:130px;overflow-y:auto;
+        <div id="drop-checks-${node.id}" style="flex:1;min-height:120px;overflow-y:auto;width:100%;
              border:1px solid var(--border);border-radius:4px;padding:4px 8px">
           ${checks}
         </div>

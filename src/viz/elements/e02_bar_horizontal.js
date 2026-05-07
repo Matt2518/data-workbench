@@ -152,22 +152,23 @@ DWB.registerElement('BAR_H', {
 
     const catCol = dataset.headers[catIdx];
     const colors = data.map((_, i) => scheme[i % scheme.length]);
+    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim() || '#1e293b';
 
     chart.setOption({
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       grid: { left: '2%', right: cfg.showValues !== false ? '6%' : '2%', top: 8, bottom: 8, containLabel: true },
-      xAxis: { type: 'value', axisLabel: { fontSize: 11 } },
+      xAxis: { type: 'value', axisLabel: { color: labelColor, fontSize: 11 } },
       yAxis: {
         type: 'category',
         data: data.map(d => d.label),
-        axisLabel: { fontSize: 11, width: 100, overflow: 'truncate' },
+        axisLabel: { color: labelColor, fontSize: 11, width: 100, overflow: 'truncate' },
         inverse: false
       },
       series: [{
         type: 'bar',
         data: data.map((d, i) => ({ value: d.value, itemStyle: { color: colors[i] } })),
         label: cfg.showValues !== false
-          ? { show: true, position: 'right', fontSize: 10,
+          ? { show: true, position: 'right', fontSize: 10, color: labelColor, textBorderWidth: 0,
               formatter: p => typeof p.value === 'number' && !Number.isInteger(p.value)
                 ? p.value.toFixed(2) : String(p.value) }
           : { show: false }
@@ -193,9 +194,8 @@ DWB.registerElement('BAR_H', {
   },
 
   onThemeChange(element) {
-    if (element._instance && !element._instance.isDisposed()) {
-      element._instance.resize();
-    }
+    const dataset = DWB.viz.getFilteredData(element.datasetName);
+    this.render(element, dataset, DWB.viz.filters || []);
   },
 
   getPromptContext(element, dataset, filters) {

@@ -159,6 +159,7 @@ DWB.registerElement('BAR_V', {
 
     const catCol = dataset.headers[catIdx];
     const colors = data.map((_, i) => scheme[i % scheme.length]);
+    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim() || '#1e293b';
 
     chart.setOption({
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
@@ -167,6 +168,7 @@ DWB.registerElement('BAR_V', {
         type: 'category',
         data: data.map(d => d.label),
         axisLabel: {
+          color: labelColor,
           fontSize: 11,
           rotate: labelRotate,
           width: 80,
@@ -174,12 +176,12 @@ DWB.registerElement('BAR_V', {
           interval: 0
         }
       },
-      yAxis: { type: 'value', axisLabel: { fontSize: 11 } },
+      yAxis: { type: 'value', axisLabel: { color: labelColor, fontSize: 11 } },
       series: [{
         type: 'bar',
         data: data.map((d, i) => ({ value: d.value, itemStyle: { color: colors[i] } })),
         label: cfg.showValues !== false
-          ? { show: true, position: 'top', fontSize: 10,
+          ? { show: true, position: 'top', fontSize: 10, color: labelColor, textBorderWidth: 0,
               formatter: p => typeof p.value === 'number' && !Number.isInteger(p.value)
                 ? p.value.toFixed(2) : String(p.value) }
           : { show: false }
@@ -205,9 +207,8 @@ DWB.registerElement('BAR_V', {
   },
 
   onThemeChange(element) {
-    if (element._instance && !element._instance.isDisposed()) {
-      element._instance.resize();
-    }
+    const dataset = DWB.viz.getFilteredData(element.datasetName);
+    this.render(element, dataset, DWB.viz.filters || []);
   },
 
   getPromptContext(element, dataset, filters) {

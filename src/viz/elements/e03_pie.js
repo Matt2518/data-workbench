@@ -138,6 +138,7 @@ DWB.registerElement('PIE', {
     const catCol = dataset.headers[catIdx];
     const outerR = '70%';
     const innerRStr = innerR > 0 ? innerR + '%' : '0';
+    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim() || '#1e293b';
 
     chart.setOption({
       tooltip: {
@@ -152,7 +153,7 @@ DWB.registerElement('PIE', {
         center: ['50%', '50%'],
         data: data.map(d => ({ name: d.name, value: d.value })),
         label: cfg.showLabels !== false
-          ? { show: true, fontSize: 10, formatter: '{b}: {d}%' }
+          ? { show: true, fontSize: 10, color: labelColor, textBorderWidth: 0, formatter: '{b}: {d}%' }
           : { show: false },
         emphasis: {
           itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.3)' }
@@ -175,7 +176,8 @@ DWB.registerElement('PIE', {
   onFilterChange(element, dataset, filters) { this.render(element, dataset, filters); },
 
   onThemeChange(element) {
-    if (element._instance && !element._instance.isDisposed()) element._instance.resize();
+    const dataset = DWB.viz.getFilteredData(element.datasetName);
+    this.render(element, dataset, DWB.viz.filters || []);
   },
 
   getPromptContext(element, dataset, filters) {

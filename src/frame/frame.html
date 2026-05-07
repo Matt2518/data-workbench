@@ -263,6 +263,8 @@
       flex: 1;
       overflow-y: auto;
       padding: 12px;
+      display: flex;
+      flex-direction: column;
     }
     .config-empty {
       height: 100%;
@@ -1687,12 +1689,26 @@ window.DWB = (() => {
       ['not at all','slightly','moderately','very','extremely'],
       ['poor','fair','good','very good','excellent'],
       ['1','2','3','4','5'],
+      ['1','2','3','4','5','6','7'],
       ['1','2','3','4'],
       ['yes','no'],
       ['true','false'],
       ['complete','incomplete'],
       ['yes','no','n/a'],
     ];
+
+    const DATE_PATTERNS = [
+      /^\d{4}-\d{2}-\d{2}([ T][\d:.Z+\-]*)?$/,
+      /^\d{1,2}\/\d{1,2}\/\d{4}$/,
+      /^\d{4}\/\d{2}\/\d{2}$/,
+      /^\d{1,2}-\d{1,2}-\d{4}$/,
+      /^[A-Za-z]{3,9}\.? \d{1,2},? \d{4}$/,
+      /^\d{1,2} [A-Za-z]{3,9}\.? \d{4}$/,
+      /^\d{1,2}\/\d{4}$/,
+      /^\d{4}-\d{2}$/,
+    ];
+
+    const LIKERT_HINT_RE = /rating|scale|score|agree|satisfaction|likert|rank/i;
 
     return data.headers.map((header, colIdx) => {
       const values = data.rows
@@ -1705,7 +1721,7 @@ window.DWB = (() => {
       const uniqueCount = uniqueVals.length;
       const totalCount  = values.length;
 
-      // Likert: unique values are a subset of a known scale
+      // Likert: unique values are a subset of a known scale (checked before numeric)
       for (const scale of LIKERT_SCALES) {
         const inScale    = uniqueVals.filter(v => scale.includes(v));
         const outOfScale = uniqueVals.filter(v => !scale.includes(v));
@@ -1721,21 +1737,32 @@ window.DWB = (() => {
         const cleaned = v.replace(/[$,%\s]/g, '');
         return cleaned !== '' && isFinite(parseFloat(cleaned));
       }).length;
-      if (numericCount / totalCount > 0.8) return 'number';
 
-      // Date: >80% parse as valid dates, value length > 4 chars
-      const dateCount = values.filter(v => {
-        if (v.length <= 4) return false;
-        const d = new Date(v);
-        return !isNaN(d.getTime());
-      }).length;
-      if (dateCount / totalCount > 0.8) return 'date';
+      if (numericCount / totalCount > 0.8) {
+        // Numeric Likert candidate: all integers in [1,5] or [1,7] + column name keyword
+        if (LIKERT_HINT_RE.test(header)) {
+          const ints = values.map(v => Number(v.replace(/[$,%\s]/g, '')));
+          const allInts = ints.every(n => !isNaN(n) && Number.isInteger(n));
+          if (allInts) {
+            const mn = Math.min(...ints);
+            const mx = Math.max(...ints);
+            if (mn >= 1 && (mx === 5 || mx === 7)) return 'likert';
+          }
+        }
+        return 'number';
+      }
 
-      // Categorical: uniqueCount <= 20 AND unique ratio <= 15%, not free text
-      if (uniqueCount <= 20 && uniqueCount / totalCount <= 0.15) {
-        const avgWords = values.reduce((sum, v) =>
-          sum + v.split(/\s+/).length, 0) / totalCount;
-        if (avgWords <= 4) return 'categorical';
+      // Date: ≥85% of values match any one date regex pattern
+      for (const pat of DATE_PATTERNS) {
+        const matchCount = values.filter(v => pat.test(v)).length;
+        if (matchCount / totalCount >= 0.85) return 'date';
+      }
+
+      // Categorical: uniqueCount ≤ min(20, 30% of rows) and not long free-text
+      const catThreshold = Math.min(20, Math.floor(totalCount * 0.3));
+      if (uniqueCount <= catThreshold) {
+        const avgLen = values.reduce((sum, v) => sum + v.length, 0) / totalCount;
+        if (avgLen <= 30) return 'categorical';
       }
 
       return 'text';
@@ -2061,6 +2088,10 @@ window.DWB = (() => {
       if (!confirm(`Delete "${node.customName || def.title}"?`)) return;
     }
 
+    if (node.type === 'PUSH_TO_VIZ' && node.config.datasetName) {
+      removeDataset(node.config.datasetName);
+    }
+
     const wasActive = pipeline.activeNodeId === nodeId;
     pipeline.nodes.splice(idx, 1);
     if (wasActive) pipeline.activeNodeId = null;
@@ -2316,6 +2347,33 @@ window.DWB = (() => {
     activeDataset = null;
     const ind = document.getElementById('active-dataset-indicator');
     if (ind) { ind.textContent = 'No active dataset'; ind.classList.remove('has-data'); }
+  }
+
+  // ---- Remove a promoted dataset (called on PUSH_TO_VIZ node deletion) ----
+  function removeDataset(name) {
+    if (!promotedDatasets[name]) return;
+    delete promotedDatasets[name];
+
+    const picker = document.getElementById('viz-dataset-picker');
+    if (picker) {
+      const opt = Array.from(picker.options).find(o => o.value === name);
+      if (opt) opt.remove();
+      if (picker.options.length === 0) {
+        const ph = document.createElement('option');
+        ph.value = '';
+        ph.textContent = 'No datasets — push data from pipeline';
+        picker.appendChild(ph);
+      }
+    }
+
+    if (vizState.activeDatasetName === name) {
+      const nextName = Object.keys(promotedDatasets)[0] || null;
+      vizState.activeDatasetName = nextName;
+      if (picker) picker.value = nextName || (picker.options[0] ? picker.options[0].value : '');
+      if (vizState.renderAllElements) vizState.renderAllElements();
+    }
+
+    log(`Dataset "${name}" removed from Viz`);
   }
 
   // ---- Time helper ----
@@ -2712,8 +2770,34 @@ window.DWB = (() => {
     const exploreBtn = document.getElementById('splash-explore');
     if (exploreBtn) exploreBtn.onclick = () => {
       workflow.newWorkflow(false);
-      setMode('viz');
       splash.dismiss();
+      const fi = document.createElement('input');
+      fi.type = 'file';
+      fi.accept = '.csv';
+      fi.onchange = function () {
+        const f = this.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          const data = parseCSV(e.target.result);
+          const label = f.name.replace(/\.csv$/i, '');
+          const ingest = { id: _uid(), type: 'INGEST', customName: f.name, isStarred: false,
+            status: 'ok', config: { fileName: f.name }, output: data, errorMsg: null };
+          pipeline.nodes.push(ingest);
+          if (!pipeline.nodes.some(n => n.type === 'PUSH_TO_VIZ')) {
+            const push = { id: _uid(), type: 'PUSH_TO_VIZ', customName: label, isStarred: false,
+              status: 'ok', config: { datasetName: label }, output: data, errorMsg: null };
+            pipeline.nodes.push(push);
+          }
+          renderTrack();
+          promoteToActive(label, data);
+          if (vizState.onDatasetPromoted) vizState.onDatasetPromoted(label);
+          setMode('viz');
+          workflow.markDirty();
+        };
+        reader.readAsText(f);
+      };
+      fi.click();
     };
 
     const overlay = document.getElementById('splash-overlay');
@@ -2791,7 +2875,7 @@ window.DWB = (() => {
     // stash
     getStash, setStash, listStashes, _deleteStash,
     // active dataset
-    promoteToActive, getColumnMeta,
+    promoteToActive, removeDataset, getColumnMeta,
     // console
     log, clearConsole,
     // ui
