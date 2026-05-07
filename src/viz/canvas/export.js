@@ -319,6 +319,8 @@
     const activeDatasetName = viz.activeDatasetName || Object.keys(datasets)[0] || null;
     const exportTheme       = forPrint ? 'light' : (document.documentElement.dataset.theme || 'light');
     const dsNames           = Object.keys(datasets);
+    const blockStyle        = (viz.dashboardTheme && viz.dashboardTheme.blockStyle) || 'outlined';
+    const titleStyle        = (viz.dashboardTheme && viz.dashboardTheme.titleStyle) || 'chrome';
 
     // Escape <\/script> sequences in JSON blobs to prevent premature tag close
     const dataJson   = JSON.stringify(datasets).replace(/<\/script>/gi, '<\\/script>');
@@ -368,7 +370,7 @@ ${_exportCSS()}
   <div id="exp-chips"></div>
   <button class="exp-clear-btn" onclick="window._expClearFilters && _expClearFilters()">Clear all</button>
 </div>
-<div id="exp-canvas"></div>
+<div id="exp-canvas" data-block-style="${blockStyle}" data-title-style="${titleStyle}"></div>
 <script type="application/json" id="dwb-data">${dataJson}<\/script>
 <script type="application/json" id="dwb-layout">${layoutJson}<\/script>
 ${autoPrintBlock}
@@ -425,6 +427,15 @@ ${EXPORT_RUNTIME}
       'padding:6px 10px;font-weight:600;color:var(--text-main);z-index:1}',
       '.exp-tbl td{border:1px solid var(--border);padding:5px 10px;color:var(--text-main)}',
       '.exp-tbl tbody tr:hover{background:var(--accent-light)}',
+      /* Block style modes */
+      '#exp-canvas[data-block-style="outlined"] .exp-element{border:1px solid var(--border);background:transparent;box-shadow:none;border-radius:6px;overflow:hidden}',
+      '#exp-canvas[data-block-style="card"] .exp-element{border:none;background:var(--bg-surface);box-shadow:0 2px 8px rgba(0,0,0,0.12);border-radius:6px;overflow:hidden}',
+      '#exp-canvas[data-block-style="filled"] .exp-element{border:1px solid rgba(0,94,184,0.25);background:rgba(0,94,184,0.08);box-shadow:none;border-radius:6px;overflow:hidden}',
+      '#exp-canvas[data-block-style="borderless"] .exp-element{border:none;background:transparent;box-shadow:none}',
+      /* Title bar style modes */
+      '#exp-canvas[data-title-style="header"] .exp-el-title{font-size:14px;border-bottom:1px solid var(--border);padding-bottom:6px;color:var(--text-main)}',
+      '#exp-canvas[data-title-style="centered"] .exp-el-title{font-size:14px;border-bottom:1px solid var(--border);padding-bottom:6px;text-align:center;color:var(--text-main)}',
+      '#exp-canvas[data-title-style="minimal"] .exp-el-title{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);font-weight:400}',
       '@media print{',
       '#exp-toolbar,#exp-filter-bar{display:none!important}',
       '#exp-canvas{padding:.25in}',

@@ -868,12 +868,17 @@
     /* === DATA TABLE === */
     .dwb-data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .dwb-data-table th {
-      position: sticky; top: 0; background: var(--bg-raised);
+      position: sticky; top: 0;
+      background: var(--bg-raised); color: var(--text-main);
       padding: 6px 10px; text-align: left; font-weight: 600;
       border-bottom: 2px solid var(--border-strong); white-space: nowrap;
     }
-    .dwb-data-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    .dwb-data-table tbody tr:hover { background: var(--bg-raised); }
+    .dwb-data-table td {
+      padding: 5px 10px; border-bottom: 1px solid var(--border); vertical-align: top;
+      background: var(--bg-surface); color: var(--text-main);
+    }
+    .dwb-data-table tbody tr:nth-child(even) td { background: var(--bg-raised); }
+    .dwb-data-table tbody tr:hover td { background: var(--bg-raised); }
     .dwb-table-scroll { overflow: auto; max-height: 400px; }
     .dwb-table-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 0 8px; }
     .dwb-search-input {
@@ -1377,7 +1382,6 @@
     .dash-section-header:hover { background: var(--bg-raised); }
     .dash-section-chevron { font-size: 10px; color: var(--text-faint); transition: transform 0.2s; }
     .dash-section-body { padding: 10px 12px 14px; }
-    .dash-section.collapsed .dash-section-body { display: none; }
     .dash-section.collapsed .dash-section-chevron { transform: rotate(-90deg); }
 
     /* Preset cards */
@@ -1463,6 +1467,7 @@
     /* Theme variable cascade to element cards */
     #viz-canvas .dwb-element-card {
       background: var(--theme-card-bg, var(--bg-surface));
+      border-color: var(--theme-card-border, var(--border));
       border-radius: var(--theme-card-radius, 8px);
     }
     #viz-canvas .dwb-element-content {
@@ -1472,6 +1477,94 @@
     #viz-canvas .dwb-element-title-input {
       font-size: var(--theme-title-size, 13px);
       font-weight: var(--theme-title-weight, 600);
+    }
+
+    /* Accordion animation */
+    .dash-section-body {
+      overflow: hidden;
+      max-height: 2000px;
+      transition: max-height 0.28s ease;
+    }
+    .dash-section.collapsed .dash-section-body { max-height: 0; }
+
+    /* Block Style picker */
+    .dash-style-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+    .dash-style-card {
+      padding: 6px; border: 2px solid var(--border); border-radius: 6px;
+      cursor: pointer; text-align: center; font-size: 10px; font-weight: 600;
+      color: var(--text-muted); background: var(--bg-raised); font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    .dash-style-card:hover { border-color: var(--border-strong); color: var(--text-main); }
+    .dash-style-card.active { border-color: var(--accent); color: var(--accent); }
+    .dash-block-preview {
+      width: 100%; height: 36px; border-radius: 3px; margin-bottom: 4px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dash-block-outlined { border: 1px solid var(--border-strong); background: transparent; }
+    .dash-block-card { border: none; background: var(--bg-surface); box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
+    .dash-block-filled { border: 1px solid rgba(0,94,184,0.3); background: rgba(0,94,184,0.08); }
+    .dash-block-borderless { border: none; background: transparent; }
+    .dbp-inner { width: 60%; height: 50%; background: var(--border-strong); border-radius: 2px; opacity: 0.5; }
+
+    /* Title Bar preview thumbnails */
+    .dash-title-preview {
+      width: 100%; height: 36px; border-radius: 3px; margin-bottom: 4px;
+      display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border);
+    }
+    .dtp-content { flex: 1; background: var(--bg-main); }
+    .dash-title-chrome .dtp-bar { height: 11px; background: var(--bg-raised); border-bottom: 1px solid var(--border); }
+    .dash-title-header .dtp-bar { height: 11px; background: transparent; border-bottom: 1px solid var(--border-strong); }
+    .dash-title-centered .dtp-bar { height: 11px; background: transparent; border-bottom: 1px solid var(--border-strong); }
+    .dash-title-minimal .dtp-bar { height: 6px; background: transparent; }
+
+    /* === BLOCK STYLE MODES (attribute selectors on #viz-canvas) === */
+    #viz-canvas[data-block-style="card"] .dwb-element-card {
+      border: none;
+      background: var(--theme-card-bg, var(--bg-surface));
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    #viz-canvas[data-block-style="filled"] .dwb-element-card {
+      border: 1px solid var(--theme-block-fill-border, rgba(0,94,184,0.25));
+      background: var(--theme-block-fill, rgba(0,94,184,0.08));
+      box-shadow: none;
+    }
+    #viz-canvas[data-block-style="borderless"] .dwb-element-card {
+      border: none;
+      background: transparent;
+      box-shadow: none;
+    }
+    #viz-canvas[data-block-style="outlined"] .dwb-element-card {
+      border: 1px solid var(--theme-card-border, var(--border));
+      background: transparent;
+      box-shadow: none;
+    }
+
+    /* === TITLE BAR STYLE MODES (attribute selectors on #viz-canvas) === */
+    #viz-canvas[data-title-style="header"] .dwb-element-header,
+    #viz-canvas[data-title-style="centered"] .dwb-element-header {
+      background: var(--theme-card-bg, var(--bg-surface));
+      border-bottom: 1px solid var(--border);
+    }
+    #viz-canvas[data-title-style="header"] .dwb-element-title-input,
+    #viz-canvas[data-title-style="centered"] .dwb-element-title-input {
+      font-size: calc(var(--theme-title-size, 13px) + 2px);
+    }
+    #viz-canvas[data-title-style="centered"] .dwb-element-title-input {
+      text-align: center;
+    }
+    #viz-canvas[data-title-style="minimal"] .dwb-element-header {
+      background: transparent;
+      border-bottom: none;
+      padding-top: 6px;
+      padding-bottom: 4px;
+    }
+    #viz-canvas[data-title-style="minimal"] .dwb-element-title-input {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      font-weight: 400;
     }
   </style>
   <link rel="preconnect" href="https://fonts.googleapis.com">

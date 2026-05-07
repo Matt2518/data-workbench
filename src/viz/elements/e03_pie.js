@@ -138,12 +138,18 @@ DWB.registerElement('PIE', {
     const catCol = dataset.headers[catIdx];
     const outerR = '70%';
     const innerRStr = innerR > 0 ? innerR + '%' : '0';
-    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim() || '#1e293b';
+    const cs = getComputedStyle(document.documentElement);
+    const labelColor  = cs.getPropertyValue('--text-main').trim()  || '#1e293b';
+    const borderColor = cs.getPropertyValue('--border').trim()      || '#e2e8f0';
+    const bgColor     = cs.getPropertyValue('--bg-surface').trim()  || '#ffffff';
 
     chart.setOption({
       tooltip: {
         trigger: 'item',
-        formatter: p => `${p.name}<br/>${p.value} (${p.percent}%)`
+        formatter: p => `${p.name}<br/>${p.value} (${p.percent}%)`,
+        backgroundColor: bgColor,
+        borderColor: borderColor,
+        textStyle: { color: labelColor }
       },
       legend: { show: false },
       color: scheme,

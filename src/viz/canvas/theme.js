@@ -59,10 +59,16 @@
     preset: 'Corporate',
     accent: '#005EB8',
     background: { type: 'flat', startColor: '#f8fafc', endColor: '#e2e8f0', direction: '135deg' },
-    typography: { fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif", baseSize: 13, titleWeight: 600 }
+    typography: { fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif", baseSize: 13, titleWeight: 600 },
+    blockStyle: 'outlined',
+    titleStyle: 'chrome'
   };
 
+  const ALL_SECTIONS = ['theme', 'canvas', 'typo', 'layout'];
+
   // ───────────────────────────── STATE ─────────────────────────────────
+
+  const _savedSection = localStorage.getItem('dwb_dash_settings_open_section') || 'theme';
 
   viz.dashboardTheme     = Object.assign({}, DEFAULT_THEME, {
     background: Object.assign({}, DEFAULT_THEME.background),
@@ -70,7 +76,10 @@
   });
   viz._sidebarTab        = 'element';
   viz._sidebarTabLocked  = false;
-  viz._sidebarCollapsed  = {};
+
+  // Single-open: only _savedSection is open on load
+  viz._sidebarCollapsed = { theme: true, canvas: true, typo: true, layout: true };
+  viz._sidebarCollapsed[_savedSection] = false;
 
   // ───────────────────────── SIDEBAR TAB SYSTEM ────────────────────────
 
@@ -187,7 +196,6 @@
       const bars = p.colors.slice(0, 4).map((c, i) =>
         `<div style="flex:1;background:${c};height:${thumbHeights[i]}%;border-radius:1px;align-self:flex-end"></div>`
       ).join('');
-      const isCol = viz._sidebarCollapsed['theme'];
       return `<button class="dash-preset-card${t.preset === name ? ' active' : ''}"
         onclick="DWB.viz.updateTheme('preset','${name}')">
         <div class="dash-preset-thumb">${bars}</div>
@@ -239,6 +247,29 @@
       `<button class="dash-weight-pill${t.typography.titleWeight === w ? ' active' : ''}"
         style="font-weight:${w}"
         onclick="DWB.viz.updateTheme('typography.titleWeight',${w})">${w}</button>`
+    ).join('');
+
+    // ── Block Style cards ──
+    const blockStyleNames = { outlined: 'Outlined', card: 'Card', filled: 'Filled', borderless: 'Borderless' };
+    const blockStyleCards = Object.keys(blockStyleNames).map(style =>
+      `<button class="dash-style-card${(t.blockStyle || 'outlined') === style ? ' active' : ''}"
+        onclick="DWB.viz._setBlockStyle('${style}')">
+        <div class="dash-block-preview dash-block-${style}"><div class="dbp-inner"></div></div>
+        <span>${blockStyleNames[style]}</span>
+      </button>`
+    ).join('');
+
+    // ── Title Bar Style cards ──
+    const titleStyleNames = { chrome: 'Chrome', header: 'Header', centered: 'Centered', minimal: 'Minimal' };
+    const titleStyleCards = Object.keys(titleStyleNames).map(style =>
+      `<button class="dash-style-card${(t.titleStyle || 'chrome') === style ? ' active' : ''}"
+        onclick="DWB.viz._setTitleStyle('${style}')">
+        <div class="dash-title-preview dash-title-${style}">
+          <div class="dtp-bar"></div>
+          <div class="dtp-content"></div>
+        </div>
+        <span>${titleStyleNames[style]}</span>
+      </button>`
     ).join('');
 
     const _section = (id, icon, title, body) => {
@@ -293,17 +324,41 @@
       <div class="sidebar-label" style="margin-top:10px">Title weight</div>
       <div class="dash-weight-pills">${weightPills}</div>`;
 
+    const layoutBody = `
+      <div class="sidebar-label">Block Style</div>
+      <div class="dash-style-grid">${blockStyleCards}</div>
+      <div class="sidebar-label" style="margin-top:10px">Title Bar</div>
+      <div class="dash-style-grid">${titleStyleCards}</div>`;
+
     return (
       _section('theme',  '🎨', 'Theme Preset',       themeBody) +
       _section('canvas', '🖼',  'Canvas Background',   canvasBody) +
-      _section('typo',   '🔤', 'Typography',           typoBody)
+      _section('typo',   '🔤', 'Typography',           typoBody) +
+      _section('layout', '⬜', 'Layout & Chrome',      layoutBody)
     );
   };
 
+  // Single-open accordion toggle
   viz._toggleDashSection = function (id) {
-    viz._sidebarCollapsed[id] = !viz._sidebarCollapsed[id];
-    const sec = document.querySelector('.dash-section[data-section-id="' + id + '"]');
-    if (sec) sec.classList.toggle('collapsed', !!viz._sidebarCollapsed[id]);
+    const isOpen = !viz._sidebarCollapsed[id];
+
+    // Collapse all sections
+    ALL_SECTIONS.forEach(s => {
+      viz._sidebarCollapsed[s] = true;
+      const sec = document.querySelector('.dash-section[data-section-id="' + s + '"]');
+      if (sec) sec.classList.add('collapsed');
+    });
+
+    if (!isOpen) {
+      // Was closed — open it
+      viz._sidebarCollapsed[id] = false;
+      const sec = document.querySelector('.dash-section[data-section-id="' + id + '"]');
+      if (sec) sec.classList.remove('collapsed');
+    }
+    // Was open — stays collapsed (toggle off)
+
+    const openSection = ALL_SECTIONS.find(s => !viz._sidebarCollapsed[s]) || '';
+    localStorage.setItem('dwb_dash_settings_open_section', openSection);
   };
 
   // ───────────────────────── UPDATE THEME ──────────────────────────────
@@ -331,6 +386,22 @@
     viz.applyTheme();
   };
 
+  viz._setBlockStyle = function (style) {
+    viz.dashboardTheme.blockStyle = style;
+    const canvas = document.getElementById('viz-canvas');
+    if (canvas) canvas.dataset.blockStyle = style;
+    viz._renderSidebarContent();
+    if (DWB.workflow) DWB.workflow.markDirty();
+  };
+
+  viz._setTitleStyle = function (style) {
+    viz.dashboardTheme.titleStyle = style;
+    const canvas = document.getElementById('viz-canvas');
+    if (canvas) canvas.dataset.titleStyle = style;
+    viz._renderSidebarContent();
+    if (DWB.workflow) DWB.workflow.markDirty();
+  };
+
   // ───────────────────────── APPLY THEME CSS ───────────────────────────
 
   viz.applyTheme = function () {
@@ -339,10 +410,15 @@
     const canvas = document.getElementById('viz-canvas');
     if (!canvas) return;
 
-    const p = PRESETS[t.preset] || PRESETS.Corporate;
+    const p      = PRESETS[t.preset] || PRESETS.Corporate;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const cs     = getComputedStyle(document.documentElement);
 
-    canvas.style.setProperty('--theme-card-bg',       p.cardBg);
-    canvas.style.setProperty('--theme-card-border',   p.cardBorder);
+    // In dark mode, override card bg/border with mode-aware vars so elements are readable
+    canvas.style.setProperty('--theme-card-bg',
+      isDark ? cs.getPropertyValue('--bg-surface').trim() : p.cardBg);
+    canvas.style.setProperty('--theme-card-border',
+      isDark ? cs.getPropertyValue('--border').trim() : p.cardBorder);
     canvas.style.setProperty('--theme-card-radius',   p.cardRadius);
     canvas.style.setProperty('--theme-title-size',    p.titleSize);
     canvas.style.setProperty('--theme-spacing',       p.spacing);
@@ -354,6 +430,18 @@
       canvas.style.setProperty('--theme-chart-' + (i + 1), c)
     );
 
+    // Compute block fill color from first chart color (for "filled" block style)
+    const chartColor = p.colors[0] || t.accent;
+    let fr = 0, fg = 94, fb = 184;
+    if (chartColor && chartColor.startsWith('#') && chartColor.length >= 7) {
+      fr = parseInt(chartColor.slice(1, 3), 16);
+      fg = parseInt(chartColor.slice(3, 5), 16);
+      fb = parseInt(chartColor.slice(5, 7), 16);
+    }
+    canvas.style.setProperty('--theme-block-fill',        `rgba(${fr},${fg},${fb},0.08)`);
+    canvas.style.setProperty('--theme-block-fill-border', `rgba(${fr},${fg},${fb},0.25)`);
+
+    // Canvas background
     const bg = t.background;
     if (bg.type === 'flat') {
       canvas.style.background = bg.startColor;
@@ -364,6 +452,10 @@
       canvas.style.background =
         `linear-gradient(${bg.direction}, ${bg.startColor}, ${bg.endColor})`;
     }
+
+    // Apply block and title bar style via data attributes (CSS attribute selectors handle the rest)
+    canvas.dataset.blockStyle = t.blockStyle || 'outlined';
+    canvas.dataset.titleStyle = t.titleStyle || 'chrome';
 
     if (DWB.workflow) DWB.workflow.markDirty();
   };

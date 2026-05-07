@@ -159,24 +159,33 @@ DWB.registerElement('BAR_V', {
 
     const catCol = dataset.headers[catIdx];
     const colors = data.map((_, i) => scheme[i % scheme.length]);
-    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim() || '#1e293b';
+    const cs = getComputedStyle(document.documentElement);
+    const labelColor  = cs.getPropertyValue('--text-main').trim()  || '#1e293b';
+    const borderColor = cs.getPropertyValue('--border').trim()      || '#e2e8f0';
+    const bgColor     = cs.getPropertyValue('--bg-surface').trim()  || '#ffffff';
 
     chart.setOption({
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: bgColor,
+        borderColor: borderColor,
+        textStyle: { color: labelColor }
+      },
       grid: { left: '2%', right: '2%', top: cfg.showValues !== false ? 28 : 12, bottom: bottomPad, containLabel: true },
       xAxis: {
         type: 'category',
         data: data.map(d => d.label),
-        axisLabel: {
-          color: labelColor,
-          fontSize: 11,
-          rotate: labelRotate,
-          width: 80,
-          overflow: 'truncate',
-          interval: 0
-        }
+        axisLabel: { color: labelColor, fontSize: 11, rotate: labelRotate, width: 80, overflow: 'truncate', interval: 0 },
+        axisLine: { lineStyle: { color: borderColor } },
+        splitLine: { lineStyle: { color: borderColor } }
       },
-      yAxis: { type: 'value', axisLabel: { color: labelColor, fontSize: 11 } },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: labelColor, fontSize: 11 },
+        axisLine: { lineStyle: { color: borderColor } },
+        splitLine: { lineStyle: { color: borderColor } }
+      },
       series: [{
         type: 'bar',
         data: data.map((d, i) => ({ value: d.value, itemStyle: { color: colors[i] } })),

@@ -644,6 +644,8 @@
 
   // ---- Theme change ----
   new MutationObserver(() => {
+    // Re-apply theme CSS vars so dark/light mode is reflected in --theme-card-bg etc.
+    if (viz.applyTheme) viz.applyTheme();
     for (const block of viz.blocks) {
       for (const slot of block.slots) {
         for (const element of slot.elements) {
