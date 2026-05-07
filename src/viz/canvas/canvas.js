@@ -474,7 +474,7 @@
 
     const presets = {
       '1col': [],
-      '2col': [[30, 70], [40, 60], [50, 50], [60, 40], [70, 30]],
+      '2col': [[50, 50], [30, 70], [40, 60], [60, 40], [70, 30]],
       '3col': [[33, 34, 33], [50, 25, 25]]
     };
 
@@ -485,9 +485,11 @@
     if (ps.length) {
       ratioSection.style.display = '';
       _addBlockSelectedRatio = ps[0];
-      ratioBtns.innerHTML = ps.map((p, i) => {
+      const display = layout === '2col' ? [...ps].sort((a, b) => a[0] - b[0]) : ps;
+      ratioBtns.innerHTML = display.map(p => {
+        const sel = p.join() === ps[0].join() ? ' selected' : '';
         const diagCols = p.map(v => `<div class="rd-col" style="flex:${v}"></div>`).join('');
-        return `<button class="ratio-opt-btn${i === 0 ? ' selected' : ''}"
+        return `<button class="ratio-opt-btn${sel}"
           onclick="DWB.viz._selectRatio(this,[${p}])">
           <div class="ratio-diagram">${diagCols}</div>
           ${p.join('/')}%
