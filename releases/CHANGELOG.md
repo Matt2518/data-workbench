@@ -2,6 +2,14 @@
 
 *Releases are tagged and committed here.*
 
+## \[v0.9] — 2026-05-07
+
+*Release notes: Dark mode fixes (table resting state, chart labels/tooltips), block theme-awareness, single-open accordion* 
+
+*dashboard settings, block style system (Outlined/Card/Filled/Borderless), title bar style system Chrome/Header/Centered/Minimal), new Layout \& Chrome settings section.*
+
+* Build: 338.1 KB, 28 plugin(s)
+
 ## \[v0.8] — 2026-05-07
 
 *Release notes: 8 new transform nodes — Whitespace Trim, Standardize Case, Format Phone, Find \& Replace, Pad Text, Substring, AutoIncrement, Rearrange Columns.*
