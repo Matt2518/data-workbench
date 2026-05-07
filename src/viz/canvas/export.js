@@ -342,7 +342,7 @@ window.addEventListener('load', function() {
     setTimeout(function() { window.close(); }, 1500);
   }, 2000);
 });
-</script>`
+<\/script>`
       : '';
 
     return `<!DOCTYPE html>
