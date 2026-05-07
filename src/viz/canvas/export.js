@@ -320,7 +320,7 @@
     const exportTheme       = forPrint ? 'light' : (document.documentElement.dataset.theme || 'light');
     const dsNames           = Object.keys(datasets);
 
-    // Escape </script> sequences in JSON blobs to prevent premature tag close
+    // Escape <\/script> sequences in JSON blobs to prevent premature tag close
     const dataJson   = JSON.stringify(datasets).replace(/<\/script>/gi, '<\\/script>');
     const layoutJson = JSON.stringify({ blocks, activeDatasetName }).replace(/<\/script>/gi, '<\\/script>');
 

@@ -37,6 +37,24 @@ function build() {
     return `/* --- ${rel} --- */\n(function(){\n${code}\n})();`;
   }).join('\n\n');
 
+  // Guard: any literal </script in the plugin block prematurely closes the HTML <script> element.
+  // The HTML tokenizer is not JS-aware — it fires on </script even inside comments or strings.
+  // Safe form in JS source: <\/script (backslash between < and /).
+  const _unsafeClose = /<\/script/i;
+  if (_unsafeClose.test(pluginBlock)) {
+    const lines = pluginBlock.split('\n');
+    console.error('\nBUILD ERROR: Unescaped </script found in compiled plugin block.');
+    console.error('The HTML tokenizer will close the <script> block early, breaking the app.');
+    console.error('Fix: replace </script with <\\/script in any string or comment in these locations:\n');
+    lines.forEach((line, i) => {
+      if (_unsafeClose.test(line)) {
+        console.error(`  line ${i + 1}: ${line.trim().slice(0, 120)}`);
+      }
+    });
+    console.error('\nBuild aborted.\n');
+    process.exit(1);
+  }
+
   // IMPORTANT: use a function replacer, NOT a string replacer.
   // String.prototype.replace() interprets $' $` $& etc. as special patterns.
   // Plugin source code can contain '$' (e.g. currency strings) which would
