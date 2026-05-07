@@ -2,6 +2,12 @@
 
 *Releases are tagged and committed here.*
 
+## \[v0.8] — 2026-05-07
+
+*Release notes: 8 new transform nodes — Whitespace Trim, Standardize Case, Format Phone, Find \& Replace, Pad Text, Substring, AutoIncrement, Rearrange Columns.*
+
+* Build: 327.1 KB, 28 plugin(s)
+
 ## \[v0.7] — 2026-05-07
 
 *Release notes: Fix auto-print script firing on main app page load — now correctly scoped to PDF export window only.*
@@ -37,16 +43,6 @@
 *Release notes: PapaParse CSV fix, focus loss fix, push\_to\_viz fix, SET\_TYPES node with full type inference (number/date/categorical/likert/text), type metadata system, passthroughCopy, resizable panel split.*
 
 * Build: 106.7 KB, 12 plugin(s)
-
-## \[v0.2] — 2026-05-05
-
-*Release notes: (edit this line before committing)*
-
-* Build: 101.4 KB, 12 plugin(s)
-
-## \[v0.2] — 2026-05-05
-
-* \*Release notes: PapaParse CSV fix, focus loss fix, push\_to\_viz fix, SET\_TYPES node, type metadata system, passthroughCopy.\*Build: 98.8 KB, 12 plugin(s)
 
 ## \[v0.1] — 2026-05-05
 
