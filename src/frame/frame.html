@@ -1322,6 +1322,31 @@
       font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
       text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
     }
+
+    /* === EXPORT MODAL === */
+    #export-format-cards { display: flex; gap: 12px; }
+    .export-format-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+      padding: 18px 10px;
+      background: var(--bg-raised);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 0.15s, background 0.15s;
+      font-family: inherit;
+    }
+    .export-format-card:hover {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+    .export-card-icon { font-size: 30px; line-height: 1; display: block; }
+    .export-card-name { font-weight: 700; font-size: 13px; color: var(--text-main); }
+    .export-card-desc { font-size: 11px; color: var(--text-muted); line-height: 1.35; }
   </style>
 </head>
 <body>
@@ -1440,8 +1465,7 @@
     </select>
     <div class="flex-spacer"></div>
     <button class="viz-btn" id="btn-presentation" onclick="DWB.viz && DWB.viz.togglePresentation()">⛶ Presentation</button>
-    <button class="viz-btn" disabled title="Coming soon">📤 Export PPTX</button>
-    <button class="viz-btn" disabled title="Coming soon">🌐 Export HTML</button>
+    <button class="viz-btn" id="btn-export" onclick="DWB.viz && DWB.viz.showExportModal()">📤 Export</button>
   </div>
 
   <!-- Sticky Header Block -->
@@ -1548,6 +1572,40 @@
       <button class="modal-close" onclick="DWB.viz&&DWB.viz.closeElementPicker()">✕</button>
     </div>
     <div id="element-picker-list" style="overflow-y:auto;flex:1;padding:8px"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     EXPORT MODAL
+     ============================================================ -->
+<div id="export-overlay" class="overlay hidden" onclick="if(event.target===this)DWB.viz&&DWB.viz.closeExportModal()">
+  <div class="modal" style="width:460px">
+    <div class="modal-header">
+      Export Dashboard
+      <button class="modal-close" onclick="DWB.viz&&DWB.viz.closeExportModal()">✕</button>
+    </div>
+    <div style="padding:20px 20px 16px">
+      <div id="export-format-cards">
+        <button class="export-format-card" onclick="DWB.viz&&DWB.viz.triggerExport('html')">
+          <span class="export-card-icon">📄</span>
+          <span class="export-card-name">Interactive HTML</span>
+          <span class="export-card-desc">Shareable live report with filters and charts</span>
+        </button>
+        <button class="export-format-card" onclick="DWB.viz&&DWB.viz.triggerExport('pdf')">
+          <span class="export-card-icon">🖨</span>
+          <span class="export-card-name">PDF</span>
+          <span class="export-card-desc">Print-ready snapshot for documents and email</span>
+        </button>
+        <button class="export-format-card" onclick="DWB.viz&&DWB.viz.triggerExport('pptx')">
+          <span class="export-card-icon">📊</span>
+          <span class="export-card-name">PowerPoint</span>
+          <span class="export-card-desc">Editable slides, one per block</span>
+        </button>
+      </div>
+      <div style="text-align:right;margin-top:16px">
+        <button class="btn-secondary" onclick="DWB.viz&&DWB.viz.closeExportModal()">Cancel</button>
+      </div>
+    </div>
   </div>
 </div>
 
