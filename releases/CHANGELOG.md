@@ -2,6 +2,10 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.9] — 2026-05-07
+_Release notes: (edit this line before committing)_
+- Build: 338.1 KB, 28 plugin(s)
+
 ## \[v0.8] — 2026-05-07
 
 *Release notes: 8 new transform nodes — Whitespace Trim, Standardize Case, Format Phone, Find \& Replace, Pad Text, Substring, AutoIncrement, Rearrange Columns.*
