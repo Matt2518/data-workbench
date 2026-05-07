@@ -2,6 +2,10 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.7] — 2026-05-07
+_Release notes: (edit this line before committing)_
+- Build: 278.3 KB, 20 plugin(s)
+
 ## \[v0.6] — 2026-05-07
 
 *Release notes: Release notes: Export system (interactive HTML, PDF, PPTX), presentation theme system (Corporate/Modern/Infographic/Editorial presets, canvas backgrounds, typography controls, element height (S/M/L), node add modal left-tab redesign, reverse layout splits (40/60, 30/70), bug fixes: Explore Data flow, Push-to-Viz teardown, type inference (Likert/Categorical/Date), dark mode chart labels, Drop Column multiselect height.*
