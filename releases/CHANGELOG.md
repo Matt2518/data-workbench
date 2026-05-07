@@ -2,6 +2,10 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.10] — 2026-05-07
+_Release notes: (edit this line before committing)_
+- Build: 453.8 KB, 35 plugin(s)
+
 ## \[v0.9] — 2026-05-07
 
 *Release notes: 6 new nodes — Date Format, Concatenate, Split Column, If/Then/Else, Append Rows, Remove Duplicates.*
