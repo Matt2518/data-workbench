@@ -2,6 +2,10 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.11] — 2026-05-12
+_Release notes: (edit this line before committing)_
+- Build: 674.3 KB, 53 plugin(s)
+
 ## \[v0.10] — 2026-05-07
 
 *Release notes: Fuzzy Match node — Levenshtein/bigram algorithms, weighted multi-column match pairs, chunked async analysis with progress bar and cancel, card-based manual review UI, \_match\_status output column, configurable column prefix and no-match behavior.*
