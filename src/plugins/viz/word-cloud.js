@@ -211,6 +211,14 @@ DWB.registerElement('WORD_CLOUD', {
       return;
     }
 
+    // Defer render if container has no dimensions yet (common on workflow restore
+    // before layout has completed).
+    const { width, height } = container.getBoundingClientRect();
+    if (width === 0 || height === 0) {
+      setTimeout(() => DWB.viz.renderElement(element.id), 100);
+      return;
+    }
+
     const cfg = element.config;
     _wcEnsureDefaults(cfg);
 
@@ -269,24 +277,34 @@ DWB.registerElement('WORD_CLOUD', {
     const chart = echarts.init(chartDiv, null, { renderer: 'canvas' });
     element._instance = chart;
 
-    chart.setOption({
-      backgroundColor: 'transparent',
-      tooltip: {
-        show: true,
-        formatter: '{b}: {c} mentions'
-      },
-      series: [{
-        type:            'wordCloud',
-        shape:           'circle',
-        sizeRange:       [14, 60],
-        rotationRange:   [-45, 45],
-        rotationStep:    45,
-        gridSize:        8,
-        drawOutOfBound:  false,
-        layoutAnimation: true,
-        data:            seriesData
-      }]
-    });
+    try {
+      chart.setOption({
+        backgroundColor: 'transparent',
+        tooltip: {
+          show: true,
+          formatter: '{b}: {c} mentions'
+        },
+        series: [{
+          type:            'wordCloud',
+          shape:           'circle',
+          sizeRange:       [14, 60],
+          rotationRange:   [-45, 45],
+          rotationStep:    45,
+          gridSize:        8,
+          drawOutOfBound:  false,
+          layoutAnimation: true,
+          data:            seriesData
+        }]
+      });
+    } catch (e) {
+      // wordCloud extension not yet registered (CDN timing on restore) — retry
+      chart.dispose();
+      element._instance = null;
+      if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+      container.innerHTML = '<div class="dwb-empty-state">Loading…</div>';
+      setTimeout(() => DWB.viz.renderElement(element.id), 200);
+      return;
+    }
 
     element._resizeObs = new ResizeObserver(() => {
       if (element._instance && !element._instance.isDisposed()) element._instance.resize();

@@ -45,27 +45,43 @@
     title: 'Header Filter',
     icon: '🔽',
     category: 'Presentation',
+    headerOnly: true,
     desc: 'A compact multi-select dropdown filter pill that filters all canvas elements by a single column. Stack multiple horizontally for dashboard-style filtering.',
     headerCompatible: true,
 
     renderConfig(element, dataset) {
-      const cfg      = element.config || {};
-      const colName  = cfg.colName  || '';
-      const label    = cfg.label    || '';
+      const cfg        = element.config || {};
+      const colName    = cfg.colName    || '';
+      const label      = cfg.label      || '';
       const defaultAll = cfg.defaultAll !== false;
+
+      const headers = dataset ? (dataset.headers || []) : [];
+
+      let colSection;
+      if (headers.length === 0) {
+        colSection = `
+          <div class="sidebar-label">Column</div>
+          <div style="font-size:12px;color:var(--text-faint);padding:4px 0 10px">
+            No dataset available. Promote a pipeline output first.
+          </div>`;
+      } else {
+        const options = headers.map(h =>
+          `<option value="${_escHtml(h)}"${h === colName ? ' selected' : ''}>${_escHtml(h)}</option>`
+        ).join('');
+        colSection = `
+          <div class="sidebar-label">Column</div>
+          <select class="sidebar-input"
+            onchange="DWB.viz._hfUpdateColSelect('${element.id}',this.value)">
+            <option value="">— select column —</option>
+            ${options}
+          </select>`;
+      }
 
       return `
         <div style="padding:8px 12px 0">
-          <div class="sidebar-label">Column</div>
-          <input type="text" class="sidebar-input"
-            value="${_escHtml(colName)}"
-            placeholder="Enter exact column name"
-            oninput="DWB.viz._hfUpdateConfig('${element.id}','colName',this.value)">
-          <div style="font-size:11px;color:var(--text-faint);margin-top:2px;margin-bottom:10px">
-            Must match a column name in your dataset exactly.
-          </div>
+          ${colSection}
 
-          <div class="sidebar-label">Display Label</div>
+          <div class="sidebar-label" style="margin-top:10px">Display Label</div>
           <input type="text" class="sidebar-input"
             value="${_escHtml(label)}"
             placeholder="${_escHtml(colName) || 'Label'}"
@@ -125,7 +141,12 @@
         wrapper = document.createElement('div');
         wrapper.id    = 'hf-wrap-' + element.id;
         wrapper.style.position = 'relative';
-        hfc.appendChild(wrapper);
+        const addBtn = document.getElementById('btn-add-header-filter');
+        if (addBtn && addBtn.parentNode === hfc) {
+          hfc.insertBefore(wrapper, addBtn);
+        } else {
+          hfc.appendChild(wrapper);
+        }
       }
 
       const pillBg    = isFiltering ? 'var(--accent,#2563eb)' : 'var(--card-bg,#fff)';
@@ -139,14 +160,11 @@
                box-shadow:0 1px 2px rgba(0,0,0,0.08);"
         onclick="DWB.viz._hfToggle('${element.id}')">
         ${_escHtml(pillLabel)}
-        <span style="font-size:0.7rem;opacity:0.7;">${isOpen ? '▲' : '▼'}</span>`;
-
-      if (isFiltering) {
-        html += `<span style="margin-left:2px;opacity:0.8;font-size:0.75rem;line-height:1;"
-          onclick="event.stopPropagation();DWB.viz._hfClear('${element.id}')">✕</span>`;
-      }
-
-      html += '</div>';
+        <span style="font-size:0.7rem;opacity:0.7;">${isOpen ? '▲' : '▼'}</span>
+      </div>
+      <span onclick="DWB.viz.removeHeaderFilterElement('${element.id}')"
+        style="margin-left:4px;opacity:0.5;font-size:0.8rem;cursor:pointer;line-height:1;"
+        title="Remove filter">×</span>`;
 
       if (isOpen) {
         html += `<div style="position:absolute;top:calc(100% + 4px);left:0;z-index:1000;
@@ -274,6 +292,20 @@
     const el = DWB.viz.headerElements.find(e => e.id === elementId);
     if (!el) return;
     _hfApplyFilter(el);
+    DWB.viz.renderHeaderElement(elementId);
+  };
+
+  DWB.viz._hfUpdateColSelect = function (elementId, newColName) {
+    const el = DWB.viz.headerElements.find(e => e.id === elementId);
+    if (!el) return;
+    if (!el.config) el.config = {};
+    const oldColName = el.config.colName || '';
+    el.config.colName = newColName;
+    if (!el.config.label || el.config.label === oldColName) {
+      el.config.label = newColName;
+    }
+    _hfState.delete(elementId);
+    DWB.viz.selectHeaderElement(elementId);
     DWB.viz.renderHeaderElement(elementId);
   };
 

@@ -410,13 +410,28 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
     maxExtent = (maxExtent * 1.1) || 1;
 
     // ── Build series ──────────────────────────────────────────────────────
-    // Order: innermost-negative first → outermost-negative → neutral halves
-    //        → innermost-positive → outermost-positive
+    // ECharts stacks positive and negative values independently within a named
+    // stack: the FIRST negative in the array is innermost (closest to 0), and
+    // the FIRST positive is innermost.  To make neutral straddle zero, its left
+    // half must be the very first negative pushed and its right half must be the
+    // very first positive pushed.  Order:
+    //   neutral-left → innermost-neg → … → outermost-neg
+    //   neutral-right → innermost-pos → … → outermost-pos
 
     const series     = [];
     const legendData = [];
 
-    // Negatives (innermost first = reverse of outermost-first scale order)
+    // 1. Neutral left half FIRST — becomes innermost on the negative side (0 → -count/2)
+    for (const val of neutVals) {
+      series.push({
+        type: 'bar', name: '__nl_' + val, stack: 'total', color: C.neutral,
+        data:  questionCols.map((ci, qi) => -getDisp(val, ci, qi) / 2),
+        label: { show: false },
+        emphasis: { focus: 'series' }
+      });
+    }
+
+    // 2. Negative series (innermost first = reverse of outermost-first scale order)
     for (const val of [...negOrd].reverse()) {
       series.push({
         type: 'bar', name: val, stack: 'total', color: valColor(val),
@@ -427,14 +442,8 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
       legendData.push(val);
     }
 
-    // Neutral: two half-series straddling zero; left half hidden from legend
+    // 3. Neutral right half — becomes innermost on the positive side (0 → +count/2)
     for (const val of neutVals) {
-      series.push({
-        type: 'bar', name: '__nl_' + val, stack: 'total', color: C.neutral,
-        data:  questionCols.map((ci, qi) => -getDisp(val, ci, qi) / 2),
-        label: { show: false },
-        emphasis: { focus: 'series' }
-      });
       series.push({
         type: 'bar', name: val, stack: 'total', color: C.neutral,
         data:  questionCols.map((ci, qi) =>  getDisp(val, ci, qi) / 2),
@@ -444,7 +453,7 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
       legendData.push(val);
     }
 
-    // Positives (innermost first = posOrd as returned from _sdbScaleSort)
+    // 4. Positive series (innermost first = posOrd as returned from _sdbScaleSort)
     for (const val of posOrd) {
       series.push({
         type: 'bar', name: val, stack: 'total', color: valColor(val),
@@ -535,7 +544,7 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
         bottom: 4, type: 'scroll', orient: 'horizontal',
         textStyle: { color: C.textMain, fontSize: 11 }
       },
-      grid: { left: '2%', right: '2%', top: topPad, bottom: 56, containLabel: true },
+      grid: { left: '180px', right: '2%', top: topPad, bottom: 56, containLabel: true },
       xAxis: {
         type: 'value',
         min: -maxExtent, max: maxExtent,
@@ -553,7 +562,7 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
       yAxis: {
         type: 'category',
         data: yNames,
-        axisLabel: { color: C.textMain, fontSize: 11, width: 120, overflow: 'truncate' },
+        axisLabel: { color: C.textMain, fontSize: 11, width: 160, overflow: 'break', interval: 0 },
         axisLine: { lineStyle: { color: C.border } },
         splitLine: { show: false }
       },

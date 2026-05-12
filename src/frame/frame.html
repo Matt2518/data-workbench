@@ -995,7 +995,8 @@
     .presentation-mode #viz-config-sidebar,
     .presentation-mode .dwb-block-header,
     .presentation-mode .dwb-add-block-row,
-    .presentation-mode .dwb-add-element-btn { display: none !important; }
+    .presentation-mode .dwb-add-element-btn,
+    .presentation-mode #canvas-header-filters { display: none !important; }
 
     .presentation-mode #viz-canvas { padding: 32px; }
 
@@ -1716,7 +1717,11 @@
   </div>
 
   <!-- Header Filter Pills -->
-  <div id="canvas-header-filters" style="display:none;flex-wrap:wrap;gap:8px;padding:8px 12px;min-height:0;border-bottom:1px solid var(--border);background:var(--surface);"></div>
+  <div id="canvas-header-filters" style="display:none;flex-wrap:wrap;gap:8px;padding:8px 12px;min-height:0;border-bottom:1px solid var(--border);background:var(--surface);align-items:center;">
+    <button id="btn-add-header-filter"
+      style="font-size:0.75rem;padding:4px 10px;border-radius:12px;border:1px dashed var(--border);background:transparent;color:var(--text-muted);cursor:pointer;"
+      onclick="DWB.viz&&DWB.viz.addHeaderFilterElement()">+ Filter</button>
+  </div>
 
   <!-- Main: config sidebar + canvas -->
   <div id="viz-main">
@@ -1896,9 +1901,8 @@
     </div>
 
     <div class="splash-footer">
-      <button class="splash-tutorial-link"
-        onclick="DWB.splash.dismiss();DWB.log('Tutorial coming soon')">
-        🎓 New here? Start with the guided tutorial
+      <button class="splash-tutorial-link" disabled style="cursor:default;opacity:0.5">
+        Documentation (Coming Soon)
       </button>
     </div>
 
@@ -2470,7 +2474,7 @@ window.DWB = (() => {
 
   // ---- Node picker ----
   let _activePickerCat = 'All';
-  const _PICKER_CATS = ['All', 'Input & Output', 'Column Operations', 'Row Operations', 'Transform', 'Aggregate', 'Reconciliation', 'Visualization'];
+  const _PICKER_CATS = ['All', 'Input & Output', 'Column Operations', 'Row Operations', 'Transform', 'Aggregate', 'Data Analysis', 'Reconciliation', 'Visualization'];
 
   function openPicker(idx) {
     _insertIdx = idx;

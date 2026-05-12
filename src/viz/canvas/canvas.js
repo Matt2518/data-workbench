@@ -202,7 +202,10 @@
 
   viz.renderAllHeaderElements = function () {
     const hfc = document.getElementById('canvas-header-filters');
-    if (hfc) hfc.style.display = viz.headerElements.length > 0 ? 'flex' : 'none';
+    if (hfc) {
+      const hasDataset = Object.keys(DWB.promotedDatasets).length > 0;
+      hfc.style.display = (viz.headerElements.length > 0 || hasDataset) ? 'flex' : 'none';
+    }
     viz.headerElements.forEach(el => viz.renderHeaderElement(el.id));
   };
 
@@ -629,6 +632,7 @@
 
     const byCat = {};
     for (const [key, def] of Object.entries(viz._elementRegistry)) {
+      if (def.headerOnly) continue;
       const cat = def.category || 'Other';
       (byCat[cat] = byCat[cat] || []).push({ key, def });
     }
@@ -695,6 +699,82 @@
     if (DWB.workflow) DWB.workflow.markDirty();
     viz.renderCanvas();
     viz.selectElement(element.id);
+  };
+
+  // ---- Header Filter management ----
+  viz.addHeaderFilterElement = function () {
+    const id = 'hf_' + Date.now();
+    const el = {
+      id,
+      type: 'HEADER_FILTER',
+      config: { colName: '', label: '', defaultAll: true },
+      datasetName: viz.activeDatasetName
+    };
+    viz.headerElements.push(el);
+
+    const hfc = document.getElementById('canvas-header-filters');
+    if (hfc) hfc.style.display = 'flex';
+
+    if (DWB.workflow) DWB.workflow.markDirty();
+    viz.renderHeaderElement(id);
+    viz.selectHeaderElement(id);
+  };
+
+  viz.selectHeaderElement = function (id) {
+    const el = viz.headerElements.find(e => e.id === id);
+    if (!el) return;
+    viz._selectedHeaderElementId = id;
+
+    const sidebar = document.getElementById('viz-config-sidebar');
+    if (!sidebar) return;
+
+    const def = viz._elementRegistry[el.type];
+    if (!def) return;
+
+    const ds = DWB.promotedDatasets[el.datasetName || viz.activeDatasetName];
+
+    sidebar.innerHTML = `
+      <div class="sidebar-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:12px;font-weight:600">${def.icon || ''} ${def.title || el.type}</span>
+          <button class="sidebar-apply-btn" style="padding:3px 10px;font-size:11px"
+            onclick="DWB.viz.removeHeaderFilterElement('${id}')">Remove</button>
+        </div>
+      </div>
+      <div class="sidebar-section" id="sidebar-element-config"></div>`;
+
+    if (def.renderConfig) {
+      const configContainer = document.getElementById('sidebar-element-config');
+      try {
+        const html = def.renderConfig(el, ds);
+        if (typeof html === 'string' && configContainer) configContainer.innerHTML = html;
+      } catch (e) {
+        if (configContainer) configContainer.innerHTML =
+          `<div style="color:var(--danger);font-size:12px;padding:8px">Config error: ${e.message}</div>`;
+      }
+    }
+  };
+
+  viz.removeHeaderFilterElement = function (id) {
+    viz.clearHeaderFilter(id);
+    viz.headerElements = viz.headerElements.filter(e => e.id !== id);
+
+    const wrapper = document.getElementById('hf-wrap-' + id);
+    if (wrapper) wrapper.remove();
+
+    const hfc = document.getElementById('canvas-header-filters');
+    if (hfc && viz.headerElements.length === 0) {
+      const hasDataset = Object.keys(DWB.promotedDatasets).length > 0;
+      hfc.style.display = hasDataset ? 'flex' : 'none';
+    }
+
+    if (viz._selectedHeaderElementId === id) {
+      viz._selectedHeaderElementId = null;
+      viz.renderSidebar(null);
+    }
+
+    if (DWB.workflow) DWB.workflow.markDirty();
+    viz.onFiltersChanged();
   };
 
   // ---- Presentation Mode ----
