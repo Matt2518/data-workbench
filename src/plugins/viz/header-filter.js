@@ -149,12 +149,13 @@
         }
       }
 
-      const pillBg    = isFiltering ? 'var(--accent,#2563eb)' : 'var(--card-bg,#fff)';
-      const pillColor = isFiltering ? '#fff' : 'var(--text-main,#1e293b)';
+      const pillBg     = isFiltering ? 'var(--accent)' : 'rgba(255,255,255,0.08)';
+      const pillColor  = isFiltering ? '#fff' : 'rgba(255,255,255,0.8)';
+      const pillBorder = isFiltering ? 'none' : '1px solid rgba(255,255,255,0.3)';
 
       let html = `<div id="hf-pill-${element.id}"
         style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;
-               border-radius:20px;border:1px solid var(--border);
+               border-radius:20px;border:${pillBorder};
                background:${pillBg};color:${pillColor};cursor:pointer;
                font-size:0.8rem;white-space:nowrap;user-select:none;
                box-shadow:0 1px 2px rgba(0,0,0,0.08);"

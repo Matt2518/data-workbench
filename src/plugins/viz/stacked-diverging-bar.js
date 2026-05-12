@@ -431,8 +431,8 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
       });
     }
 
-    // 2. Negative series (innermost first = reverse of outermost-first scale order)
-    for (const val of [...negOrd].reverse()) {
+    // 2. Negative series — strongest/outermost first (ECharts stacks negatives with first series outermost)
+    for (const val of negOrd) {
       series.push({
         type: 'bar', name: val, stack: 'total', color: valColor(val),
         data:  questionCols.map((ci, qi) => -getDisp(val, ci, qi)),
