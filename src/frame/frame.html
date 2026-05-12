@@ -6,6 +6,7 @@
   <title>Data Workbench</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts-wordcloud/2.1.0/echarts-wordcloud.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
 
@@ -43,6 +44,12 @@
       --likert-neg:          #f97316;
       --likert-strong-neg:   #c2410c;
 
+      --chart-negative-strong: #e85d04;
+      --chart-negative-light:  #f4a261;
+      --chart-neutral:         #adb5bd;
+      --chart-positive-light:  #5b9bd5;
+      --chart-positive-strong: #1a5fb4;
+
       --topbar-h:    48px;
       --sidebar-w:   268px;
       --console-h:   168px;
@@ -58,6 +65,12 @@
       --text-main:     #e2eaf4;
       --text-muted:    #7ea3c4;
       --text-faint:    #4a7099;
+
+      --chart-negative-strong: #f4522a;
+      --chart-negative-light:  #f7a07a;
+      --chart-neutral:         #8899aa;
+      --chart-positive-light:  #6daee0;
+      --chart-positive-strong: #3a7fd5;
     }
 
     /* === RESET === */
@@ -1702,6 +1715,9 @@
     <button class="viz-clear-filters" onclick="DWB.viz && DWB.viz.clearFilters()">Clear all</button>
   </div>
 
+  <!-- Header Filter Pills -->
+  <div id="canvas-header-filters" style="display:none;flex-wrap:wrap;gap:8px;padding:8px 12px;min-height:0;border-bottom:1px solid var(--border);background:var(--surface);"></div>
+
   <!-- Main: config sidebar + canvas -->
   <div id="viz-main">
     <div id="viz-config-sidebar">
@@ -1840,7 +1856,7 @@
     <div class="splash-header">
       <span class="splash-anchor">⚓</span>
       <h1 class="splash-title">Data Workbench</h1>
-      <span class="splash-version">v0.4</span>
+      <span class="splash-version">v0.11</span>
     </div>
 
     <div id="splash-resume" class="splash-resume" style="display:none">
@@ -2650,7 +2666,7 @@ window.DWB = (() => {
       nodes: pipeline.nodes.map(n => ({
         id: n.id, type: n.type, customName: n.customName,
         isStarred: n.isStarred,
-        config: Object.fromEntries(Object.entries(n.config).filter(([k]) => k !== 'fileData'))
+        config: Object.fromEntries(Object.entries(n.config).filter(([k]) => k !== 'fileData' && k !== 'tableBData'))
       })),
       stashNames: Object.keys(stashes)
     };
@@ -2802,6 +2818,7 @@ window.DWB = (() => {
   function _stripFileData(config) {
     const copy = Object.assign({}, config);
     delete copy.fileData;
+    delete copy.tableBData;
     return copy;
   }
 
@@ -2824,7 +2841,7 @@ window.DWB = (() => {
     const splitRatio = parseFloat(localStorage.getItem('dwb_split_ratio') || '0.35');
     return {
       version: '2.0',
-      appVersion: (window.DWB_CONFIG && window.DWB_CONFIG.version) || '0.4',
+      appVersion: (window.DWB_CONFIG && window.DWB_CONFIG.version) || '0.11',
       name: workflow.name,
       tags: workflow.tags,
       notes: workflow.notes,

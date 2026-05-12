@@ -30,6 +30,7 @@
   viz.onDatasetPickerChange = function (name) {
     viz.activeDatasetName = name || null;
     viz.renderAllElements();
+    viz.renderAllHeaderElements();
   };
 
   viz.onDatasetPromoted = function (name) {
@@ -58,6 +59,7 @@
     }
 
     viz.renderAllElements();
+    viz.renderAllHeaderElements();
   };
 
   // ---- Finders ----
@@ -78,31 +80,58 @@
   };
 
   // ---- Filter coordinator ----
+  // Filter shape: { column, values: string[], source, _fromHeader? }
+
   viz.addFilter = function (column, value, sourceElementId) {
     const strVal = String(value);
     const idx = viz.filters.findIndex(
-      f => f.column === column && String(f.value).toLowerCase() === strVal.toLowerCase()
+      f => f.column === column && f.source === sourceElementId && !f._fromHeader
     );
     if (idx >= 0) {
-      viz.filters.splice(idx, 1);
+      const f = viz.filters[idx];
+      const vi = f.values.findIndex(v => String(v).toLowerCase() === strVal.toLowerCase());
+      if (vi >= 0) {
+        f.values.splice(vi, 1);
+        if (f.values.length === 0) viz.filters.splice(idx, 1);
+      } else {
+        f.values.push(strVal);
+      }
     } else {
-      viz.filters.push({ column, value: strVal, source: sourceElementId });
+      viz.filters.push({ column, values: [strVal], source: sourceElementId });
     }
     viz._updateFilterBar();
     viz.onFiltersChanged();
   };
 
   viz.removeFilter = function (column, value) {
-    viz.filters = viz.filters.filter(
-      f => !(f.column === column && String(f.value).toLowerCase() === String(value).toLowerCase())
-    );
+    const strVal = String(value).toLowerCase();
+    viz.filters = viz.filters.filter(f => {
+      if (f.column !== column || f._fromHeader) return true;
+      f.values = f.values.filter(v => String(v).toLowerCase() !== strVal);
+      return f.values.length > 0;
+    });
     viz._updateFilterBar();
     viz.onFiltersChanged();
   };
 
   viz.clearFilters = function () {
-    viz.filters = [];
+    viz.filters = viz.filters.filter(f => f._fromHeader);
     viz._updateFilterBar();
+    viz.onFiltersChanged();
+  };
+
+  viz.setHeaderFilter = function (column, values, source) {
+    viz.filters = viz.filters.filter(
+      f => !(f.column === column && f.source === source)
+    );
+    if (values && values.length > 0) {
+      viz.filters.push({ column, values, source, _fromHeader: true });
+    }
+    viz.onFiltersChanged();
+  };
+
+  viz.clearHeaderFilter = function (source) {
+    viz.filters = viz.filters.filter(f => f.source !== source);
     viz.onFiltersChanged();
   };
 
@@ -110,25 +139,29 @@
     const bar   = document.getElementById('viz-filter-bar');
     const chips = document.getElementById('viz-filter-chips');
     if (!bar || !chips) return;
-    if (viz.filters.length === 0) {
+    const barFilters = viz.filters.filter(f => !f._fromHeader);
+    if (barFilters.length === 0) {
       bar.classList.add('hidden');
       chips.innerHTML = '';
       return;
     }
     bar.classList.remove('hidden');
-    chips.innerHTML = viz.filters.map(f => {
-      const col = f.column.replace(/'/g, "\\'");
-      const val = String(f.value).replace(/'/g, "\\'");
-      return `<span class="dwb-filter-chip">
-        ${f.column}: ${f.value}
-        <button class="dwb-filter-chip-remove"
-          onclick="DWB.viz.removeFilter('${col}','${val}')">✕</button>
-      </span>`;
-    }).join('');
+    chips.innerHTML = barFilters.flatMap(f =>
+      f.values.map(val => {
+        const col = f.column.replace(/'/g, "\\'");
+        const v   = String(val).replace(/'/g, "\\'");
+        return `<span class="dwb-filter-chip">
+          ${f.column}: ${val}
+          <button class="dwb-filter-chip-remove"
+            onclick="DWB.viz.removeFilter('${col}','${v}')">✕</button>
+        </span>`;
+      })
+    ).join('');
   };
 
   viz.onFiltersChanged = function () {
     viz.renderAllElements();
+    viz.renderAllHeaderElements();
   };
 
   viz.getFilteredData = function (datasetName) {
@@ -139,10 +172,38 @@
       viz.filters.every(f => {
         const ci = ds.headers.indexOf(f.column);
         if (ci < 0) return true;
-        return String(row[ci] ?? '').toLowerCase() === String(f.value).toLowerCase();
+        const cellVal = String(row[ci] ?? '').toLowerCase();
+        return f.values.map(v => String(v).toLowerCase()).includes(cellVal);
       })
     );
     return { ...ds, rows: filtered, rowCount: filtered.length };
+  };
+
+  // ---- Header element system ----
+  viz.registerHeaderElement = function (id, type, config, datasetName) {
+    viz.headerElements = viz.headerElements.filter(e => e.id !== id);
+    viz.headerElements.push({ id, type, config: config || {}, datasetName: datasetName || null });
+    const hfc = document.getElementById('canvas-header-filters');
+    if (hfc) hfc.style.display = 'flex';
+  };
+
+  viz.renderHeaderElement = function (id) {
+    const el = viz.headerElements.find(e => e.id === id);
+    if (!el) return;
+    const def = viz._elementRegistry[el.type];
+    if (!def || !def.renderHeader) return;
+    const ds = DWB.promotedDatasets[el.datasetName || viz.activeDatasetName];
+    try {
+      def.renderHeader(el, ds, viz.filters);
+    } catch (e) {
+      console.error('Header element render error:', e);
+    }
+  };
+
+  viz.renderAllHeaderElements = function () {
+    const hfc = document.getElementById('canvas-header-filters');
+    if (hfc) hfc.style.display = viz.headerElements.length > 0 ? 'flex' : 'none';
+    viz.headerElements.forEach(el => viz.renderHeaderElement(el.id));
   };
 
   // ---- Render all / single element ----
@@ -257,6 +318,7 @@
         <div class="dwb-add-block-row">
           <button class="dwb-add-block-btn" onclick="DWB.viz.showAddBlockDialog(0)">＋ Add Block</button>
         </div>`;
+      viz.renderAllHeaderElements();
       return;
     }
 
@@ -270,6 +332,7 @@
     canvas.innerHTML = html;
 
     viz.renderAllElements();
+    viz.renderAllHeaderElements();
   };
 
   viz._renderBlockHtml = function (block, bi) {

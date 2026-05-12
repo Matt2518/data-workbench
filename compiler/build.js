@@ -3,12 +3,42 @@
 const fs   = require('fs');
 const path = require('path');
 
-const ROOT     = path.resolve(__dirname, '..');
-const FRAME    = path.join(ROOT, 'src', 'frame', 'frame.html');
-const NODES_DIR = path.join(ROOT, 'src', 'nodes');
-const VIZ_DIR   = path.join(ROOT, 'src', 'viz');
-const OUT_DIR   = path.join(ROOT, 'dist');
-const OUT_FILE  = path.join(OUT_DIR, 'workbench.html');
+const ROOT          = path.resolve(__dirname, '..');
+const FRAME         = path.join(ROOT, 'src', 'frame', 'frame.html');
+const NODES_DIR     = path.join(ROOT, 'src', 'nodes');
+const VIZ_DIR       = path.join(ROOT, 'src', 'viz');
+const PLUGINS_DIR   = path.join(ROOT, 'src', 'plugins');
+const VALIDATORS_DIR = path.join(ROOT, 'src', 'data', 'validators');
+const OUT_DIR       = path.join(ROOT, 'dist');
+const OUT_FILE      = path.join(OUT_DIR, 'workbench.html');
+
+const VALIDATOR_NAME_MAP = {
+  'cyp-tracks':    'CYP Tracks',
+  'employee-type': 'Employee Type',
+  'installations': 'Installations',
+  'lms-uics':      'LMS UICs',
+  'n-codes':       'N-Codes',
+  'regions':       'Regions',
+  'sec-domains':   'Sec Domains',
+  'status':        'Status',
+  'yes-no':        'Yes/No',
+};
+
+function humanizeValidatorKey(stem) {
+  if (VALIDATOR_NAME_MAP[stem]) return VALIDATOR_NAME_MAP[stem];
+  return stem.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function buildDefaultValidators() {
+  if (!fs.existsSync(VALIDATORS_DIR)) return '{}';
+  const obj = {};
+  for (const f of fs.readdirSync(VALIDATORS_DIR).sort()) {
+    if (!f.endsWith('.json')) continue;
+    const stem = f.slice(0, -5);
+    obj[humanizeValidatorKey(stem)] = JSON.parse(fs.readFileSync(path.join(VALIDATORS_DIR, f), 'utf8'));
+  }
+  return JSON.stringify(obj);
+}
 
 function collectJs(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -21,6 +51,23 @@ function collectJs(dir) {
     }));
 }
 
+// Read each src/plugins/<category>/index.js manifest and collect the listed plugin files.
+function collectPlugins(pluginsDir) {
+  if (!fs.existsSync(pluginsDir)) return [];
+  const results = [];
+  for (const cat of fs.readdirSync(pluginsDir).sort()) {
+    const catDir   = path.join(pluginsDir, cat);
+    const manifest = path.join(catDir, 'index.js');
+    if (!fs.statSync(catDir).isDirectory() || !fs.existsSync(manifest)) continue;
+    const { plugins = [] } = require(manifest);
+    for (const rel of plugins) {
+      const file = path.resolve(catDir, rel);
+      results.push({ file, rel: path.relative(ROOT, file) });
+    }
+  }
+  return results;
+}
+
 function build() {
   const shell = fs.readFileSync(FRAME, 'utf8');
 
@@ -29,10 +76,16 @@ function build() {
     ...collectJs(path.join(VIZ_DIR, 'canvas')),
     ...collectJs(path.join(VIZ_DIR, 'elements')),
     ...collectJs(path.join(VIZ_DIR, 'header')),
+    ...collectPlugins(PLUGINS_DIR),
   ];
 
+  const validatorsJson = buildDefaultValidators();
+
   const pluginBlock = sources.map(({ file, rel }) => {
-    const code = fs.readFileSync(file, 'utf8').trimEnd();
+    let code = fs.readFileSync(file, 'utf8').trimEnd();
+    if (code.includes('/* {{DEFAULT_VALIDATORS}} */')) {
+      code = code.replace('/* {{DEFAULT_VALIDATORS}} */', `const DEFAULT_VALIDATORS = ${validatorsJson};`);
+    }
     // Wrap in IIFE for scope isolation between plugin files
     return `/* --- ${rel} --- */\n(function(){\n${code}\n})();`;
   }).join('\n\n');

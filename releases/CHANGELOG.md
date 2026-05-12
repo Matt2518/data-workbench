@@ -2,9 +2,11 @@
 
 *Releases are tagged and committed here.*
 
-## [v0.11] — 2026-05-12
-_Release notes: (edit this line before committing)_
-- Build: 674.3 KB, 53 plugin(s)
+## \[v0.11] — 2026-05-12
+
+*Release notes: Adds 16 new nodes (Arbitrary Date, Left Join, URL-Safe, Basic Math, Unpivot, Data Validation, Formula Engine, Fuzzy Clean, Regex Extractor, Regex Validator, Targeted Edit, Diff, Pivot, Sentiment Analysis, and two Reshape/Data Analysis batch nodes) and 5 new viz elements (Stacked Diverging Bar, Quotes Board, Word Cloud, Rich Text, Header Filter), completing the v1.0 feature set.*
+
+* Build: 674.3 KB, 53 plugin(s)
 
 ## \[v0.10] — 2026-05-07
 
