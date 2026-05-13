@@ -183,8 +183,8 @@
   viz.registerHeaderElement = function (id, type, config, datasetName) {
     viz.headerElements = viz.headerElements.filter(e => e.id !== id);
     viz.headerElements.push({ id, type, config: config || {}, datasetName: datasetName || null });
-    const hfc = document.getElementById('canvas-header-filters');
-    if (hfc) hfc.style.display = 'flex';
+    const vhb = document.getElementById('viz-header-block');
+    if (vhb) vhb.style.display = 'flex';
   };
 
   viz.renderHeaderElement = function (id) {
@@ -201,10 +201,10 @@
   };
 
   viz.renderAllHeaderElements = function () {
-    const hfc = document.getElementById('canvas-header-filters');
-    if (hfc) {
+    const vhb = document.getElementById('viz-header-block');
+    if (vhb) {
       const hasDataset = Object.keys(DWB.promotedDatasets).length > 0;
-      hfc.style.display = (viz.headerElements.length > 0 || hasDataset) ? 'flex' : 'none';
+      vhb.style.display = (viz.headerElements.length > 0 || hasDataset) ? 'flex' : 'none';
     }
     viz.headerElements.forEach(el => viz.renderHeaderElement(el.id));
   };
@@ -762,10 +762,10 @@
     const wrapper = document.getElementById('hf-wrap-' + id);
     if (wrapper) wrapper.remove();
 
-    const hfc = document.getElementById('canvas-header-filters');
-    if (hfc && viz.headerElements.length === 0) {
+    if (viz.headerElements.length === 0) {
       const hasDataset = Object.keys(DWB.promotedDatasets).length > 0;
-      hfc.style.display = hasDataset ? 'flex' : 'none';
+      const vhb = document.getElementById('viz-header-block');
+      if (vhb) vhb.style.display = hasDataset ? 'flex' : 'none';
     }
 
     if (viz._selectedHeaderElementId === id) {

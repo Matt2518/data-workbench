@@ -91,9 +91,19 @@
 
   viz._exportPPTX = async function () {
     if (typeof PptxGenJS === 'undefined') {
-      DWB.log('PptxGenJS not loaded — cannot export PPTX.', 'error');
-      alert('PowerPoint library not loaded. Check your internet connection and try again.');
-      return;
+      DWB.log('PptxGenJS not ready — attempting dynamic load…', 'info');
+      await new Promise(function (resolve) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
+        script.onload  = resolve;
+        script.onerror = resolve;
+        document.head.appendChild(script);
+      });
+      if (typeof PptxGenJS === 'undefined') {
+        DWB.log('PptxGenJS not loaded — cannot export PPTX.', 'error');
+        alert('PowerPoint library not loaded. Check your internet connection and try again.');
+        return;
+      }
     }
     if (!viz.blocks.length) {
       alert('No blocks to export. Add some elements to the canvas first.');
@@ -338,11 +348,23 @@
     const autoPrintBlock = forPrint
       ? `<script>
 window.addEventListener('load', function() {
-  setTimeout(function() {
+  var charts = (window._expCharts)
+    ? Object.values(window._expCharts).filter(function(c) { return c && !c.isDisposed(); })
+    : [];
+  function doPrint() {
     if (window._prepForPrint) window._prepForPrint();
     window.print();
     setTimeout(function() { window.close(); }, 1500);
-  }, 2000);
+  }
+  if (!charts.length) { doPrint(); return; }
+  var finished = 0, printed = false;
+  function onFinished() {
+    if (printed) return;
+    finished++;
+    if (finished >= charts.length) { printed = true; doPrint(); }
+  }
+  charts.forEach(function(c) { c.on('finished', onFinished); });
+  setTimeout(function() { if (!printed) { printed = true; doPrint(); } }, 2000);
 });
 <\/script>`
       : '';
@@ -509,6 +531,7 @@ ${EXPORT_RUNTIME}
   function lc() { return document.documentElement.dataset.theme === "dark" ? "#e2eaf4" : "#1e293b"; }
 
   var _charts = {};
+  window._expCharts = _charts;
   function disposeChart(id) { if (_charts[id]) { try { _charts[id].dispose(); } catch(e){} delete _charts[id]; } }
 
   function mkChart(el, c, option) {
@@ -638,15 +661,236 @@ ${EXPORT_RUNTIME}
     c.innerHTML = html;
   }
 
+  function renderRt(el, ds, c) {
+    var cfg = el.config || {};
+    var content = cfg.content || '';
+    var bgStyle = cfg.bgStyle || 'card';
+    var bg = 'var(--bg-surface)';
+    var border = '1px solid var(--border)';
+    var borderLeft = '';
+    if (bgStyle === 'none')    { bg = 'transparent'; border = 'none'; }
+    else if (bgStyle === 'accent')  { bg = 'rgba(59,130,246,0.08)'; border = 'none'; }
+    else if (bgStyle === 'info')    { bg = 'rgba(59,130,246,0.08)'; border = 'none'; borderLeft = '4px solid #3b82f6'; }
+    else if (bgStyle === 'warning') { bg = 'rgba(245,158,11,0.08)';  border = 'none'; borderLeft = '4px solid #f59e0b'; }
+    else if (bgStyle === 'success') { bg = 'rgba(34,197,94,0.08)';   border = 'none'; borderLeft = '4px solid #22c55e'; }
+    else if (bgStyle === 'custom')  { bg = cfg.customBgColor || '#fff'; border = 'none'; }
+    var padding = { small: '8px 12px', medium: '16px 20px', large: '28px 32px' }[cfg.padding || 'medium'] || '16px 20px';
+    var borderRadius = cfg.borderStyle === 'rounded' ? '8px' : '4px';
+    var styleStr = 'padding:' + padding + ';background:' + bg + ';border-radius:' + borderRadius +
+      ';box-sizing:border-box;min-height:60px;height:100%;' +
+      (border     ? 'border:'       + border     + ';' : '') +
+      (borderLeft ? 'border-left:'  + borderLeft + ';' : '');
+    var isEmpty = !content || content.replace(/<[^>]*>/g, '').trim() === '';
+    c.innerHTML = '<div style="' + styleStr + '">' +
+      (isEmpty ? '<div style="color:var(--text-muted);font-style:italic;padding:12px 0;text-align:center;font-size:12px">(empty)</div>' : content) +
+      '</div>';
+  }
+
+  function renderQb(el, ds, c) {
+    if (!ds || !ds.rows.length) { c.innerHTML = '<div class="exp-empty">No data</div>'; return; }
+    var cfg = el.config || {};
+    var textIdx = cfg.textColIndex || 0;
+    var skip = new Set(['', 'n/a', 'na', 'none', 'null', '-']);
+    var rows = ds.rows.filter(function(r) {
+      return !skip.has(String(r[textIdx] == null ? '' : r[textIdx]).trim().toLowerCase());
+    });
+    var pageSize = (cfg.pageSize === -1 || !cfg.paginate) ? rows.length : (cfg.pageSize || 25);
+    rows = rows.slice(0, pageSize);
+    if (!rows.length) { c.innerHTML = '<div class="exp-empty">No responses</div>'; return; }
+    var html = '<div style="display:flex;flex-direction:column;gap:8px;padding:8px;overflow:auto;max-height:480px">';
+    rows.forEach(function(row) {
+      var text = String(row[textIdx] == null ? '' : row[textIdx])
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      html += '<div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;' +
+        'background:var(--bg-surface);font-size:12px;color:var(--text-main);font-style:italic;line-height:1.5">"' +
+        text + '"</div>';
+    });
+    html += '</div>';
+    c.innerHTML = html;
+  }
+
+  function renderWc(el, ds, c) {
+    if (!ds || !ds.rows.length) { c.innerHTML = '<div class="exp-empty">No data</div>'; return; }
+    var cfg = el.config || {};
+    var srcIdx = cfg.sourceColIndex || 0;
+    var minLen = cfg.minWordLength || 3;
+    var maxWords = cfg.maxWords || 50;
+    var extra = new Set((cfg.extraStopwords || []).map(function(w) { return w.toLowerCase(); }));
+    var stopwords = new Set(['the','and','a','to','of','in','i','is','that','it','on','you','this',
+      'for','but','with','are','have','be','was','as','they','not','we','at','an','so','or','do',
+      'if','my','me','he','she','his','her','its','our','their','been','had','has','will','would',
+      'could','should','just','also','very','more','than','then','when','what','which','who','how',
+      'all','some','there','from','by','about','up','out','were','can','did','get','got','like',
+      'one','your','any','into','over','after','before','those','these','them','him','no','yes']);
+    var freq = {};
+    var skip = new Set(['', 'n/a', 'na', 'none', 'null', '-']);
+    ds.rows.forEach(function(row) {
+      var text = String(row[srcIdx] == null ? '' : row[srcIdx]).trim();
+      if (skip.has(text.toLowerCase())) return;
+      text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).forEach(function(w) {
+        if (!w || w.length < minLen || stopwords.has(w) || extra.has(w) || !isNaN(w)) return;
+        freq[w] = (freq[w] || 0) + 1;
+      });
+    });
+    var words = Object.keys(freq).map(function(w) { return { name: w, value: freq[w] }; })
+      .sort(function(a, b) { return b.value - a.value; }).slice(0, maxWords);
+    if (!words.length) { c.innerHTML = '<div class="exp-empty">No words found</div>'; return; }
+    var maxVal = words[0].value;
+    var html = '<div style="padding:12px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:center;min-height:120px">';
+    words.forEach(function(w) {
+      var size = Math.round(11 + (w.value / maxVal) * 28);
+      var opacity = (0.45 + (w.value / maxVal) * 0.55).toFixed(2);
+      html += '<span style="font-size:' + size + 'px;color:var(--accent);opacity:' + opacity +
+        ';line-height:1.2">' + w.name.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span>';
+    });
+    html += '</div>';
+    c.innerHTML = html;
+  }
+
+  function renderSdb(el, ds, c) {
+    if (!ds || !ds.rows.length) { c.innerHTML = '<div class="exp-empty">No data</div>'; return; }
+    var cfg = el.config || {};
+    var questionCols = cfg.questionCols || [];
+    var valueRoles   = cfg.valueRoles   || {};
+    var displayMode  = cfg.displayMode  || 'count';
+    var showValues   = cfg.showValues   !== false;
+    var displayNames = cfg.displayNames || {};
+    if (!questionCols.length) { c.innerHTML = '<div class="exp-empty">No question columns selected</div>'; return; }
+
+    function getRole(val) {
+      var norm = String(val).toLowerCase().trim();
+      for (var k in valueRoles) { if (k.toLowerCase().trim() === norm) return valueRoles[k]; }
+      return null;
+    }
+
+    var seenNorm = {}, uniqueVals = [], counts = {};
+    questionCols.forEach(function(ci) {
+      ds.rows.forEach(function(row) {
+        var raw = row[ci];
+        if (raw == null || raw === '') return;
+        var s = String(raw), norm = s.toLowerCase().trim();
+        if (!seenNorm[norm]) { seenNorm[norm] = s; uniqueVals.push(s); counts[s] = {}; }
+        var canon = seenNorm[norm];
+        counts[canon][ci] = (counts[canon][ci] || 0) + 1;
+      });
+    });
+
+    var negVals  = uniqueVals.filter(function(v) { return getRole(v) === 'negative'; });
+    var neutVals = uniqueVals.filter(function(v) { return getRole(v) === 'neutral'; });
+    var posVals  = uniqueVals.filter(function(v) { return getRole(v) === 'positive'; });
+    if (!negVals.length && !neutVals.length && !posVals.length) {
+      c.innerHTML = '<div class="exp-empty">Assign roles to response values in the config panel</div>'; return;
+    }
+
+    var yNames = questionCols.map(function(ci) { return displayNames[ci] || (ds.headers[ci] || ('Col ' + ci)); });
+    var rawTotals = questionCols.map(function(ci) {
+      var sum = 0;
+      uniqueVals.forEach(function(v) { var r = getRole(v); if (r && r !== 'exclude') sum += (counts[v] && counts[v][ci]) || 0; });
+      return sum;
+    });
+
+    function getDisp(val, ci, qi) {
+      var cnt = (counts[val] && counts[val][ci]) || 0;
+      return (displayMode === 'percent' && rawTotals[qi] > 0) ? cnt / rawTotals[qi] : cnt;
+    }
+
+    var C = { negStrong: '#e85d04', negLight: '#f4a261', neutral: '#adb5bd', posLight: '#5b9bd5', posStrong: '#1a5fb4' };
+    function valColor(val) {
+      var ni = negVals.indexOf(val);
+      if (ni >= 0) return ni === 0 ? C.negStrong : C.negLight;
+      if (neutVals.indexOf(val) >= 0) return C.neutral;
+      var pi = posVals.indexOf(val);
+      return (pi >= 0 && pi === posVals.length - 1) ? C.posStrong : C.posLight;
+    }
+
+    function makeLabel() {
+      if (!showValues) return { show: false };
+      return { show: true, position: 'inside', fontSize: 10, color: '#fff',
+        formatter: function(p) {
+          var a = Math.abs(p.value || 0);
+          if (displayMode === 'percent') return a < 0.05 ? '' : (a * 100).toFixed(0) + '%';
+          return a < 1 ? '' : Math.round(a).toString();
+        }
+      };
+    }
+
+    var maxExtent = 0;
+    questionCols.forEach(function(ci, qi) {
+      var pos = 0, neg = 0;
+      posVals.forEach(function(v)  { pos += getDisp(v, ci, qi); });
+      negVals.forEach(function(v)  { neg += getDisp(v, ci, qi); });
+      neutVals.forEach(function(v) { var h = getDisp(v, ci, qi) / 2; pos += h; neg += h; });
+      maxExtent = Math.max(maxExtent, pos, neg);
+    });
+    maxExtent = (maxExtent * 1.1) || 1;
+
+    var series = [];
+    var legendData = [];
+
+    neutVals.forEach(function(val) {
+      series.push({ type: 'bar', name: '__nl_' + val, stack: 'total', color: C.neutral,
+        data: questionCols.map(function(ci, qi) { return -getDisp(val, ci, qi) / 2; }),
+        label: { show: false } });
+    });
+    negVals.forEach(function(val) {
+      series.push({ type: 'bar', name: val, stack: 'total', color: valColor(val),
+        data: questionCols.map(function(ci, qi) { return -getDisp(val, ci, qi); }),
+        label: makeLabel() });
+      legendData.push(val);
+    });
+    neutVals.forEach(function(val) {
+      series.push({ type: 'bar', name: val, stack: 'total', color: C.neutral,
+        data: questionCols.map(function(ci, qi) { return getDisp(val, ci, qi) / 2; }),
+        label: { show: false } });
+      legendData.push(val);
+    });
+    posVals.forEach(function(val) {
+      series.push({ type: 'bar', name: val, stack: 'total', color: valColor(val),
+        data: questionCols.map(function(ci, qi) { return getDisp(val, ci, qi); }),
+        label: makeLabel() });
+      legendData.push(val);
+    });
+
+    if (series.length) {
+      series[0].markLine = { silent: true, symbol: 'none',
+        lineStyle: { color: '#94a3b8', width: 1.5, type: 'solid' },
+        data: [{ xAxis: 0 }], label: { show: false } };
+    }
+
+    c.style.minHeight = Math.max(200, questionCols.length * 64 + 120) + 'px';
+    var titleText = cfg.chartTitle || '';
+    mkChart(el, c, {
+      backgroundColor: 'transparent',
+      title: titleText ? { text: titleText, left: 'center', top: 8, textStyle: { color: lc(), fontSize: 13, fontWeight: 600 } } : undefined,
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { data: legendData, bottom: 4, type: 'scroll', textStyle: { color: lc(), fontSize: 11 } },
+      grid: { left: '2%', right: '2%', top: titleText ? 44 : 12, bottom: 56, containLabel: true },
+      xAxis: { type: 'value', min: -maxExtent, max: maxExtent,
+        axisLabel: { color: lc(), fontSize: 10,
+          formatter: function(v) {
+            var a = Math.abs(v);
+            return displayMode === 'percent' ? (a * 100).toFixed(0) + '%' : Math.round(a).toString();
+          }
+        }
+      },
+      yAxis: { type: 'category', data: yNames, axisLabel: { color: lc(), fontSize: 11, overflow: 'truncate', width: 120 } },
+      series: series
+    });
+  }
+
   function renderElement(el) {
     var c = document.getElementById("ec-" + el.id);
     if (!c) return;
     var ds = applyFilters(getDs(el.datasetName));
-    if      (el.type === "BAR_V")      renderBarV(el, ds, c);
-    else if (el.type === "BAR_H")      renderBarH(el, ds, c);
-    else if (el.type === "PIE")        renderPie(el, ds, c);
-    else if (el.type === "KPI_STAT")   renderKpi(el, ds, c);
-    else if (el.type === "DATA_TABLE") renderTable(el, ds, c);
+    if      (el.type === "BAR_V")               renderBarV(el, ds, c);
+    else if (el.type === "BAR_H")               renderBarH(el, ds, c);
+    else if (el.type === "PIE")                 renderPie(el, ds, c);
+    else if (el.type === "KPI_STAT")            renderKpi(el, ds, c);
+    else if (el.type === "DATA_TABLE")          renderTable(el, ds, c);
+    else if (el.type === "STACKED_DIVERGING_BAR") renderSdb(el, ds, c);
+    else if (el.type === "QUOTES_BOARD")        renderQb(el, ds, c);
+    else if (el.type === "WORD_CLOUD")          renderWc(el, ds, c);
+    else if (el.type === "RICH_TEXT")           renderRt(el, ds, c);
     else c.innerHTML = '<div class="exp-empty">' + el.type + " not available in export</div>";
   }
 

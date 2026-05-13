@@ -8,7 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts-wordcloud/2.1.0/echarts-wordcloud.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 
   <style>
     /* === CSS VARIABLES (Spec §7.2) === */
@@ -670,7 +670,7 @@
       background: linear-gradient(135deg, var(--navy-midnight) 0%, #003366 100%);
       border-bottom: 2px solid var(--navy-gold);
       flex-shrink: 0;
-      display: flex;
+      display: none;
       flex-direction: row;
       align-items: center;
       padding: 12px 20px;
@@ -1003,7 +1003,7 @@
     .presentation-mode .dwb-block-header,
     .presentation-mode .dwb-add-block-row,
     .presentation-mode .dwb-add-element-btn,
-    .presentation-mode #canvas-header-filters { display: none !important; }
+    .presentation-mode #viz-header-block { display: none !important; }
 
     .presentation-mode #viz-canvas { padding: 32px; }
 
@@ -1707,16 +1707,16 @@
       <option value="">No datasets — push data from pipeline</option>
     </select>
     <div class="flex-spacer"></div>
-    <div id="canvas-header-filters" style="display:none;flex-wrap:wrap;gap:6px;align-items:center;">
-      <button id="btn-add-header-filter"
-        onclick="DWB.viz&&DWB.viz.addHeaderFilterElement()">+ Filter</button>
-    </div>
     <button class="viz-btn" id="btn-presentation" onclick="DWB.viz && DWB.viz.togglePresentation()">⛶ Presentation</button>
     <button class="viz-btn" id="btn-export" onclick="DWB.viz && DWB.viz.showExportModal()">📤 Export</button>
   </div>
 
-  <!-- Sticky Header Block -->
+  <!-- Sticky Header Block (shown when a dataset is promoted; contains filter pills + add-filter button) -->
   <div id="viz-header-block">
+    <div id="canvas-header-filters" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%">
+      <button id="btn-add-header-filter"
+        onclick="DWB.viz&&DWB.viz.addHeaderFilterElement()">+ Filter</button>
+    </div>
   </div>
 
   <!-- Filter Bar (hidden until filters active) -->
