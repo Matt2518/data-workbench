@@ -112,6 +112,15 @@
 
     DWB.log('Building PPTX…', 'info');
 
+    const loadHtml2Canvas = () => new Promise((resolve, reject) => {
+      if (window.html2canvas) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+
     const pptx = new PptxGenJS();
     pptx.defineLayout({ name: 'WIDE', width: 10, height: 5.625 });
     pptx.layout = 'WIDE';
@@ -169,6 +178,8 @@
           const elemY   = contentY + ei * (elemH + ELEM_GAP);
           const def     = viz._elementRegistry[element.type];
 
+          if (def && def.headerOnly) continue;
+
           if (element._instance && !element._instance.isDisposed()) {
             const base64 = await _captureChartPng(element);
             if (base64) {
@@ -193,11 +204,34 @@
           } else if (element.type === 'KPI_STAT') {
             _addPptxKpi(slide, element, bColX, elemY, bColW, elemH);
           } else {
-            slide.addText('[' + (def ? def.title : element.type) + ' — not exported]', {
-              x: bColX, y: elemY, w: bColW, h: elemH,
-              fontSize: 11, color: '94a3b8', align: 'center', valign: 'middle',
-              fontFace: 'Calibri'
-            });
+            try {
+              await loadHtml2Canvas();
+              const container = document.getElementById('element-content-' + element.id);
+              if (!container) {
+                DWB.log('PPTX: no container for element ' + element.id, 'warn');
+                continue;
+              }
+              const canvas = await html2canvas(container, {
+                backgroundColor: null, scale: 2, useCORS: true, logging: false
+              });
+              const imgData = canvas.toDataURL('image/png');
+              if (element.title) {
+                slide.addText(element.title, {
+                  x: bColX, y: elemY, w: bColW, h: 0.2,
+                  fontSize: 10, color: '64748b', fontFace: 'Calibri', italic: true
+                });
+              }
+              const imgY = element.title ? elemY + 0.2 : elemY;
+              const imgH = element.title ? elemH - 0.2   : elemH;
+              slide.addImage({ data: imgData, x: bColX, y: imgY, w: bColW, h: imgH });
+            } catch (e) {
+              DWB.log('PPTX: html2canvas failed for ' + element.id + ': ' + e.message, 'warn');
+              slide.addText('[' + (def ? def.title : element.type) + ' — capture failed]', {
+                x: bColX, y: elemY, w: bColW, h: elemH,
+                fontSize: 11, color: '94a3b8', align: 'center', valign: 'middle',
+                fontFace: 'Calibri'
+              });
+            }
           }
         }
       }
@@ -348,23 +382,26 @@
     const autoPrintBlock = forPrint
       ? `<script>
 window.addEventListener('load', function() {
-  var charts = (window._expCharts)
-    ? Object.values(window._expCharts).filter(function(c) { return c && !c.isDisposed(); })
-    : [];
   function doPrint() {
     if (window._prepForPrint) window._prepForPrint();
     window.print();
     setTimeout(function() { window.close(); }, 1500);
   }
-  if (!charts.length) { doPrint(); return; }
-  var finished = 0, printed = false;
-  function onFinished() {
-    if (printed) return;
-    finished++;
-    if (finished >= charts.length) { printed = true; doPrint(); }
-  }
-  charts.forEach(function(c) { c.on('finished', onFinished); });
-  setTimeout(function() { if (!printed) { printed = true; doPrint(); } }, 2000);
+  if (window._expRenderAll) window._expRenderAll();
+  setTimeout(function() {
+    var charts = (window._expCharts)
+      ? Object.values(window._expCharts).filter(function(c) { return c && !c.isDisposed(); })
+      : [];
+    if (!charts.length) { doPrint(); return; }
+    var finished = 0, printed = false;
+    function onFinished() {
+      if (printed) return;
+      finished++;
+      if (finished >= charts.length) { printed = true; doPrint(); }
+    }
+    charts.forEach(function(c) { c.on('finished', onFinished); });
+    setTimeout(function() { if (!printed) { printed = true; doPrint(); } }, 2500);
+  }, 500);
 });
 <\/script>`
       : '';
@@ -688,20 +725,66 @@ ${EXPORT_RUNTIME}
 
   function renderQb(el, ds, c) {
     if (!ds || !ds.rows.length) { c.innerHTML = '<div class="exp-empty">No data</div>'; return; }
-    var cfg = el.config || {};
+    var cfg     = el.config || {};
     var textIdx = cfg.textColIndex || 0;
-    var skip = new Set(['', 'n/a', 'na', 'none', 'null', '-']);
-    var rows = ds.rows.filter(function(r) {
+    var sentIdx = (cfg.sentimentColIndex !== undefined) ? cfg.sentimentColIndex : -1;
+    var band    = cfg.neutralBand !== undefined ? cfg.neutralBand : 0.15;
+    var skip    = new Set(['', 'n/a', 'na', 'none', 'null', '-']);
+
+    function classifySentiment(normalizedScore) {
+      if (normalizedScore === null || normalizedScore === undefined || isNaN(normalizedScore)) return 'unscored';
+      if (normalizedScore > band) return 'positive';
+      if (normalizedScore < -band) return 'negative';
+      return 'neutral';
+    }
+    var SENT_COLORS = { positive: '#166534', negative: '#991b1b', neutral: null };
+
+    var allRows = ds.rows.filter(function(r) {
       return !skip.has(String(r[textIdx] == null ? '' : r[textIdx]).trim().toLowerCase());
     });
-    var pageSize = (cfg.pageSize === -1 || !cfg.paginate) ? rows.length : (cfg.pageSize || 25);
-    rows = rows.slice(0, pageSize);
+    var pageSize = (cfg.pageSize === -1 || !cfg.paginate) ? allRows.length : (cfg.pageSize || 25);
+    var rows = allRows.slice(0, pageSize);
     if (!rows.length) { c.innerHTML = '<div class="exp-empty">No responses</div>'; return; }
-    var html = '<div style="display:flex;flex-direction:column;gap:8px;padding:8px;overflow:auto;max-height:480px">';
+
+    var headerHtml = '';
+    if (sentIdx !== -1) {
+      var scoredNorms = [];
+      allRows.forEach(function(row) {
+        var rawScore = parseFloat(row[sentIdx]);
+        if (!isNaN(rawScore)) {
+          var rawText   = String(row[textIdx] == null ? '' : row[textIdx]);
+          var wordCount = rawText.split(/\s+/).filter(Boolean).length;
+          if (wordCount > 0) scoredNorms.push(rawScore / wordCount);
+        }
+      });
+      if (scoredNorms.length > 0) {
+        var avgNorm    = scoredNorms.reduce(function(a, b) { return a + b; }, 0) / scoredNorms.length;
+        var overallCat = classifySentiment(avgNorm);
+        var sign       = avgNorm >= 0 ? '+' : '';
+        var catLabel   = overallCat.charAt(0).toUpperCase() + overallCat.slice(1);
+        var color      = SENT_COLORS[overallCat] || 'var(--text-muted)';
+        var bold       = (overallCat === 'positive' || overallCat === 'negative') ? 'font-weight:600;' : '';
+        headerHtml = '<div style="display:flex;justify-content:flex-end;padding:4px 8px 0">' +
+          '<span style="color:' + color + ';' + bold + 'font-size:12px">Overall: ' + catLabel +
+          ' (' + sign + avgNorm.toFixed(2) + ')</span></div>';
+      }
+    }
+
+    var html = headerHtml + '<div style="display:flex;flex-direction:column;gap:8px;padding:8px;overflow:auto;max-height:480px">';
     rows.forEach(function(row) {
-      var text = String(row[textIdx] == null ? '' : row[textIdx])
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      html += '<div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;' +
+      var rawText     = String(row[textIdx] == null ? '' : row[textIdx]);
+      var text        = rawText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      var borderColor = '#3b82f6';
+      if (sentIdx !== -1) {
+        var rawScore = parseFloat(row[sentIdx]);
+        if (!isNaN(rawScore)) {
+          var wordCount = rawText.split(/\s+/).filter(Boolean).length;
+          var normScore = wordCount > 0 ? rawScore / wordCount : null;
+          var cat       = classifySentiment(normScore);
+          borderColor   = SENT_COLORS[cat] || '#3b82f6';
+        }
+      }
+      html += '<div style="padding:10px 14px;border:1px solid var(--border);border-left:4px solid ' + borderColor + ';border-radius:6px;' +
         'background:var(--bg-surface);font-size:12px;color:var(--text-main);font-style:italic;line-height:1.5">"' +
         text + '"</div>';
     });
