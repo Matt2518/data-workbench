@@ -656,6 +656,13 @@
     }
     #viz-dataset-picker:focus { border-color: var(--accent); }
 
+    #btn-add-header-filter {
+      font-size: 0.75rem; padding: 4px 10px; border-radius: 12px;
+      border: 1px dashed rgba(255,255,255,0.3); background: transparent;
+      color: rgba(255,255,255,0.8);
+    }
+    #btn-add-header-filter:hover { background: rgba(255,255,255,0.1); }
+
     /* --- Header Block --- */
     #viz-header-block {
       max-height: 100px;
@@ -1700,13 +1707,16 @@
       <option value="">No datasets — push data from pipeline</option>
     </select>
     <div class="flex-spacer"></div>
+    <div id="canvas-header-filters" style="display:none;flex-wrap:wrap;gap:6px;align-items:center;">
+      <button id="btn-add-header-filter"
+        onclick="DWB.viz&&DWB.viz.addHeaderFilterElement()">+ Filter</button>
+    </div>
     <button class="viz-btn" id="btn-presentation" onclick="DWB.viz && DWB.viz.togglePresentation()">⛶ Presentation</button>
     <button class="viz-btn" id="btn-export" onclick="DWB.viz && DWB.viz.showExportModal()">📤 Export</button>
   </div>
 
   <!-- Sticky Header Block -->
   <div id="viz-header-block">
-    <span class="viz-header-placeholder">No header elements</span>
   </div>
 
   <!-- Filter Bar (hidden until filters active) -->
@@ -1714,13 +1724,6 @@
     <span class="viz-filter-label">Filters:</span>
     <div id="viz-filter-chips"></div>
     <button class="viz-clear-filters" onclick="DWB.viz && DWB.viz.clearFilters()">Clear all</button>
-  </div>
-
-  <!-- Header Filter Pills -->
-  <div id="canvas-header-filters" style="display:none;flex-wrap:wrap;gap:8px;padding:8px 12px;min-height:0;border-bottom:1px solid var(--border);background:var(--surface);align-items:center;">
-    <button id="btn-add-header-filter"
-      style="font-size:0.75rem;padding:4px 10px;border-radius:12px;border:1px dashed var(--border);background:transparent;color:var(--text-muted);cursor:pointer;"
-      onclick="DWB.viz&&DWB.viz.addHeaderFilterElement()">+ Filter</button>
   </div>
 
   <!-- Main: config sidebar + canvas -->
@@ -15212,8 +15215,8 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
       });
     }
 
-    // 2. Negative series (innermost first = reverse of outermost-first scale order)
-    for (const val of [...negOrd].reverse()) {
+    // 2. Negative series — strongest/outermost first (ECharts stacks negatives with first series outermost)
+    for (const val of negOrd) {
       series.push({
         type: 'bar', name: val, stack: 'total', color: valColor(val),
         data:  questionCols.map((ci, qi) => -getDisp(val, ci, qi)),
@@ -16400,12 +16403,13 @@ function _wcEscJs(s) {
         }
       }
 
-      const pillBg    = isFiltering ? 'var(--accent,#2563eb)' : 'var(--card-bg,#fff)';
-      const pillColor = isFiltering ? '#fff' : 'var(--text-main,#1e293b)';
+      const pillBg     = isFiltering ? 'var(--accent)' : 'rgba(255,255,255,0.08)';
+      const pillColor  = isFiltering ? '#fff' : 'rgba(255,255,255,0.8)';
+      const pillBorder = isFiltering ? 'none' : '1px solid rgba(255,255,255,0.3)';
 
       let html = `<div id="hf-pill-${element.id}"
         style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;
-               border-radius:20px;border:1px solid var(--border);
+               border-radius:20px;border:${pillBorder};
                background:${pillBg};color:${pillColor};cursor:pointer;
                font-size:0.8rem;white-space:nowrap;user-select:none;
                box-shadow:0 1px 2px rgba(0,0,0,0.08);"
