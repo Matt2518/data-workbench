@@ -133,6 +133,10 @@
       const isFiltering = selectedValues.length > 0 && selectedValues.length < uniqueVals.length;
       const pillLabel   = _hfFormatLabel(selectedValues, uniqueVals, label);
 
+      // Remove any previously body-appended dropdown for this element
+      const existingDrop = document.getElementById('hf-drop-' + element.id);
+      if (existingDrop) existingDrop.remove();
+
       // Create or reuse wrapper div
       const hfc = document.getElementById('canvas-header-filters');
       if (!hfc) return;
@@ -153,7 +157,7 @@
       const pillColor  = isFiltering ? '#fff' : 'rgba(255,255,255,0.8)';
       const pillBorder = isFiltering ? 'none' : '1px solid rgba(255,255,255,0.3)';
 
-      let html = `<div id="hf-pill-${element.id}"
+      const html = `<div id="hf-pill-${element.id}"
         style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;
                border-radius:20px;border:${pillBorder};
                background:${pillBg};color:${pillColor};cursor:pointer;
@@ -167,13 +171,19 @@
         style="margin-left:4px;opacity:0.5;font-size:0.8rem;cursor:pointer;line-height:1;"
         title="Remove filter">×</span>`;
 
-      if (isOpen) {
-        html += `<div style="position:absolute;top:calc(100% + 4px);left:0;z-index:1000;
-          min-width:200px;max-height:280px;overflow-y:auto;
-          background:var(--card-bg,#fff);border:1px solid var(--border);
-          border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:6px 0;">`;
+      wrapper.innerHTML = html;
 
-        html += `<div style="display:flex;gap:4px;padding:4px 8px 6px;border-bottom:1px solid var(--border);">
+      if (isOpen) {
+        const pillRect = document.getElementById('hf-pill-' + element.id).getBoundingClientRect();
+
+        const dropdown = document.createElement('div');
+        dropdown.id = 'hf-drop-' + element.id;
+        dropdown.style.cssText = `position:fixed;top:${pillRect.bottom + 4}px;left:${pillRect.left}px;
+          z-index:9999;min-width:200px;max-height:280px;overflow-y:auto;
+          background:var(--card-bg,#fff);border:1px solid var(--border);
+          border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:6px 0;`;
+
+        let dropHtml = `<div style="display:flex;gap:4px;padding:4px 8px 6px;border-bottom:1px solid var(--border);">
           <button style="font-size:11px;padding:2px 8px;border:1px solid var(--border);
                          border-radius:4px;background:transparent;color:var(--text-main);cursor:pointer;"
             onclick="DWB.viz._hfSelectAll('${element.id}')">All</button>
@@ -186,7 +196,7 @@
           const checked  = selectedValues.includes(val) ? 'checked' : '';
           const dispVal  = val === '' ? '(Blank)' : _escHtml(val);
           const safeVal  = String(val).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-          html += `<label style="display:flex;align-items:center;gap:8px;padding:5px 12px;
+          dropHtml += `<label style="display:flex;align-items:center;gap:8px;padding:5px 12px;
                                  cursor:pointer;font-size:0.82rem;">
             <input type="checkbox" ${checked}
               onchange="DWB.viz._hfToggleVal('${element.id}','${safeVal}',this.checked)">
@@ -194,10 +204,9 @@
           </label>`;
         }
 
-        html += '</div>';
+        dropdown.innerHTML = dropHtml;
+        document.body.appendChild(dropdown);
       }
-
-      wrapper.innerHTML = html;
 
       // Manage outside-click listener
       if (_hfClickListeners.has(element.id)) {
@@ -208,7 +217,8 @@
         setTimeout(() => {
           const handler = (e) => {
             const wrap = document.getElementById('hf-wrap-' + element.id);
-            if (wrap && !wrap.contains(e.target)) {
+            const drop = document.getElementById('hf-drop-' + element.id);
+            if (wrap && !wrap.contains(e.target) && (!drop || !drop.contains(e.target))) {
               const s = _hfState.get(element.id);
               if (s) { s.isOpen = false; _hfApplyFilter(element); }
               document.removeEventListener('click', handler);

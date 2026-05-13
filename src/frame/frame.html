@@ -2838,6 +2838,7 @@ window.DWB = (() => {
           const c = Object.assign({}, el);
           delete c._instance;
           delete c._resizeObserver;
+          delete c._resizeObs;
           return c;
         })
       }))
@@ -2898,7 +2899,7 @@ window.DWB = (() => {
       id: block.id, layout: block.layout, colRatios: block.colRatios,
       slots: (block.slots || []).map(slot => ({
         id: slot.id,
-        elements: (slot.elements || []).map(el => Object.assign({}, el, { _instance: null }))
+        elements: (slot.elements || []).map(el => Object.assign({}, el, { _instance: null, _resizeObs: null }))
       }))
     }));
     vizState.headerElements    = (obj.viz && obj.viz.headerElements) || [];

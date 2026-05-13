@@ -152,7 +152,8 @@ DWB.registerElement('BAR_V', {
       element._instance.dispose();
       element._instance = null;
     }
-    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+    if (element._resizeObs instanceof ResizeObserver) { element._resizeObs.disconnect(); }
+    element._resizeObs = null;
 
     const chart = echarts.init(container, null, { renderer: 'canvas' });
     element._instance = chart;

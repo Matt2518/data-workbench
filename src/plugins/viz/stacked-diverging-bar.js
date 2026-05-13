@@ -49,13 +49,49 @@ function _sdbDetectTemplate(uniqueValues) {
 
 // ─────────────────── GLOBAL HELPERS (callable from inline handlers) ───────────
 
-DWB._sdb_updateQuestionCols = function (elementId, selectEl) {
-  const selected = Array.from(selectEl.selectedOptions).map(o => parseInt(o.value));
-  DWB.updateConfig_viz(elementId, 'questionCols', selected);
-  // Re-render config panel so the scale section reflects the new column selection
-  // (auto-detect will run inside renderConfig and populate new valueRoles).
+DWB._sdb_cbChange = function (elementId, colIndex, checked) {
+  const found = DWB.viz.findElement(elementId);
+  if (!found) return;
+  const cfg = found.element.config;
+  cfg.questionCols = cfg.questionCols || [];
+  if (checked) {
+    if (!cfg.questionCols.includes(colIndex)) cfg.questionCols.push(colIndex);
+  } else {
+    cfg.questionCols = cfg.questionCols.filter(i => i !== colIndex);
+  }
   DWB.viz.renderSidebar(elementId);
   DWB.viz.renderElement(elementId);
+};
+
+DWB._sdb_selAction = function (elementId, colIndex, action) {
+  const found = DWB.viz.findElement(elementId);
+  if (!found) return;
+  const cfg = found.element.config;
+  cfg.questionCols = cfg.questionCols || [];
+  const idx = cfg.questionCols.indexOf(colIndex);
+  if (idx === -1) return;
+  if (action === 'up' && idx > 0) {
+    [cfg.questionCols[idx - 1], cfg.questionCols[idx]] = [cfg.questionCols[idx], cfg.questionCols[idx - 1]];
+    DWB._sdb_renderSelList(elementId);
+  } else if (action === 'down' && idx < cfg.questionCols.length - 1) {
+    [cfg.questionCols[idx + 1], cfg.questionCols[idx]] = [cfg.questionCols[idx], cfg.questionCols[idx + 1]];
+    DWB._sdb_renderSelList(elementId);
+  } else if (action === 'remove') {
+    cfg.questionCols.splice(idx, 1);
+    DWB.viz.renderSidebar(elementId);
+  }
+  DWB.viz.renderElement(elementId);
+};
+
+DWB._sdb_renderSelList = function (elementId) {
+  const container = document.getElementById('sdb-sellist-' + elementId);
+  if (!container) return;
+  const found = DWB.viz.findElement(elementId);
+  if (!found) return;
+  const { element } = found;
+  const dataset = DWB.viz.getActiveDataset(element);
+  const headers = dataset ? dataset.headers : [];
+  container.innerHTML = _sdbSelListHtml(element, headers);
 };
 
 DWB._sdb_updateDisplayName = function (elementId, colIdx, value) {
@@ -121,23 +157,14 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
 
     // ── Section 1: Question Columns ──────────────────────────────────────
 
-    const colOptions = headers.map((h, i) =>
-      `<option value="${i}"${questionCols.includes(i) ? ' selected' : ''}>${_sdbEscHtml(h)}</option>`
+    const checkboxList = headers.map((h, i) =>
+      `<label style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:0.82rem;cursor:pointer">
+        <input type="checkbox" data-eid="${eid}" data-col-index="${i}"
+          ${questionCols.includes(i) ? 'checked' : ''}
+          onchange="DWB._sdb_cbChange('${eid}',${i},this.checked)">
+        ${_sdbEscHtml(h)}
+      </label>`
     ).join('');
-
-    const nameInputs = questionCols.map(ci => {
-      const h = headers[ci] || '';
-      return `<div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-        <span style="font-size:11px;color:var(--text-muted);max-width:80px;overflow:hidden;
-                     text-overflow:ellipsis;white-space:nowrap" title="${_sdbEscHtml(h)}">${_sdbEscHtml(h)}</span>
-        <span style="color:var(--text-faint);flex-shrink:0">→</span>
-        <input type="text" class="sidebar-input"
-               style="margin-bottom:0;font-size:11px;flex:1"
-               value="${_sdbEscHtml(cfg.displayNames[ci] || '')}"
-               placeholder="${_sdbEscHtml(h)}"
-               oninput="DWB._sdb_updateDisplayName('${eid}',${ci},this.value)">
-      </div>`;
-    }).join('');
 
     // ── Section 2: Scale Configuration ───────────────────────────────────
 
@@ -230,11 +257,10 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
     return `
       <div class="dwb-config-group" style="padding:8px 12px">
         <label class="sidebar-label">Select Question Columns</label>
-        <select multiple style="height:150px;width:100%;margin-bottom:4px"
-          onchange="DWB._sdb_updateQuestionCols('${eid}',this)">
-          ${colOptions}
-        </select>
-        ${nameInputs ? `<div>${nameInputs}</div>` : ''}
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:4px 8px">
+          ${checkboxList}
+        </div>
+        <div id="sdb-sellist-${eid}">${_sdbSelListHtml(element, headers)}</div>
       </div>
       <div class="dwb-config-group" style="padding:8px 12px;border-top:1px solid var(--border)">
         <label class="sidebar-label">Response Scale</label>
@@ -520,7 +546,8 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
     // ── Init chart ────────────────────────────────────────────────────────
 
     if (element._instance)  { element._instance.dispose();  element._instance  = null; }
-    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+    if (element._resizeObs instanceof ResizeObserver) { element._resizeObs.disconnect(); }
+    element._resizeObs = null;
 
     container.style.minHeight = Math.max(200, questionCols.length * 64 + 120) + 'px';
 
@@ -597,6 +624,46 @@ DWB.registerElement('STACKED_DIVERGING_BAR', {
 });
 
 // ─────────────────────── MODULE-PRIVATE UTILITIES ────────────────────────────
+
+function _sdbSelListHtml(element, headers) {
+  const cfg          = element.config;
+  const questionCols = cfg.questionCols || [];
+  if (questionCols.length === 0) return '';
+  const eid = element.id;
+
+  let html = `<div style="margin-top:8px">
+    <div class="sidebar-label" style="margin-bottom:4px">Selected Questions (display order)</div>`;
+
+  questionCols.forEach((ci, idx) => {
+    const h       = _sdbEscHtml(headers[ci] || ('Col ' + ci));
+    const isFirst = idx === 0;
+    const isLast  = idx === questionCols.length - 1;
+    const btnBase = 'padding:2px 6px;font-size:0.75rem;background:transparent;border:1px solid var(--border);border-radius:3px;cursor:pointer';
+    html += `<div class="sdb-sel-row" data-col-index="${ci}"
+        style="display:flex;align-items:center;gap:6px;padding:4px 6px;
+               background:var(--surface);border:1px solid var(--border);
+               border-radius:4px;margin-bottom:2px;">
+        <span style="flex:1;font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;
+                     white-space:nowrap" title="${h}">${h}</span>
+        <button title="Move up" style="${btnBase}" ${isFirst ? 'disabled' : ''}
+          onclick="DWB._sdb_selAction('${eid}',${ci},'up')">↑</button>
+        <button title="Move down" style="${btnBase}" ${isLast ? 'disabled' : ''}
+          onclick="DWB._sdb_selAction('${eid}',${ci},'down')">↓</button>
+        <button title="Remove" style="${btnBase};color:var(--danger)"
+          onclick="DWB._sdb_selAction('${eid}',${ci},'remove')">×</button>
+      </div>
+      <div style="padding:2px 6px 6px 6px">
+        <input type="text" class="sidebar-input"
+          placeholder="Display name (optional)"
+          value="${_sdbEscHtml(cfg.displayNames[ci] || '')}"
+          style="font-size:0.75rem;margin-bottom:0;color:var(--text-muted)"
+          oninput="DWB._sdb_updateDisplayName('${eid}',${ci},this.value)">
+      </div>`;
+  });
+
+  html += '</div>';
+  return html;
+}
 
 function _sdbEscHtml(s) {
   return String(s)

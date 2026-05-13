@@ -233,7 +233,8 @@ DWB.registerElement('WORD_CLOUD', {
     }).length;
 
     if (element._instance)  { element._instance.dispose();  element._instance  = null; }
-    if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+    if (element._resizeObs instanceof ResizeObserver) { element._resizeObs.disconnect(); }
+    element._resizeObs = null;
 
     const colName     = headers[sourceColIndex] || '';
     const titleText   = title || colName;
@@ -300,7 +301,8 @@ DWB.registerElement('WORD_CLOUD', {
       // wordCloud extension not yet registered (CDN timing on restore) — retry
       chart.dispose();
       element._instance = null;
-      if (element._resizeObs) { element._resizeObs.disconnect(); element._resizeObs = null; }
+      if (element._resizeObs instanceof ResizeObserver) { element._resizeObs.disconnect(); }
+    element._resizeObs = null;
       container.innerHTML = '<div class="dwb-empty-state">Loading…</div>';
       setTimeout(() => DWB.viz.renderElement(element.id), 200);
       return;
