@@ -12,6 +12,7 @@ const VALIDATORS_DIR = path.join(ROOT, 'src', 'data', 'validators');
 const OUT_DIR       = path.join(ROOT, 'dist');
 const OUT_FILE      = path.join(OUT_DIR, 'workbench.html');
 
+const MERGE_DIR     = path.join(ROOT, 'src', 'merge');
 const DESIGNER_SRC  = path.join(ROOT, 'designer', 'src');
 const DESIGNER_OUT  = path.join(OUT_DIR, 'designer.html');
 
@@ -97,6 +98,7 @@ function build() {
     ...collectJs(path.join(VIZ_DIR, 'elements')),
     ...collectJs(path.join(VIZ_DIR, 'header')),
     ...collectPlugins(PLUGINS_DIR),
+    ...collectJs(MERGE_DIR),
   ];
 
   const validatorsJson = buildDefaultValidators();

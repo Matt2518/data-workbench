@@ -1,0 +1,304 @@
+{
+  "meta": {
+    "name": "Formal Certificate of Completion",
+    "version": "1.0",
+    "pageWidth": 1056,
+    "pageHeight": 816
+  },
+  "assets": {},
+  "fields": [
+    { "id": "recipient_name", "label": "Recipient Name", "type": "text" },
+    { "id": "course_title", "label": "Course Title", "type": "text" },
+    { "id": "cert_date", "label": "Certification Date", "type": "date" },
+    { "id": "credit_hours", "label": "Credit Hours", "type": "number" },
+    { "id": "issuing_authority", "label": "Issuing Authority", "type": "text" }
+  ],
+  "background": {
+    "assetId": null
+  },
+  "elements": [
+    {
+      "id": "el-bg-outer",
+      "type": "rect",
+      "x": 0, "y": 0, "width": 1056, "height": 816,
+      "style": {
+        "fill": "#f4f6fb",
+        "stroke": "none",
+        "strokeWidth": 0,
+        "cornerRadius": 0
+      }
+    },
+    {
+      "id": "el-border-outer",
+      "type": "rect",
+      "x": 12, "y": 12, "width": 1032, "height": 792,
+      "style": {
+        "fill": "none",
+        "stroke": "#1a3a6b",
+        "strokeWidth": 4,
+        "cornerRadius": 2
+      }
+    },
+    {
+      "id": "el-border-gold",
+      "type": "rect",
+      "x": 20, "y": 20, "width": 1016, "height": 776,
+      "style": {
+        "fill": "none",
+        "stroke": "#b8a050",
+        "strokeWidth": 2,
+        "cornerRadius": 1
+      }
+    },
+    {
+      "id": "el-border-inner",
+      "type": "rect",
+      "x": 26, "y": 26, "width": 1004, "height": 764,
+      "style": {
+        "fill": "none",
+        "stroke": "#1a3a6b",
+        "strokeWidth": 1,
+        "cornerRadius": 1
+      }
+    },
+    {
+      "id": "el-title-certificate",
+      "type": "static-text",
+      "x": 228, "y": 100, "width": 600, "height": 60,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 48,
+        "fontWeight": "bold",
+        "fontStyle": "normal",
+        "textAnchor": "middle",
+        "fill": "#1a3a6b",
+        "letterSpacing": 4
+      },
+      "content": "CERTIFICATE"
+    },
+    {
+      "id": "el-title-of-completion",
+      "type": "static-text",
+      "x": 228, "y": 158, "width": 600, "height": 30,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 18,
+        "fontWeight": "normal",
+        "fontStyle": "normal",
+        "textAnchor": "middle",
+        "fill": "#1a3a6b",
+        "letterSpacing": 8
+      },
+      "content": "OF COMPLETION"
+    },
+    {
+      "id": "el-rule-top",
+      "type": "rect",
+      "x": 178, "y": 196, "width": 700, "height": 1,
+      "style": {
+        "fill": "#b8a050",
+        "stroke": "none",
+        "strokeWidth": 0,
+        "cornerRadius": 0
+      }
+    },
+    {
+      "id": "el-authority-line1",
+      "type": "static-text",
+      "x": 228, "y": 232, "width": 600, "height": 24,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 16,
+        "fontWeight": "normal",
+        "fontStyle": "italic",
+        "textAnchor": "middle",
+        "fill": "#4a5568"
+      },
+      "content": "By the authority of"
+    },
+    {
+      "id": "el-issuing-authority",
+      "type": "bound-text",
+      "x": 228, "y": 260, "width": 600, "height": 28,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 18,
+        "fontWeight": "normal",
+        "fontStyle": "italic",
+        "textAnchor": "middle",
+        "fill": "#4a5568"
+      },
+      "fieldId": "issuing_authority"
+    },
+    {
+      "id": "el-certifies-that",
+      "type": "static-text",
+      "x": 228, "y": 296, "width": 600, "height": 24,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 16,
+        "fontWeight": "normal",
+        "fontStyle": "italic",
+        "textAnchor": "middle",
+        "fill": "#4a5568"
+      },
+      "content": "this certifies that"
+    },
+    {
+      "id": "el-recipient-name",
+      "type": "bound-text",
+      "x": 178, "y": 340, "width": 700, "height": 52,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 42,
+        "fontWeight": "bold",
+        "fontStyle": "normal",
+        "textAnchor": "middle",
+        "fill": "#1a1a2e"
+      },
+      "fieldId": "recipient_name"
+    },
+    {
+      "id": "el-rule-name",
+      "type": "rect",
+      "x": 228, "y": 398, "width": 600, "height": 1,
+      "style": {
+        "fill": "#1a3a6b",
+        "stroke": "none",
+        "strokeWidth": 0,
+        "cornerRadius": 0
+      }
+    },
+    {
+      "id": "el-completed-requirements",
+      "type": "static-text",
+      "x": 228, "y": 430, "width": 600, "height": 24,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 16,
+        "fontWeight": "normal",
+        "fontStyle": "italic",
+        "textAnchor": "middle",
+        "fill": "#4a5568"
+      },
+      "content": "successfully completed all requirements of"
+    },
+    {
+      "id": "el-course-title",
+      "type": "bound-text",
+      "x": 178, "y": 470, "width": 700, "height": 40,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 32,
+        "fontWeight": "bold",
+        "fontStyle": "normal",
+        "textAnchor": "middle",
+        "fill": "#1a1a2e"
+      },
+      "fieldId": "course_title"
+    },
+    {
+      "id": "el-rule-mid",
+      "type": "rect",
+      "x": 278, "y": 520, "width": 500, "height": 1,
+      "style": {
+        "fill": "#b8a050",
+        "stroke": "none",
+        "strokeWidth": 0,
+        "cornerRadius": 0
+      }
+    },
+    {
+      "id": "el-cert-date",
+      "type": "bound-text",
+      "x": 228, "y": 556, "width": 600, "height": 24,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 18,
+        "fontWeight": "normal",
+        "fontStyle": "normal",
+        "textAnchor": "middle",
+        "fill": "#4a5568"
+      },
+      "fieldId": "cert_date"
+    },
+    {
+      "id": "el-rule-sig-left",
+      "type": "rect",
+      "x": 140, "y": 680, "width": 260, "height": 1,
+      "style": {
+        "fill": "#1a3a6b",
+        "stroke": "none",
+        "strokeWidth": 0,
+        "cornerRadius": 0
+      }
+    },
+    {
+      "id": "el-rule-sig-right",
+      "type": "rect",
+      "x": 656, "y": 680, "width": 260, "height": 1,
+      "style": {
+        "fill": "#1a3a6b",
+        "stroke": "none",
+        "strokeWidth": 0,
+        "cornerRadius": 0
+      }
+    },
+    {
+      "id": "el-label-signature",
+      "type": "static-text",
+      "x": 40, "y": 700, "width": 260, "height": 20,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 13,
+        "fontWeight": "normal",
+        "fontStyle": "italic",
+        "textAnchor": "middle",
+        "fill": "#4a5568"
+      },
+      "content": "Authorized Signature"
+    },
+    {
+      "id": "el-label-credits",
+      "type": "static-text",
+      "x": 556, "y": 700, "width": 260, "height": 20,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 13,
+        "fontWeight": "normal",
+        "fontStyle": "italic",
+        "textAnchor": "middle",
+        "fill": "#4a5568"
+      },
+      "content": "Credit Hours"
+    },
+    {
+      "id": "el-credit-hours",
+      "type": "bound-text",
+      "x": 556, "y": 724, "width": 260, "height": 24,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 16,
+        "fontWeight": "normal",
+        "fontStyle": "normal",
+        "textAnchor": "middle",
+        "fill": "#1a1a2e"
+      },
+      "fieldId": "credit_hours"
+    },
+    {
+      "id": "el-footer",
+      "type": "static-text",
+      "x": 128, "y": 760, "width": 800, "height": 18,
+      "style": {
+        "fontFamily": "Georgia",
+        "fontSize": 11,
+        "fontWeight": "normal",
+        "fontStyle": "italic",
+        "textAnchor": "middle",
+        "fill": "#888888"
+      },
+      "content": "Authenticity of this certificate may be verified by accessing the certificate holder's learning history."
+    }
+  ]
+}

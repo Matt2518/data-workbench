@@ -1,8 +1,8 @@
 DWB.register('PUSH_TO_VIZ', {
-  title: 'Push to Viz',
+  title: 'Push to Viz / Merge',
   icon: '📊',
   category: 'Input & Output',
-  desc: 'Promote current dataset to the Viz dashboard. Non-destructive — data passes through unchanged.',
+  desc: 'Promote current dataset to the Viz and Merge tabs. Non-destructive — data passes through unchanged.',
   implemented: true,
   defaultConfig: { datasetName: '' },
 
@@ -60,7 +60,8 @@ DWB.register('PUSH_TO_VIZ', {
       return;
     }
     DWB.promoteToActive(node.config.datasetName, inputData);
-    DWB.log(`Pushed to Viz as: ${node.config.datasetName} (${inputData.rows.length} rows)`);
+    DWB.log(`Pushed to Viz / Merge as: ${node.config.datasetName} (${inputData.rows.length} rows)`);
     if (DWB.viz && DWB.viz.onDatasetPromoted) DWB.viz.onDatasetPromoted(node.config.datasetName);
+    if (DWB.merge && DWB.merge.onDatasetPromoted) DWB.merge.onDatasetPromoted(node.config.datasetName);
   }
 });
