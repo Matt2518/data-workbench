@@ -17492,80 +17492,79 @@ function _wcEscJs(s) {
   // ================================================================
 
   merge.generate = async function () {
-    const os       = merge.outputSettings;
-    const snapshot = DWB.promotedDatasets[os.selectedSnapshot];
-    const template = merge.template;
-
-    if (!snapshot) { DWB.log('Merge: no snapshot selected.', 'error'); return; }
-    if (!template)  { DWB.log('Merge: no template loaded.',  'error'); return; }
-
     const btn = document.getElementById('merge-generate-btn');
     const setBtn = function (text, disabled) {
       if (!btn) return;
       btn.textContent = text;
       btn.disabled = disabled;
     };
-
-    setBtn('Loading libraries…', true);
+    const showError = function (msg) {
+      DWB.log(msg, 'error');
+      var errEl = document.getElementById('merge-generate-error');
+      if (!errEl) {
+        errEl = document.createElement('div');
+        errEl.id = 'merge-generate-error';
+        errEl.style.cssText = 'color:#c0392b;background:#fdf0ee;border:1px solid #e8c0bb;' +
+          'border-radius:4px;padding:8px 12px;margin-top:8px;font-size:12px;white-space:pre-wrap';
+        if (btn && btn.parentNode) btn.parentNode.insertBefore(errEl, btn.nextSibling);
+      }
+      errEl.textContent = msg;
+    };
 
     try {
+      const os       = merge.outputSettings;
+      const snapshot = DWB.promotedDatasets[os.selectedSnapshot];
+      const template = merge.template;
+
+      if (!snapshot) { showError('No snapshot selected.'); return; }
+      if (!template)  { showError('No template loaded.'); return; }
+
+      const prevErr = document.getElementById('merge-generate-error');
+      if (prevErr) prevErr.textContent = '';
+
+      setBtn('Loading libraries…', true);
+
       await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
       await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/canvg/3.0.4/umd.min.js');
-    } catch (err) {
-      DWB.log('Failed to load PDF libraries: ' + err.message, 'error');
-      alert('Could not load PDF generation libraries. Please check your internet connection.\n\n' + err.message);
-      setBtn('▶ Generate PDF', false);
-      return;
-    }
 
-    const jsPDFLib = window.jspdf;
-    const canvgLib  = window.canvg;
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        throw new Error('jsPDF failed to initialize (window.jspdf.jsPDF not found). Check your internet connection.');
+      }
+      const Canvg = window.canvg && window.canvg.Canvg;
+      if (!Canvg || typeof Canvg.fromString !== 'function') {
+        throw new Error('canvg failed to initialize (window.canvg.Canvg not found). Check your internet connection.');
+      }
 
-    if (!jsPDFLib || !jsPDFLib.jsPDF) {
-      DWB.log('jsPDF failed to initialize.', 'error');
-      setBtn('▶ Generate PDF', false);
-      return;
-    }
-    const Canvg = canvgLib && (canvgLib.Canvg || canvgLib);
-    if (!Canvg || typeof Canvg.fromString !== 'function') {
-      DWB.log('canvg failed to initialize.', 'error');
-      setBtn('▶ Generate PDF', false);
-      return;
-    }
+      const resolution = os.resolution || 2;
+      const pageW = template.meta.pageWidth;
+      const pageH = template.meta.pageHeight;
 
-    const resolution = os.resolution || 2;
-    const pageW = template.meta.pageWidth;
-    const pageH = template.meta.pageHeight;
+      const allObjects = DWB.toObjects(snapshot);
+      const fromIdx = (os.rowFrom != null ? os.rowFrom : 1) - 1;
+      const toIdx   =  os.rowTo   != null ? os.rowTo   : allObjects.length;
+      const rows = allObjects.slice(fromIdx, toIdx);
 
-    const allObjects = DWB.toObjects(snapshot);
-    const fromIdx = (os.rowFrom != null ? os.rowFrom : 1) - 1;
-    const toIdx   =  os.rowTo   != null ? os.rowTo   : allObjects.length;
-    const rows = allObjects.slice(fromIdx, toIdx);
+      if (rows.length === 0) {
+        showError('No rows in the specified range.');
+        return;
+      }
 
-    if (rows.length === 0) {
-      DWB.log('Merge: no rows in specified range.', 'error');
-      setBtn('▶ Generate PDF', false);
-      return;
-    }
+      if (resolution === 3 && rows.length > 100) {
+        DWB.log('⚠ 3× resolution with ' + rows.length + ' rows may be slow.', 'warn');
+      }
 
-    if (resolution === 3 && rows.length > 100) {
-      DWB.log('⚠ 3× resolution with ' + rows.length + ' rows may be slow.', 'warn');
-    }
+      DWB.log('Generating ' + rows.length + ' certificate' + (rows.length !== 1 ? 's' : '') + '…');
+      setBtn('Generating…', true);
 
-    DWB.log('Generating ' + rows.length + ' certificate' + (rows.length !== 1 ? 's' : '') + '…');
-    setBtn('Generating…', true);
+      const pdf  = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
 
-    const { jsPDF } = jsPDFLib;
-    const pdf  = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
-    const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = pdf.internal.pageSize.getHeight();
+      const canvas = document.createElement('canvas');
+      canvas.width  = pageW * resolution;
+      canvas.height = pageH * resolution;
+      const ctx = canvas.getContext('2d');
 
-    const canvas = document.createElement('canvas');
-    canvas.width  = pageW * resolution;
-    canvas.height = pageH * resolution;
-    const ctx = canvas.getContext('2d');
-
-    try {
       for (let i = 0; i < rows.length; i++) {
         setBtn('Generating… ' + (i + 1) + '/' + rows.length, true);
 
@@ -17604,8 +17603,7 @@ function _wcEscJs(s) {
         ' → ' + filename, 'success');
 
     } catch (err) {
-      DWB.log('Generation failed: ' + err.message, 'error');
-      alert('PDF generation failed: ' + err.message);
+      showError('PDF generation failed: ' + err.message);
     }
 
     setBtn('▶ Generate PDF', false);
