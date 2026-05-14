@@ -375,12 +375,16 @@
     };
 
     try {
+      const flow = DWB.workflow.current();
+      if (!flow.merge.template) {
+        throw new Error('No template loaded. Load a template in the Merge tab before generating.');
+      }
+
       const os       = merge.outputSettings;
       const snapshot = DWB.promotedDatasets[os.selectedSnapshot];
-      const template = merge.template;
+      const template = flow.merge.template;
 
       if (!snapshot) { showError('No snapshot selected.'); return; }
-      if (!template)  { showError('No template loaded.'); return; }
 
       const prevErr = document.getElementById('merge-generate-error');
       if (prevErr) prevErr.textContent = '';
@@ -425,7 +429,7 @@
           return Object.assign({}, el, { content: String(val) });
         });
 
-        const svgStr = renderTemplateToSVG(resolvedEls, template.assets || {}, template.meta);
+        const svgStr = renderTemplateToSVG(resolvedEls, template.assets, template.meta);
         const canvas = await svgToCanvas(svgStr, pageW, pageH, resolution);
 
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -491,7 +495,7 @@
     ];
 
     // Background asset
-    if (meta.background && meta.background.assetId && assets[meta.background.assetId]) {
+    if (meta.background && meta.background.assetId && assets && assets[meta.background.assetId]) {
       parts.push('<image href="' + assets[meta.background.assetId] +
         '" x="0" y="0" width="' + w + '" height="' + h + '"/>');
     }
@@ -544,7 +548,7 @@
         }
 
         case 'image': {
-          var assetData = el.assetId ? assets[el.assetId] : null;
+          var assetData = (el.assetId && assets) ? assets[el.assetId] : null;
           if (assetData) {
             parts.push(
               '<image href="' + assetData + '"' +
