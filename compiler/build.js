@@ -12,6 +12,9 @@ const VALIDATORS_DIR = path.join(ROOT, 'src', 'data', 'validators');
 const OUT_DIR       = path.join(ROOT, 'dist');
 const OUT_FILE      = path.join(OUT_DIR, 'workbench.html');
 
+const DESIGNER_SRC  = path.join(ROOT, 'designer', 'src');
+const DESIGNER_OUT  = path.join(OUT_DIR, 'designer.html');
+
 const VALIDATOR_NAME_MAP = {
   'cyp-tracks':    'CYP Tracks',
   'employee-type': 'Employee Type',
@@ -68,6 +71,23 @@ function collectPlugins(pluginsDir) {
   return results;
 }
 
+function guardScriptClose(block, label) {
+  const _unsafeClose = /<\/script/i;
+  if (_unsafeClose.test(block)) {
+    const lines = block.split('\n');
+    console.error(`\nBUILD ERROR: Unescaped </script found in compiled ${label} block.`);
+    console.error('The HTML tokenizer will close the <script> block early, breaking the app.');
+    console.error('Fix: replace </script with <\\/script in any string or comment in these locations:\n');
+    lines.forEach((line, i) => {
+      if (_unsafeClose.test(line)) {
+        console.error(`  line ${i + 1}: ${line.trim().slice(0, 120)}`);
+      }
+    });
+    console.error('\nBuild aborted.\n');
+    process.exit(1);
+  }
+}
+
 function build() {
   const shell = fs.readFileSync(FRAME, 'utf8');
 
@@ -93,20 +113,7 @@ function build() {
   // Guard: any literal </script in the plugin block prematurely closes the HTML <script> element.
   // The HTML tokenizer is not JS-aware — it fires on </script even inside comments or strings.
   // Safe form in JS source: <\/script (backslash between < and /).
-  const _unsafeClose = /<\/script/i;
-  if (_unsafeClose.test(pluginBlock)) {
-    const lines = pluginBlock.split('\n');
-    console.error('\nBUILD ERROR: Unescaped </script found in compiled plugin block.');
-    console.error('The HTML tokenizer will close the <script> block early, breaking the app.');
-    console.error('Fix: replace </script with <\\/script in any string or comment in these locations:\n');
-    lines.forEach((line, i) => {
-      if (_unsafeClose.test(line)) {
-        console.error(`  line ${i + 1}: ${line.trim().slice(0, 120)}`);
-      }
-    });
-    console.error('\nBuild aborted.\n');
-    process.exit(1);
-  }
+  guardScriptClose(pluginBlock, 'DWB plugin');
 
   // IMPORTANT: use a function replacer, NOT a string replacer.
   // String.prototype.replace() interprets $' $` $& etc. as special patterns.
@@ -127,17 +134,72 @@ function build() {
   return { kb, pluginCount: sources.length, outFile: OUT_FILE };
 }
 
+// Designer source file order — defines execution order in the compiled output
+const DESIGNER_FILES = ['state.js', 'canvas.js', 'properties.js', 'fields.js', 'assets.js', 'io.js', 'main.js'];
+
+function buildDesigner() {
+  const framePath = path.join(DESIGNER_SRC, 'frame.html');
+  const cssPath   = path.join(DESIGNER_SRC, 'style.css');
+
+  if (!fs.existsSync(framePath)) { console.error('Missing designer/src/frame.html'); process.exit(1); }
+  if (!fs.existsSync(cssPath))   { console.error('Missing designer/src/style.css');  process.exit(1); }
+
+  const shell = fs.readFileSync(framePath, 'utf8');
+  const css   = fs.readFileSync(cssPath, 'utf8').trimEnd();
+
+  const sources = DESIGNER_FILES.map(f => {
+    const file = path.join(DESIGNER_SRC, f);
+    const rel  = path.relative(ROOT, file);
+    if (!fs.existsSync(file)) { console.error(`Missing designer source: ${file}`); process.exit(1); }
+    return { file, rel };
+  });
+
+  const scriptBlock = sources.map(({ file, rel }) => {
+    const code = fs.readFileSync(file, 'utf8').trimEnd();
+    return `/* --- ${rel} --- */\n${code}`;
+  }).join('\n\n');
+
+  guardScriptClose(scriptBlock, 'designer');
+
+  // Inject CSS
+  let output = shell.replace('<!-- {{STYLE}} -->', () => css);
+
+  // Inject JS
+  output = output.replace(
+    '<!-- {{SCRIPTS}} -->',
+    () => `<script>\n/* injected by compiler/build.js --target=designer */\n\n${scriptBlock}\n</script>`
+  );
+
+  if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
+  fs.writeFileSync(DESIGNER_OUT, output, 'utf8');
+
+  const kb = (fs.statSync(DESIGNER_OUT).size / 1024).toFixed(1);
+  console.log(`Built: dist/designer.html  (${kb} KB, ${sources.length} source file(s))`);
+  sources.forEach(({ rel }) => console.log('  +', rel));
+
+  return { kb, sourceCount: sources.length, outFile: DESIGNER_OUT };
+}
+
 // Only execute when run directly; require('./build') just gets the export.
 if (require.main === module) {
-  const result = build();
+  const targetArg = process.argv.find(a => a.startsWith('--target='));
+  const target    = targetArg ? targetArg.split('=')[1] : 'dwb';
 
-  if (process.argv.includes('--release')) {
-    const relDir  = path.join(ROOT, 'releases');
-    const relFile = path.join(relDir, 'workbench-latest.html');
-    if (!fs.existsSync(relDir)) fs.mkdirSync(relDir, { recursive: true });
-    fs.copyFileSync(result.outFile, relFile);
-    console.log('→ Release copy written to releases/workbench-latest.html');
+  if (target === 'designer') {
+    buildDesigner();
+  } else if (target === 'dwb' || target === 'workbench') {
+    const result = build();
+    if (process.argv.includes('--release')) {
+      const relDir  = path.join(ROOT, 'releases');
+      const relFile = path.join(relDir, 'workbench-latest.html');
+      if (!fs.existsSync(relDir)) fs.mkdirSync(relDir, { recursive: true });
+      fs.copyFileSync(result.outFile, relFile);
+      console.log('→ Release copy written to releases/workbench-latest.html');
+    }
+  } else {
+    console.error(`Unknown --target="${target}". Valid values: dwb, designer`);
+    process.exit(1);
   }
 }
 
-module.exports = { build };
+module.exports = { build, buildDesigner };

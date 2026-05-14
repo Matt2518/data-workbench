@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DWB Template Designer</title>
+  <style><!-- {{STYLE}} --></style>
+</head>
+<body>
+<div id="app">
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <span id="toolbar-title">DWB Template Designer</span>
+    <input id="template-name" type="text" value="Untitled Template" placeholder="Template name" />
+    <div class="toolbar-sep"></div>
+    <button id="btn-grid" class="btn-toolbar" title="Toggle grid">Grid</button>
+    <span id="zoom-label">100%</span>
+    <div class="toolbar-spacer"></div>
+    <button id="btn-new" class="btn-toolbar">New</button>
+    <button id="btn-load" class="btn-toolbar">Load JSON</button>
+    <button id="btn-save" class="btn-toolbar btn-primary">Save JSON</button>
+    <button id="btn-preview" class="btn-toolbar">Preview SVG</button>
+  </div>
+
+  <!-- Main three-panel area -->
+  <div id="main">
+    <!-- Left panel -->
+    <div id="left-panel">
+      <div id="left-tabs">
+        <button class="tab-btn active" data-tab="elements">Elements</button>
+        <button class="tab-btn" data-tab="fields">Fields</button>
+      </div>
+
+      <!-- Elements tab -->
+      <div id="elements-tab" class="tab-content visible">
+        <button class="elem-btn" id="btn-add-bound-text">
+          <span class="elem-icon">T</span> Bound Text
+        </button>
+        <button class="elem-btn" id="btn-add-static-text">
+          <span class="elem-icon">T</span> Static Text
+        </button>
+        <button class="elem-btn" id="btn-add-image">
+          <span class="elem-icon">&#9618;</span> Image Asset
+        </button>
+        <button class="elem-btn" id="btn-add-rect">
+          <span class="elem-icon">&#9634;</span> Rectangle
+        </button>
+      </div>
+
+      <!-- Fields tab -->
+      <div id="fields-tab" class="tab-content">
+        <div id="fields-list"></div>
+        <button id="btn-add-field" class="btn-primary">+ Add Field</button>
+      </div>
+
+      <!-- Asset library (always visible) -->
+      <div id="asset-section">
+        <div id="asset-section-title">Asset Library</div>
+        <button id="btn-upload-asset" class="btn-sm" style="width:100%;margin-bottom:6px;">+ Upload Image</button>
+        <div id="asset-grid"></div>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div id="canvas-outer">
+      <div id="canvas-wrap"></div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="right-panel">
+      <div id="props-title">Properties</div>
+      <div id="props-panel">
+        <p class="props-empty">Select an element to edit its properties.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- {{SCRIPTS}} -->
+</body>
+</html>

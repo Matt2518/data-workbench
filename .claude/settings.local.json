@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "PowerShell(New-Item *)",
-      "Bash(node compiler/build.js)"
+      "Bash(node compiler/build.js)",
+      "Bash(node compiler/build.js --target=designer)",
+      "Bash(node compiler/build.js --target=dwb)",
+      "Bash(node -e ' *)"
     ]
   }
 }

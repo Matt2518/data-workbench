@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DWB Template Designer</title>
+  <style>/* DWB Template Designer */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; font-family: Arial, Helvetica, sans-serif; font-size: 13px; background: #1e293b; color: #1e293b; }
+
+/* === Layout === */
+#app { display: flex; flex-direction: column; height: 100vh; }
+#toolbar { display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 44px; background: #0f2040; border-bottom: 1px solid #1e3a5f; flex-shrink: 0; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#left-panel { width: 220px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; }
+#canvas-outer { flex: 1; background: #475569; display: flex; align-items: center; justify-content: center; overflow: auto; position: relative; }
+#canvas-wrap { position: relative; box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+#right-panel { width: 220px; flex-shrink: 0; background: #ffffff; border-left: 1px solid #e2e8f0; overflow-y: auto; }
+
+/* === Toolbar === */
+#toolbar-title { color: #e2eaf4; font-size: 14px; font-weight: bold; margin-right: 8px; white-space: nowrap; }
+#template-name { background: #1a3056; border: 1px solid #2d5a8e; color: #e2eaf4; padding: 3px 7px; border-radius: 4px; font-size: 13px; width: 180px; }
+#template-name:focus { outline: none; border-color: #4a9eff; }
+.toolbar-sep { width: 1px; height: 24px; background: #2d5a8e; margin: 0 4px; }
+#zoom-label { color: #7ea3c4; font-size: 12px; min-width: 36px; }
+.toolbar-spacer { flex: 1; }
+
+/* === Buttons === */
+button { cursor: pointer; border: none; border-radius: 4px; font-size: 12px; padding: 5px 10px; }
+.btn-toolbar { background: #1a3056; color: #e2eaf4; border: 1px solid #2d5a8e; }
+.btn-toolbar:hover { background: #2d5a8e; }
+.btn-toolbar.active { background: #005EB8; border-color: #4a9eff; }
+.btn-primary { background: #005EB8; color: #fff; }
+.btn-primary:hover { background: #0070d8; }
+.btn-sm { background: #e2e8f0; color: #1e293b; font-size: 11px; padding: 3px 7px; }
+.btn-sm:hover { background: #cbd5e1; }
+.btn-danger { background: #fee2e2; color: #dc2626; }
+.btn-danger:hover { background: #fca5a5; }
+
+/* === Left Panel === */
+#left-tabs { display: flex; border-bottom: 1px solid #e2e8f0; }
+.tab-btn { flex: 1; padding: 8px 0; background: #f8fafc; border: none; border-right: 1px solid #e2e8f0; font-size: 12px; color: #64748b; cursor: pointer; }
+.tab-btn:last-child { border-right: none; }
+.tab-btn.active { background: #fff; color: #005EB8; font-weight: bold; border-bottom: 2px solid #005EB8; }
+.tab-content { display: none; flex-direction: column; overflow-y: auto; }
+.tab-content.visible { display: flex; }
+
+/* === Elements Tab === */
+#elements-tab { padding: 10px; gap: 6px; }
+.elem-btn { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; text-align: left; width: 100%; font-size: 12px; color: #1e293b; cursor: pointer; }
+.elem-btn:hover { background: #EAF2FB; border-color: #005EB8; }
+.elem-icon { font-size: 16px; width: 20px; text-align: center; }
+
+/* === Fields Tab === */
+#fields-tab { padding: 8px; gap: 4px; }
+.field-row { display: grid; grid-template-columns: 1fr 60px 20px; gap: 4px; align-items: center; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+.field-label-input { font-size: 12px; padding: 3px 5px; border: 1px solid #e2e8f0; border-radius: 3px; width: 100%; }
+.field-type-select { font-size: 11px; padding: 2px 2px; border: 1px solid #e2e8f0; border-radius: 3px; }
+.field-slug { font-size: 10px; color: #94a3b8; grid-column: 1 / -1; padding-left: 2px; font-family: monospace; }
+.field-del-btn { background: none; border: none; color: #94a3b8; font-size: 14px; cursor: pointer; padding: 0; }
+.field-del-btn:hover { color: #dc2626; }
+#btn-add-field { margin: 8px; }
+
+/* === Asset Library === */
+#asset-section { border-top: 1px solid #e2e8f0; padding: 8px; }
+#asset-section-title { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+#asset-grid { display: flex; flex-direction: column; gap: 6px; }
+.asset-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; }
+.asset-thumb { width: 100%; height: 60px; object-fit: contain; background: #e2e8f0; display: block; }
+.asset-name { width: 100%; font-size: 11px; padding: 3px 5px; border: none; border-top: 1px solid #e2e8f0; background: transparent; }
+.asset-btn-row { display: flex; gap: 4px; padding: 4px; }
+.asset-btn-row button { flex: 1; }
+.asset-empty { font-size: 11px; color: #94a3b8; text-align: center; padding: 8px 0; }
+
+/* === Right Panel === */
+#right-panel { padding: 0; }
+#props-title { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 10px 4px; border-bottom: 1px solid #e2e8f0; }
+.props-empty { font-size: 12px; color: #94a3b8; padding: 16px 10px; text-align: center; line-height: 1.5; }
+.prop-section { border-bottom: 1px solid #f1f5f9; padding: 6px 0; }
+.prop-section-title { font-size: 10px; font-weight: bold; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 10px 2px; }
+.prop-row { display: flex; align-items: center; padding: 3px 10px; gap: 6px; }
+.prop-label { font-size: 11px; color: #64748b; min-width: 64px; }
+.prop-input { flex: 1; font-size: 12px; padding: 3px 5px; border: 1px solid #e2e8f0; border-radius: 3px; }
+.prop-input:focus { outline: none; border-color: #005EB8; }
+.prop-color { width: 36px; height: 26px; padding: 1px 2px; border: 1px solid #e2e8f0; border-radius: 3px; cursor: pointer; }
+
+/* === Scrollbars === */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }</style>
+</head>
+<body>
+<div id="app">
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <span id="toolbar-title">DWB Template Designer</span>
+    <input id="template-name" type="text" value="Untitled Template" placeholder="Template name" />
+    <div class="toolbar-sep"></div>
+    <button id="btn-grid" class="btn-toolbar" title="Toggle grid">Grid</button>
+    <span id="zoom-label">100%</span>
+    <div class="toolbar-spacer"></div>
+    <button id="btn-new" class="btn-toolbar">New</button>
+    <button id="btn-load" class="btn-toolbar">Load JSON</button>
+    <button id="btn-save" class="btn-toolbar btn-primary">Save JSON</button>
+    <button id="btn-preview" class="btn-toolbar">Preview SVG</button>
+  </div>
+
+  <!-- Main three-panel area -->
+  <div id="main">
+    <!-- Left panel -->
+    <div id="left-panel">
+      <div id="left-tabs">
+        <button class="tab-btn active" data-tab="elements">Elements</button>
+        <button class="tab-btn" data-tab="fields">Fields</button>
+      </div>
+
+      <!-- Elements tab -->
+      <div id="elements-tab" class="tab-content visible">
+        <button class="elem-btn" id="btn-add-bound-text">
+          <span class="elem-icon">T</span> Bound Text
+        </button>
+        <button class="elem-btn" id="btn-add-static-text">
+          <span class="elem-icon">T</span> Static Text
+        </button>
+        <button class="elem-btn" id="btn-add-image">
+          <span class="elem-icon">&#9618;</span> Image Asset
+        </button>
+        <button class="elem-btn" id="btn-add-rect">
+          <span class="elem-icon">&#9634;</span> Rectangle
+        </button>
+      </div>
+
+      <!-- Fields tab -->
+      <div id="fields-tab" class="tab-content">
+        <div id="fields-list"></div>
+        <button id="btn-add-field" class="btn-primary">+ Add Field</button>
+      </div>
+
+      <!-- Asset library (always visible) -->
+      <div id="asset-section">
+        <div id="asset-section-title">Asset Library</div>
+        <button id="btn-upload-asset" class="btn-sm" style="width:100%;margin-bottom:6px;">+ Upload Image</button>
+        <div id="asset-grid"></div>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div id="canvas-outer">
+      <div id="canvas-wrap"></div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="right-panel">
+      <div id="props-title">Properties</div>
+      <div id="props-panel">
+        <p class="props-empty">Select an element to edit its properties.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+/* injected by compiler/build.js --target=designer */
+
+/* --- designer\src\state.js --- */
+// Central application state — all mutations must go through applyChange()
+const state = {
+  meta: { name: 'Untitled Template', version: '1.0', pageWidth: 1056, pageHeight: 816 },
+  assets: {},       // { assetId: { name, type, data } }
+  fields: [],       // [{ id, label, type }]
+  elements: [],     // [{ id, type, x, y, width, height, style, fieldId?, assetId? }]
+  background: { assetId: null },
+  selectedId: null,
+  gridOn: false,
+  zoom: 1,
+  _dirty: false,
+};
+
+// Single mutation point — future undo/redo hooks here
+function applyChange(fn) {
+  fn(state);
+  state._dirty = true;
+  if (typeof window._onStateChange === 'function') window._onStateChange();
+}
+
+function genId(prefix) {
+  return prefix + '-' + Math.random().toString(36).slice(2, 9);
+}
+
+function slugify(label) {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'field';
+}
+
+function getElement(id) {
+  return state.elements.find(el => el.id === id) || null;
+}
+
+function getField(id) {
+  return state.fields.find(f => f.id === id) || null;
+}
+
+/* --- designer\src\canvas.js --- */
+// Canvas — live SVG representation of the template page
+const PAGE_W = 1056;
+const PAGE_H = 816;
+const GRID_SIZE = 8;
+const HANDLE_SIZE = 8;
+
+let svgCanvas, svgOverlay, canvasWrap;
+let dragState = null;  // { type:'move'|'resize', elId, handle, startX, startY, origX, origY, origW, origH }
+
+function initCanvas() {
+  canvasWrap = document.getElementById('canvas-wrap');
+
+  svgCanvas = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgCanvas.setAttribute('id', 'svg-canvas');
+  svgCanvas.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgCanvas.setAttribute('width', PAGE_W);
+  svgCanvas.setAttribute('height', PAGE_H);
+  svgCanvas.setAttribute('viewBox', `0 0 ${PAGE_W} ${PAGE_H}`);
+
+  svgOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgOverlay.setAttribute('id', 'svg-overlay');
+  svgOverlay.setAttribute('width', PAGE_W);
+  svgOverlay.setAttribute('height', PAGE_H);
+  svgOverlay.setAttribute('viewBox', `0 0 ${PAGE_W} ${PAGE_H}`);
+  svgOverlay.style.position = 'absolute';
+  svgOverlay.style.top = '0';
+  svgOverlay.style.left = '0';
+  svgOverlay.style.pointerEvents = 'none';
+
+  canvasWrap.appendChild(svgCanvas);
+  canvasWrap.appendChild(svgOverlay);
+
+  svgCanvas.addEventListener('mousedown', onCanvasMouseDown);
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+  window.addEventListener('keydown', onKeyDown);
+
+  renderCanvas();
+}
+
+function renderCanvas() {
+  // Clear canvas
+  while (svgCanvas.firstChild) svgCanvas.removeChild(svgCanvas.firstChild);
+
+  // White page background
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+  bg.setAttribute('width', PAGE_W); bg.setAttribute('height', PAGE_H);
+  bg.setAttribute('fill', '#ffffff');
+  svgCanvas.appendChild(bg);
+
+  // Background asset
+  if (state.background.assetId && state.assets[state.background.assetId]) {
+    const a = state.assets[state.background.assetId];
+    const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+    img.setAttribute('x', 0); img.setAttribute('y', 0);
+    img.setAttribute('width', PAGE_W); img.setAttribute('height', PAGE_H);
+    img.setAttribute('href', `data:${a.type};base64,${a.data}`);
+    img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svgCanvas.appendChild(img);
+  }
+
+  // Elements
+  for (const el of state.elements) {
+    const node = buildSvgElement(el);
+    if (node) svgCanvas.appendChild(node);
+  }
+
+  renderOverlay();
+  updateZoom();
+}
+
+function buildSvgElement(el) {
+  if (el.type === 'rect') {
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('x', el.x); r.setAttribute('y', el.y);
+    r.setAttribute('width', el.width); r.setAttribute('height', el.height);
+    r.setAttribute('fill', el.style.fill || '#cccccc');
+    r.setAttribute('stroke', el.style.stroke || 'none');
+    r.setAttribute('stroke-width', el.style.strokeWidth || 1);
+    r.setAttribute('rx', el.style.rx || 0);
+    r.dataset.elId = el.id;
+    return r;
+  }
+
+  if (el.type === 'static-text' || el.type === 'bound-text') {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', el.x + (el.style.textAnchor === 'middle' ? el.width / 2 : el.style.textAnchor === 'end' ? el.width : 0));
+    t.setAttribute('y', el.y + (el.style.fontSize || 16));
+    t.setAttribute('font-family', el.style.fontFamily || 'Arial');
+    t.setAttribute('font-size', el.style.fontSize || 16);
+    t.setAttribute('font-weight', el.style.fontWeight || 'normal');
+    t.setAttribute('font-style', el.style.fontStyle || 'normal');
+    t.setAttribute('text-anchor', el.style.textAnchor || 'start');
+    t.setAttribute('fill', el.style.fill || '#000000');
+    if (el.type === 'bound-text') {
+      const field = getField(el.fieldId);
+      const unbound = !field;
+      t.textContent = unbound ? `⚠ {{${el.fieldId || '?'}}}` : `{{${field.label}}}`;
+      if (unbound) t.setAttribute('fill', '#cc3300');
+      if (el.fieldId) t.setAttribute('data-field-id', el.fieldId);
+    } else {
+      t.textContent = el.style.content || 'Text';
+    }
+    t.dataset.elId = el.id;
+    return t;
+  }
+
+  if (el.type === 'image') {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    if (el.assetId && state.assets[el.assetId]) {
+      const a = state.assets[el.assetId];
+      const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+      img.setAttribute('x', el.x); img.setAttribute('y', el.y);
+      img.setAttribute('width', el.width); img.setAttribute('height', el.height);
+      img.setAttribute('href', `data:${a.type};base64,${a.data}`);
+      img.setAttribute('opacity', (el.style.opacity !== undefined ? el.style.opacity : 100) / 100);
+      img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      g.appendChild(img);
+    } else {
+      const ph = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      ph.setAttribute('x', el.x); ph.setAttribute('y', el.y);
+      ph.setAttribute('width', el.width); ph.setAttribute('height', el.height);
+      ph.setAttribute('fill', '#e2e8f0'); ph.setAttribute('stroke', '#94a3b8'); ph.setAttribute('stroke-width', 1);
+      const pt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      pt.setAttribute('x', el.x + el.width / 2); pt.setAttribute('y', el.y + el.height / 2 + 5);
+      pt.setAttribute('text-anchor', 'middle'); pt.setAttribute('fill', '#94a3b8'); pt.setAttribute('font-size', 12);
+      pt.textContent = 'Image';
+      g.appendChild(ph); g.appendChild(pt);
+    }
+    g.dataset.elId = el.id;
+    return g;
+  }
+
+  return null;
+}
+
+function renderOverlay() {
+  while (svgOverlay.firstChild) svgOverlay.removeChild(svgOverlay.firstChild);
+
+  // Grid
+  if (state.gridOn) {
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const pat = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+    pat.setAttribute('id', 'grid-pat'); pat.setAttribute('width', GRID_SIZE); pat.setAttribute('height', GRID_SIZE);
+    pat.setAttribute('patternUnits', 'userSpaceOnUse');
+    const pl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pl.setAttribute('d', `M ${GRID_SIZE} 0 L 0 0 0 ${GRID_SIZE}`);
+    pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', '#b0c4de'); pl.setAttribute('stroke-width', '0.5');
+    pat.appendChild(pl); defs.appendChild(pat); svgOverlay.appendChild(defs);
+    const gr = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    gr.setAttribute('width', PAGE_W); gr.setAttribute('height', PAGE_H);
+    gr.setAttribute('fill', 'url(#grid-pat)');
+    svgOverlay.appendChild(gr);
+  }
+
+  // Selection handles
+  if (state.selectedId) {
+    const el = getElement(state.selectedId);
+    if (el) drawSelectionHandles(el);
+  }
+}
+
+function drawSelectionHandles(el) {
+  const { x, y, width, height } = el;
+  const selRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  selRect.setAttribute('x', x - 1); selRect.setAttribute('y', y - 1);
+  selRect.setAttribute('width', width + 2); selRect.setAttribute('height', height + 2);
+  selRect.setAttribute('fill', 'none'); selRect.setAttribute('stroke', '#005EB8'); selRect.setAttribute('stroke-width', 1.5);
+  selRect.setAttribute('stroke-dasharray', '4 2');
+  svgOverlay.appendChild(selRect);
+
+  const handles = [
+    { id: 'nw', cx: x,           cy: y },
+    { id: 'n',  cx: x + width/2, cy: y },
+    { id: 'ne', cx: x + width,   cy: y },
+    { id: 'e',  cx: x + width,   cy: y + height/2 },
+    { id: 'se', cx: x + width,   cy: y + height },
+    { id: 's',  cx: x + width/2, cy: y + height },
+    { id: 'sw', cx: x,           cy: y + height },
+    { id: 'w',  cx: x,           cy: y + height/2 },
+  ];
+
+  for (const h of handles) {
+    const hr = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    hr.setAttribute('x', h.cx - HANDLE_SIZE/2); hr.setAttribute('y', h.cy - HANDLE_SIZE/2);
+    hr.setAttribute('width', HANDLE_SIZE); hr.setAttribute('height', HANDLE_SIZE);
+    hr.setAttribute('fill', '#ffffff'); hr.setAttribute('stroke', '#005EB8'); hr.setAttribute('stroke-width', 1.5);
+    hr.setAttribute('data-handle', h.id);
+    hr.style.pointerEvents = 'all';
+    hr.style.cursor = getCursorForHandle(h.id);
+    hr.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      startResize(e, h.id, el);
+    });
+    svgOverlay.appendChild(hr);
+  }
+}
+
+function getCursorForHandle(h) {
+  const map = { nw:'nw-resize', n:'n-resize', ne:'ne-resize', e:'e-resize', se:'se-resize', s:'s-resize', sw:'sw-resize', w:'w-resize' };
+  return map[h] || 'default';
+}
+
+function updateZoom() {
+  const wrap = document.getElementById('canvas-outer');
+  if (!wrap) return;
+  const availW = wrap.clientWidth - 40;
+  const availH = wrap.clientHeight - 40;
+  const scaleX = availW / PAGE_W;
+  const scaleY = availH / PAGE_H;
+  const fit = Math.min(scaleX, scaleY, 1);
+  state.zoom = fit;
+  const scaledW = Math.round(PAGE_W * fit);
+  const scaledH = Math.round(PAGE_H * fit);
+  canvasWrap.style.width = scaledW + 'px';
+  canvasWrap.style.height = scaledH + 'px';
+  svgCanvas.style.width = scaledW + 'px';
+  svgCanvas.style.height = scaledH + 'px';
+  svgOverlay.style.width = scaledW + 'px';
+  svgOverlay.style.height = scaledH + 'px';
+  const pct = Math.round(fit * 100);
+  const zoomEl = document.getElementById('zoom-label');
+  if (zoomEl) zoomEl.textContent = pct + '%';
+}
+
+// Convert mouse event coords to SVG user units
+function mouseToSvg(e) {
+  const rect = svgCanvas.getBoundingClientRect();
+  const scaleX = PAGE_W / rect.width;
+  const scaleY = PAGE_H / rect.height;
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+function snapToGrid(v) {
+  if (!state.gridOn) return v;
+  return Math.round(v / GRID_SIZE) * GRID_SIZE;
+}
+
+function snapCoords(x, y) {
+  return { x: snapToGrid(x), y: snapToGrid(y) };
+}
+
+function onCanvasMouseDown(e) {
+  e.preventDefault();
+  const target = e.target;
+  const elId = target.dataset.elId || target.closest('[data-el-id]')?.dataset.elId;
+
+  if (!elId) {
+    applyChange(s => { s.selectedId = null; });
+    if (typeof window._onSelectionChange === 'function') window._onSelectionChange();
+    renderOverlay();
+    return;
+  }
+
+  applyChange(s => { s.selectedId = elId; });
+  if (typeof window._onSelectionChange === 'function') window._onSelectionChange();
+
+  const el = getElement(elId);
+  const pt = mouseToSvg(e);
+  dragState = {
+    type: 'move', elId,
+    startX: pt.x, startY: pt.y,
+    origX: el.x, origY: el.y,
+    origW: el.width, origH: el.height,
+  };
+  renderOverlay();
+}
+
+function startResize(e, handle, el) {
+  const pt = mouseToSvg(e);
+  dragState = {
+    type: 'resize', elId: el.id, handle,
+    startX: pt.x, startY: pt.y,
+    origX: el.x, origY: el.y,
+    origW: el.width, origH: el.height,
+  };
+}
+
+function onMouseMove(e) {
+  if (!dragState) return;
+  const pt = mouseToSvg(e);
+  const dx = pt.x - dragState.startX;
+  const dy = pt.y - dragState.startY;
+  const el = getElement(dragState.elId);
+  if (!el) return;
+
+  if (dragState.type === 'move') {
+    const snapped = snapCoords(dragState.origX + dx, dragState.origY + dy);
+    applyChange(s => {
+      const target = s.elements.find(el => el.id === dragState.elId);
+      if (target) { target.x = snapped.x; target.y = snapped.y; }
+    });
+  } else if (dragState.type === 'resize') {
+    const h = dragState.handle;
+    let nx = dragState.origX, ny = dragState.origY, nw = dragState.origW, nh = dragState.origH;
+    if (h.includes('e')) nw = Math.max(8, dragState.origW + dx);
+    if (h.includes('s')) nh = Math.max(8, dragState.origH + dy);
+    if (h.includes('w')) { nx = dragState.origX + dx; nw = Math.max(8, dragState.origW - dx); }
+    if (h.includes('n')) { ny = dragState.origY + dy; nh = Math.max(8, dragState.origH - dy); }
+    const snappedPos = snapCoords(nx, ny);
+    const snappedSize = snapCoords(nw, nh);
+    applyChange(s => {
+      const target = s.elements.find(el => el.id === dragState.elId);
+      if (target) { target.x = snappedPos.x; target.y = snappedPos.y; target.width = snappedSize.x; target.height = snappedSize.y; }
+    });
+  }
+
+  renderCanvas();
+  if (typeof window._onSelectionChange === 'function') window._onSelectionChange();
+}
+
+function onMouseUp() {
+  dragState = null;
+}
+
+function onKeyDown(e) {
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+    if (state.selectedId) {
+      applyChange(s => {
+        s.elements = s.elements.filter(el => el.id !== s.selectedId);
+        s.selectedId = null;
+      });
+      renderCanvas();
+      if (typeof window._onSelectionChange === 'function') window._onSelectionChange();
+    }
+  }
+}
+
+function addElement(el) {
+  applyChange(s => { s.elements.push(el); s.selectedId = el.id; });
+  renderCanvas();
+  if (typeof window._onSelectionChange === 'function') window._onSelectionChange();
+}
+
+function addBoundText(fieldId) {
+  const id = genId('el');
+  addElement({ id, type: 'bound-text', x: 328, y: 388, width: 400, height: 40,
+    style: { fontFamily: 'Georgia', fontSize: 24, fontWeight: 'normal', fontStyle: 'normal', textAnchor: 'middle', fill: '#000000' },
+    fieldId: fieldId || (state.fields[0] && state.fields[0].id) || null,
+  });
+}
+
+function addStaticText() {
+  const id = genId('el');
+  addElement({ id, type: 'static-text', x: 328, y: 388, width: 400, height: 40,
+    style: { fontFamily: 'Arial', fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', textAnchor: 'start', fill: '#000000', content: 'Text' },
+  });
+}
+
+function addImageAsset(assetId) {
+  const id = genId('el');
+  addElement({ id, type: 'image', x: 378, y: 308, width: 300, height: 200,
+    style: { opacity: 100 },
+    assetId: assetId || null,
+  });
+}
+
+function addRect() {
+  const id = genId('el');
+  addElement({ id, type: 'rect', x: 378, y: 358, width: 300, height: 100,
+    style: { fill: '#e2e8f0', stroke: '#94a3b8', strokeWidth: 1, rx: 0 },
+  });
+}
+
+/* --- designer\src\properties.js --- */
+// Right panel — context-sensitive properties for selected element
+function initProperties() {
+  window._onSelectionChange = renderProperties;
+}
+
+function renderProperties() {
+  const panel = document.getElementById('props-panel');
+  if (!panel) return;
+  panel.innerHTML = '';
+
+  const el = state.selectedId ? getElement(state.selectedId) : null;
+  if (!el) {
+    panel.innerHTML = '<p class="props-empty">Select an element to edit its properties.</p>';
+    return;
+  }
+
+  const sections = [];
+
+  // --- Position & Size ---
+  sections.push(makePropSection('Position & Size', [
+    makeNumberRow('X', el.x, v => setProp(el, null, 'x', v)),
+    makeNumberRow('Y', el.y, v => setProp(el, null, 'y', v)),
+    makeNumberRow('Width', el.width, v => setProp(el, null, 'width', Math.max(1, v))),
+    makeNumberRow('Height', el.height, v => setProp(el, null, 'height', Math.max(1, v))),
+  ]));
+
+  // --- Type-specific ---
+  if (el.type === 'static-text' || el.type === 'bound-text') {
+    const rows = [];
+    if (el.type === 'static-text') {
+      rows.push(makeTextRow('Content', el.style.content || '', v => setProp(el, 'style', 'content', v)));
+    } else {
+      const fieldOpts = state.fields.map(f => ({ value: f.id, label: f.label }));
+      rows.push(makeSelectRow('Field', el.fieldId || '', fieldOpts, v => {
+        applyChange(s => { const t = s.elements.find(e => e.id === el.id); if (t) t.fieldId = v; });
+        renderCanvas(); renderProperties();
+      }));
+    }
+    const fonts = ['Georgia','Times New Roman','Arial','Helvetica','Courier New','Trebuchet MS'];
+    rows.push(makeSelectRow('Font', el.style.fontFamily || 'Arial', fonts.map(f => ({ value: f, label: f })), v => setProp(el, 'style', 'fontFamily', v)));
+    rows.push(makeNumberRow('Font Size', el.style.fontSize || 16, v => setProp(el, 'style', 'fontSize', Math.max(4, v))));
+    rows.push(makeSelectRow('Weight', el.style.fontWeight || 'normal', [
+      { value: 'normal', label: 'Normal' }, { value: 'bold', label: 'Bold' },
+    ], v => setProp(el, 'style', 'fontWeight', v)));
+    rows.push(makeSelectRow('Style', el.style.fontStyle || 'normal', [
+      { value: 'normal', label: 'Normal' }, { value: 'italic', label: 'Italic' },
+    ], v => setProp(el, 'style', 'fontStyle', v)));
+    rows.push(makeSelectRow('Align', el.style.textAnchor || 'start', [
+      { value: 'start', label: 'Left' }, { value: 'middle', label: 'Center' }, { value: 'end', label: 'Right' },
+    ], v => setProp(el, 'style', 'textAnchor', v)));
+    rows.push(makeColorRow('Color', el.style.fill || '#000000', v => setProp(el, 'style', 'fill', v)));
+    sections.push(makePropSection('Text', rows));
+  }
+
+  if (el.type === 'image') {
+    const assetOpts = Object.entries(state.assets).map(([id, a]) => ({ value: id, label: a.name }));
+    assetOpts.unshift({ value: '', label: '— none —' });
+    sections.push(makePropSection('Image', [
+      makeSelectRow('Asset', el.assetId || '', assetOpts, v => {
+        applyChange(s => { const t = s.elements.find(e => e.id === el.id); if (t) t.assetId = v || null; });
+        renderCanvas(); renderProperties();
+      }),
+      makeNumberRow('Opacity %', el.style.opacity !== undefined ? el.style.opacity : 100, v => setProp(el, 'style', 'opacity', Math.min(100, Math.max(0, v)))),
+    ]));
+  }
+
+  if (el.type === 'rect') {
+    sections.push(makePropSection('Rectangle', [
+      makeColorNoneRow('Fill', el.style.fill, v => setProp(el, 'style', 'fill', v)),
+      makeColorNoneRow('Stroke', el.style.stroke, v => setProp(el, 'style', 'stroke', v)),
+      makeNumberRow('Stroke Width', el.style.strokeWidth || 1, v => setProp(el, 'style', 'strokeWidth', Math.max(0, v))),
+      makeNumberRow('Corner Radius', el.style.rx || 0, v => setProp(el, 'style', 'rx', Math.max(0, v))),
+    ]));
+  }
+
+  for (const s of sections) panel.appendChild(s);
+}
+
+function setProp(el, group, key, value) {
+  applyChange(s => {
+    const target = s.elements.find(e => e.id === el.id);
+    if (!target) return;
+    if (group) target[group][key] = value;
+    else target[key] = value;
+  });
+  renderCanvas();
+  renderProperties();
+}
+
+function makePropSection(title, rows) {
+  const sec = document.createElement('div');
+  sec.className = 'prop-section';
+  const h = document.createElement('div');
+  h.className = 'prop-section-title'; h.textContent = title;
+  sec.appendChild(h);
+  for (const r of rows) sec.appendChild(r);
+  return sec;
+}
+
+function makeRow(label) {
+  const row = document.createElement('div'); row.className = 'prop-row';
+  const lbl = document.createElement('label'); lbl.className = 'prop-label'; lbl.textContent = label;
+  row.appendChild(lbl);
+  return row;
+}
+
+function makeNumberRow(label, value, onChange) {
+  const row = makeRow(label);
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.className = 'prop-input'; inp.value = value;
+  inp.addEventListener('change', () => onChange(parseFloat(inp.value) || 0));
+  inp.addEventListener('input', () => onChange(parseFloat(inp.value) || 0));
+  row.appendChild(inp);
+  return row;
+}
+
+function makeTextRow(label, value, onChange) {
+  const row = makeRow(label);
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.className = 'prop-input'; inp.value = value;
+  inp.addEventListener('input', () => onChange(inp.value));
+  row.appendChild(inp);
+  return row;
+}
+
+function makeSelectRow(label, value, options, onChange) {
+  const row = makeRow(label);
+  const sel = document.createElement('select'); sel.className = 'prop-input';
+  for (const opt of options) {
+    const o = document.createElement('option'); o.value = opt.value; o.textContent = opt.label;
+    if (opt.value === value) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener('change', () => onChange(sel.value));
+  row.appendChild(sel);
+  return row;
+}
+
+function makeColorRow(label, value, onChange) {
+  const row = makeRow(label);
+  const inp = document.createElement('input');
+  inp.type = 'color'; inp.className = 'prop-color'; inp.value = value || '#000000';
+  inp.addEventListener('input', () => onChange(inp.value));
+  row.appendChild(inp);
+  return row;
+}
+
+function makeColorNoneRow(label, value, onChange) {
+  const row = makeRow(label);
+  const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.gap = '4px'; wrap.style.alignItems = 'center';
+  const isNone = !value || value === 'none';
+  const inp = document.createElement('input');
+  inp.type = 'color'; inp.className = 'prop-color'; inp.value = isNone ? '#cccccc' : value;
+  inp.disabled = isNone;
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.title = 'None'; cb.checked = isNone;
+  const cbLbl = document.createElement('span'); cbLbl.textContent = 'none'; cbLbl.style.fontSize = '11px';
+  cb.addEventListener('change', () => {
+    inp.disabled = cb.checked;
+    onChange(cb.checked ? 'none' : inp.value);
+  });
+  inp.addEventListener('input', () => { if (!cb.checked) onChange(inp.value); });
+  wrap.appendChild(inp); wrap.appendChild(cb); wrap.appendChild(cbLbl);
+  row.appendChild(wrap);
+  return row;
+}
+
+/* --- designer\src\fields.js --- */
+// Fields tab — schema manager for template field declarations
+function initFields() {
+  document.getElementById('btn-add-field').addEventListener('click', addField);
+  renderFieldsList();
+}
+
+function renderFieldsList() {
+  const list = document.getElementById('fields-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (const field of state.fields) {
+    const row = document.createElement('div'); row.className = 'field-row';
+
+    const labelInp = document.createElement('input');
+    labelInp.type = 'text'; labelInp.className = 'field-label-input'; labelInp.value = field.label;
+    labelInp.addEventListener('change', () => {
+      const newLabel = labelInp.value.trim();
+      if (!newLabel) return;
+      const newId = slugify(newLabel);
+      applyChange(s => {
+        const f = s.fields.find(x => x.id === field.id);
+        if (f) { f.label = newLabel; f.id = newId; }
+        // Update bound elements
+        s.elements.forEach(el => { if (el.fieldId === field.id) el.fieldId = newId; });
+      });
+      renderFieldsList();
+      renderCanvas();
+    });
+
+    const typeSelect = document.createElement('select'); typeSelect.className = 'field-type-select';
+    for (const t of ['text', 'date', 'number']) {
+      const o = document.createElement('option'); o.value = t; o.textContent = t;
+      if (t === field.type) o.selected = true;
+      typeSelect.appendChild(o);
+    }
+    typeSelect.addEventListener('change', () => {
+      applyChange(s => { const f = s.fields.find(x => x.id === field.id); if (f) f.type = typeSelect.value; });
+    });
+
+    const slug = document.createElement('div'); slug.className = 'field-slug'; slug.textContent = field.id;
+
+    const delBtn = document.createElement('button'); delBtn.className = 'field-del-btn'; delBtn.textContent = '✕';
+    delBtn.title = 'Delete field';
+    delBtn.addEventListener('click', () => {
+      applyChange(s => {
+        s.fields = s.fields.filter(x => x.id !== field.id);
+        // Unlink but keep bound elements — they will show as unbound
+      });
+      renderFieldsList();
+      renderCanvas();
+      renderProperties();
+    });
+
+    row.appendChild(labelInp); row.appendChild(typeSelect); row.appendChild(slug); row.appendChild(delBtn);
+    list.appendChild(row);
+  }
+}
+
+function addField() {
+  const id = genId('fld');
+  applyChange(s => { s.fields.push({ id: 'field_' + s.fields.length + 1, label: 'New Field ' + (s.fields.length + 1), type: 'text' }); });
+  renderFieldsList();
+}
+
+/* --- designer\src\assets.js --- */
+// Asset Library — base64 storage and thumbnail management
+function initAssets() {
+  document.getElementById('btn-upload-asset').addEventListener('click', () => {
+    const inp = document.createElement('input'); inp.type = 'file';
+    inp.accept = 'image/png,image/jpeg,image/gif,image/svg+xml,image/webp';
+    inp.addEventListener('change', () => {
+      if (!inp.files || !inp.files.length) return;
+      const file = inp.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        const comma = dataUrl.indexOf(',');
+        const base64 = dataUrl.slice(comma + 1);
+        const assetId = genId('asset');
+        applyChange(s => {
+          s.assets[assetId] = { name: file.name, type: file.type, data: base64 };
+        });
+        renderAssets();
+      };
+      reader.readAsDataURL(file);
+    });
+    inp.click();
+  });
+
+  renderAssets();
+}
+
+function renderAssets() {
+  const grid = document.getElementById('asset-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const entries = Object.entries(state.assets);
+  if (!entries.length) {
+    grid.innerHTML = '<div class="asset-empty">No assets. Upload an image to begin.</div>';
+    return;
+  }
+  for (const [id, asset] of entries) {
+    const card = document.createElement('div'); card.className = 'asset-card';
+
+    const thumb = document.createElement('img'); thumb.className = 'asset-thumb';
+    thumb.src = `data:${asset.type};base64,${asset.data}`;
+    thumb.alt = asset.name;
+    card.appendChild(thumb);
+
+    const nameInp = document.createElement('input');
+    nameInp.type = 'text'; nameInp.className = 'asset-name'; nameInp.value = asset.name;
+    nameInp.addEventListener('change', () => {
+      applyChange(s => { if (s.assets[id]) s.assets[id].name = nameInp.value; });
+    });
+    card.appendChild(nameInp);
+
+    const btnRow = document.createElement('div'); btnRow.className = 'asset-btn-row';
+
+    const useBtn = document.createElement('button'); useBtn.className = 'btn-sm'; useBtn.textContent = 'Add to canvas';
+    useBtn.addEventListener('click', () => { addImageAsset(id); });
+    btnRow.appendChild(useBtn);
+
+    const delBtn = document.createElement('button'); delBtn.className = 'btn-sm btn-danger'; delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', () => {
+      applyChange(s => { delete s.assets[id]; });
+      renderAssets();
+      renderCanvas();
+      renderProperties();
+    });
+    btnRow.appendChild(delBtn);
+
+    card.appendChild(btnRow);
+    grid.appendChild(card);
+  }
+}
+
+/* --- designer\src\io.js --- */
+// File I/O — load/save JSON, preview SVG export
+function initIO() {
+  document.getElementById('btn-new').addEventListener('click', newTemplate);
+  document.getElementById('btn-load').addEventListener('click', loadJSON);
+  document.getElementById('btn-save').addEventListener('click', saveJSON);
+  document.getElementById('btn-preview').addEventListener('click', previewSVG);
+}
+
+function newTemplate() {
+  if (!confirm('Create a new template? Unsaved changes will be lost.')) return;
+  applyChange(s => {
+    s.meta = { name: 'Untitled Template', version: '1.0', pageWidth: 1056, pageHeight: 816 };
+    s.assets = {};
+    s.fields = [];
+    s.elements = [];
+    s.background = { assetId: null };
+    s.selectedId = null;
+    s._dirty = false;
+  });
+  renderCanvas();
+  renderFieldsList();
+  renderAssets();
+  renderProperties();
+  document.getElementById('template-name').value = 'Untitled Template';
+}
+
+function loadJSON() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.addEventListener('change', () => {
+    if (!inp.files || !inp.files.length) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let tpl;
+      try { tpl = JSON.parse(reader.result); }
+      catch(e) { alert('Invalid JSON file.'); return; }
+      importTemplate(tpl);
+    };
+    reader.readAsText(inp.files[0]);
+  });
+  inp.click();
+}
+
+function importTemplate(tpl) {
+  applyChange(s => {
+    s.meta = tpl.meta || s.meta;
+    s.assets = tpl.assets || {};
+    s.fields = tpl.fields || [];
+    s.elements = tpl.elements || [];
+    s.background = tpl.background || { assetId: null };
+    s.selectedId = null;
+    s._dirty = false;
+  });
+  renderCanvas();
+  renderFieldsList();
+  renderAssets();
+  renderProperties();
+  const nameEl = document.getElementById('template-name');
+  if (nameEl) nameEl.value = state.meta.name || 'Untitled Template';
+}
+
+function saveJSON() {
+  const name = (document.getElementById('template-name')?.value || 'template').trim();
+  applyChange(s => { s.meta.name = name; s._dirty = false; });
+  const tpl = {
+    meta: state.meta,
+    assets: state.assets,
+    fields: state.fields,
+    elements: state.elements,
+    background: state.background,
+  };
+  const blob = new Blob([JSON.stringify(tpl, null, 2)], { type: 'application/json' });
+  triggerDownload(blob, (name.replace(/[^a-z0-9_\-]/gi, '_') || 'template') + '.json');
+}
+
+function previewSVG() {
+  const svgEl = document.getElementById('svg-canvas');
+  if (!svgEl) return;
+
+  // Clone exportable canvas only (not the overlay)
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.removeAttribute('style');
+  clone.setAttribute('width', PAGE_W);
+  clone.setAttribute('height', PAGE_H);
+
+  const serializer = new XMLSerializer();
+  const svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(clone);
+
+  const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+  const name = (state.meta.name || 'template').replace(/[^a-z0-9_\-]/gi, '_') || 'template';
+  triggerDownload(blob, name + '_preview.svg');
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* --- designer\src\main.js --- */
+document.addEventListener('DOMContentLoaded', () => {
+  initCanvas();
+  initProperties();
+  initFields();
+  initAssets();
+  initIO();
+
+  // Element add buttons
+  document.getElementById('btn-add-bound-text').addEventListener('click', () => {
+    if (!state.fields.length) {
+      alert('Add at least one field in the Fields tab first.');
+      return;
+    }
+    addBoundText(state.fields[0].id);
+  });
+  document.getElementById('btn-add-static-text').addEventListener('click', () => addStaticText());
+  document.getElementById('btn-add-image').addEventListener('click', () => {
+    const ids = Object.keys(state.assets);
+    if (!ids.length) {
+      alert('Upload an image in the Asset Library first.');
+      return;
+    }
+    addImageAsset(ids[0]);
+  });
+  document.getElementById('btn-add-rect').addEventListener('click', () => addRect());
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('visible'));
+      btn.classList.add('active');
+      document.getElementById(target + '-tab').classList.add('visible');
+    });
+  });
+  // default tab
+  document.querySelector('.tab-btn').click();
+
+  // Grid toggle
+  document.getElementById('btn-grid').addEventListener('click', () => {
+    applyChange(s => { s.gridOn = !s.gridOn; });
+    document.getElementById('btn-grid').classList.toggle('active', state.gridOn);
+    renderOverlay();
+  });
+
+  // Template name changes meta directly
+  document.getElementById('template-name').addEventListener('change', e => {
+    applyChange(s => { s.meta.name = e.target.value; });
+  });
+
+  // Refit canvas on window resize
+  window.addEventListener('resize', () => { updateZoom(); renderOverlay(); });
+
+  // Initial fit after layout settles
+  requestAnimationFrame(() => { updateZoom(); renderOverlay(); });
+});
+</script>
+</body>
+</html>
