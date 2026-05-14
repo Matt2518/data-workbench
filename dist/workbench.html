@@ -17514,14 +17514,13 @@ function _wcEscJs(s) {
     };
 
     try {
-      const flow = DWB.workflow.current();
-      if (!flow.merge.template) {
+      if (!merge.template) {
         throw new Error('No template loaded. Load a template in the Merge tab before generating.');
       }
 
       const os       = merge.outputSettings;
       const snapshot = DWB.promotedDatasets[os.selectedSnapshot];
-      const template = flow.merge.template;
+      const template = merge.template;
 
       if (!snapshot) { showError('No snapshot selected.'); return; }
 
