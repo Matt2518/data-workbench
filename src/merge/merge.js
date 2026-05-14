@@ -387,8 +387,12 @@
 
       setBtn('Loading libraries…', true);
 
-      await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-      await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/canvg/3.0.4/umd.min.js');
+      if (!window.canvg) {
+        await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/canvg/3.0.4/umd.min.js');
+      }
+      if (!window.jspdf) {
+        await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      }
 
       if (!window.jspdf || !window.jspdf.jsPDF) {
         throw new Error('jsPDF failed to initialize (window.jspdf.jsPDF not found). Check your internet connection.');
@@ -577,13 +581,12 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  function _loadScript(src) {
+  function _loadScript(url) {
     return new Promise(function (resolve, reject) {
-      if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
       var s = document.createElement('script');
-      s.src = src;
+      s.src = url;
       s.onload  = resolve;
-      s.onerror = function () { reject(new Error('Failed to load: ' + src)); };
+      s.onerror = function () { reject(new Error('Failed to load: ' + url)); };
       document.head.appendChild(s);
     });
   }
