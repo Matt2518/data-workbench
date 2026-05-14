@@ -530,7 +530,7 @@
           else tx = el.x;
           var ty      = el.y + el.height;
           var rawContent = el.content;
-          if (rawContent === undefined && el.style && el.style.content !== undefined) {
+          if (el.style && el.style.content !== undefined) {
             console.warn('[merge] static-text el "' + el.id + '" has content in style — migrate to el.content');
             rawContent = el.style.content;
           }

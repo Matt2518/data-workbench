@@ -42,7 +42,7 @@ function loadJSON() {
 
 function importTemplate(tpl) {
   const elements = (tpl.elements || []).map(el => {
-    if (el.type === 'static-text' && el.content === undefined && el.style && el.style.content !== undefined) {
+    if (el.type === 'static-text' && el.style && el.style.content !== undefined) {
       const { content: _c, ...styleWithout } = el.style;
       return Object.assign({}, el, { content: el.style.content, style: styleWithout });
     }
