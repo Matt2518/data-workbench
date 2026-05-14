@@ -28,7 +28,7 @@ function renderProperties() {
   if (el.type === 'static-text' || el.type === 'bound-text') {
     const rows = [];
     if (el.type === 'static-text') {
-      rows.push(makeTextRow('Content', el.style.content || '', v => setProp(el, 'style', 'content', v)));
+      rows.push(makeTextRow('Content', el.content !== undefined ? el.content : (el.style.content || ''), v => setProp(el, null, 'content', v)));
     } else {
       const fieldOpts = state.fields.map(f => ({ value: f.id, label: f.label }));
       rows.push(makeSelectRow('Field', el.fieldId || '', fieldOpts, v => {

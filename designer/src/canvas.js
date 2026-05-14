@@ -100,7 +100,7 @@ function buildSvgElement(el) {
       if (unbound) t.setAttribute('fill', '#cc3300');
       if (el.fieldId) t.setAttribute('data-field-id', el.fieldId);
     } else {
-      t.textContent = el.style.content || 'Text';
+      t.textContent = el.content !== undefined ? el.content : (el.style.content !== undefined ? el.style.content : 'Text');
     }
     t.dataset.elId = el.id;
     return t;
@@ -346,7 +346,8 @@ function addBoundText(fieldId) {
 function addStaticText() {
   const id = genId('el');
   addElement({ id, type: 'static-text', x: 328, y: 388, width: 400, height: 40,
-    style: { fontFamily: 'Arial', fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', textAnchor: 'start', fill: '#000000', content: 'Text' },
+    content: 'Text',
+    style: { fontFamily: 'Arial', fontSize: 18, fontWeight: 'normal', fontStyle: 'normal', textAnchor: 'start', fill: '#000000' },
   });
 }
 

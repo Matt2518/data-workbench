@@ -41,11 +41,18 @@ function loadJSON() {
 }
 
 function importTemplate(tpl) {
+  const elements = (tpl.elements || []).map(el => {
+    if (el.type === 'static-text' && el.content === undefined && el.style && el.style.content !== undefined) {
+      const { content: _c, ...styleWithout } = el.style;
+      return Object.assign({}, el, { content: el.style.content, style: styleWithout });
+    }
+    return el;
+  });
   applyChange(s => {
     s.meta = tpl.meta || s.meta;
     s.assets = tpl.assets || {};
     s.fields = tpl.fields || [];
-    s.elements = tpl.elements || [];
+    s.elements = elements;
     s.background = tpl.background || { assetId: null };
     s.selectedId = null;
     s._dirty = false;

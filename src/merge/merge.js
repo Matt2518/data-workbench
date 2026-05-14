@@ -529,7 +529,12 @@
           else if (anchor === 'end') tx = el.x + el.width;
           else tx = el.x;
           var ty      = el.y + el.height;
-          var content = _ex(el.content || '');
+          var rawContent = el.content;
+          if (rawContent === undefined && el.style && el.style.content !== undefined) {
+            console.warn('[merge] static-text el "' + el.id + '" has content in style — migrate to el.content');
+            rawContent = el.style.content;
+          }
+          var content = _ex(rawContent || '');
           var fieldId = el.fieldId || el.id;
           parts.push(
             '<text x="' + tx + '" y="' + ty + '"' +
