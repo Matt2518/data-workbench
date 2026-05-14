@@ -17510,7 +17510,7 @@ function _wcEscJs(s) {
 
     try {
       await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-      await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/canvg/4.0.1/umd.js');
+      await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/canvg/3.0.4/umd.min.js');
     } catch (err) {
       DWB.log('Failed to load PDF libraries: ' + err.message, 'error');
       alert('Could not load PDF generation libraries. Please check your internet connection.\n\n' + err.message);
