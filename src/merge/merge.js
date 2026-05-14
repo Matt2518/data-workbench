@@ -385,14 +385,9 @@
       const prevErr = document.getElementById('merge-generate-error');
       if (prevErr) prevErr.textContent = '';
 
-      if (!window.canvg || typeof window.canvg.fromString !== 'function') {
-        throw new Error('canvg is not loaded. Ensure the canvg script tag is present in frame.html.');
-      }
       if (!window.jspdf || !window.jspdf.jsPDF) {
         throw new Error('jsPDF is not loaded. Ensure the jspdf script tag is present in frame.html.');
       }
-
-      const Canvg = window.canvg;
 
       const resolution = os.resolution || 2;
       const pageW = template.meta.pageWidth;
@@ -419,11 +414,6 @@
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = pdf.internal.pageSize.getHeight();
 
-      const canvas = document.createElement('canvas');
-      canvas.width  = pageW * resolution;
-      canvas.height = pageH * resolution;
-      const ctx = canvas.getContext('2d');
-
       for (let i = 0; i < rows.length; i++) {
         setBtn('Generating… ' + (i + 1) + '/' + rows.length, true);
 
@@ -436,15 +426,7 @@
         });
 
         const svgStr = renderTemplateToSVG(resolvedEls, template.assets || {}, template.meta);
-
-        // Scale SVG width/height to canvas while keeping viewBox for proper scaling
-        const scaledSvg = svgStr
-          .replace('width="' + pageW + '"', 'width="' + canvas.width + '"')
-          .replace('height="' + pageH + '"', 'height="' + canvas.height + '"');
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const v = Canvg.fromString(ctx, scaledSvg);
-        await v.render();
+        const canvas = await svgToCanvas(svgStr, pageW, pageH, resolution);
 
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
         if (i > 0) pdf.addPage();
@@ -467,6 +449,33 @@
 
     setBtn('▶ Generate PDF', false);
   };
+
+  // ================================================================
+  //  SVG → CANVAS  (native browser image pipeline, no external lib)
+  // ================================================================
+
+  function svgToCanvas(svgString, width, height, resolution) {
+    return new Promise(function (resolve, reject) {
+      const scale = resolution || 2;
+      const canvas = document.createElement('canvas');
+      canvas.width  = width  * scale;
+      canvas.height = height * scale;
+      const ctx = canvas.getContext('2d');
+      const blob = new Blob([svgString], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = function () {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas);
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error('SVG render failed'));
+      };
+      img.src = url;
+    });
+  }
 
   // ================================================================
   //  SVG RENDERER  (pure function — no side effects)
