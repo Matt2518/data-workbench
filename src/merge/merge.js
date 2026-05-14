@@ -173,7 +173,7 @@
 
     return '<div class="merge-section">' +
       '<div class="merge-section-hdr"><span>Output</span></div>' +
-      '<div class="merge-section-inner">' +
+      '<div class="merge-section-inner" id="merge-output-inner">' +
         '<div class="merge-row">' +
           '<span class="merge-label">Filename</span>' +
           '<input type="text" id="merge-filename-input" ' +
@@ -367,8 +367,9 @@
         errEl = document.createElement('div');
         errEl.id = 'merge-generate-error';
         errEl.style.cssText = 'color:#c0392b;background:#fdf0ee;border:1px solid #e8c0bb;' +
-          'border-radius:4px;padding:8px 12px;margin-top:8px;font-size:12px;white-space:pre-wrap';
-        if (btn && btn.parentNode) btn.parentNode.insertBefore(errEl, btn.nextSibling);
+          'border-radius:4px;padding:8px 12px;margin-bottom:8px;font-size:12px;white-space:pre-wrap';
+        var container = document.getElementById('merge-output-inner');
+        if (container) container.insertBefore(errEl, container.firstChild);
       }
       errEl.textContent = msg;
     };
@@ -392,9 +393,9 @@
       if (!window.jspdf || !window.jspdf.jsPDF) {
         throw new Error('jsPDF failed to initialize (window.jspdf.jsPDF not found). Check your internet connection.');
       }
-      const Canvg = window.canvg && window.canvg.Canvg;
+      const Canvg = window.canvg;
       if (!Canvg || typeof Canvg.fromString !== 'function') {
-        throw new Error('canvg failed to initialize (window.canvg.Canvg not found). Check your internet connection.');
+        throw new Error('canvg failed to initialize (window.canvg not found). Check your internet connection.');
       }
 
       const resolution = os.resolution || 2;
