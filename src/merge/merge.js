@@ -393,8 +393,6 @@
       }
 
       const resolution = os.resolution || 2;
-      const pageW = template.meta.pageWidth;
-      const pageH = template.meta.pageHeight;
 
       const allObjects = DWB.toObjects(snapshot);
       const fromIdx = (os.rowFrom != null ? os.rowFrom : 1) - 1;
@@ -429,7 +427,7 @@
         });
 
         const svgStr = renderTemplateToSVG(resolvedEls, template.assets, template.meta);
-        const canvas = await svgToCanvas(svgStr, pageW, pageH, resolution);
+        const canvas = await svgToCanvas(svgStr, template.meta, resolvedEls, template.assets, resolution);
 
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
         if (i > 0) pdf.addPage();
@@ -457,12 +455,12 @@
   //  SVG → CANVAS  (native browser image pipeline, no external lib)
   // ================================================================
 
-  function svgToCanvas(svgString, width, height, resolution) {
+  function svgToCanvas(svgString, meta, elements, assets, resolution) {
     return new Promise(function (resolve, reject) {
       const scale = resolution || 2;
       const canvas = document.createElement('canvas');
-      canvas.width  = width  * scale;
-      canvas.height = height * scale;
+      canvas.width  = meta.pageWidth  * scale;
+      canvas.height = meta.pageHeight * scale;
       const ctx = canvas.getContext('2d');
       const blob = new Blob([svgString], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
@@ -470,7 +468,25 @@
       img.onload = function () {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(url);
-        resolve(canvas);
+
+        const imagePromises = (elements || [])
+          .filter(function (el) { return el.type === 'image'; })
+          .map(function (el) {
+            return new Promise(function (resolveImg) {
+              const asset = assets && assets[el.assetId];
+              if (!asset) { resolveImg(); return; }
+              const dataUri = 'data:' + asset.type + ';base64,' + asset.data;
+              const imgEl = new Image();
+              imgEl.onload = function () {
+                ctx.drawImage(imgEl, el.x * scale, el.y * scale, el.width * scale, el.height * scale);
+                resolveImg();
+              };
+              imgEl.onerror = function () { resolveImg(); };
+              imgEl.src = dataUri;
+            });
+          });
+
+        Promise.all(imagePromises).then(function () { resolve(canvas); });
       };
       img.onerror = function () {
         URL.revokeObjectURL(url);
@@ -551,18 +567,10 @@
           break;
         }
 
-        case 'image': {
-          var assetData = (el.assetId && assets) ? assets[el.assetId] : null;
-          if (assetData) {
-            parts.push(
-              '<image href="' + assetData + '"' +
-              ' x="' + el.x + '" y="' + el.y + '"' +
-              ' width="' + el.width + '" height="' + el.height + '"' +
-              ' data-field-id="' + _ea(el.id) + '"/>'
-            );
-          }
+        case 'image':
+          // Skipped — drawn directly onto canvas in svgToCanvas to avoid Chrome's
+          // SVG-as-image sandbox blocking <image> elements inside Blob URL SVGs.
           break;
-        }
       }
     }
 
