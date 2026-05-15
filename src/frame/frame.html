@@ -820,6 +820,8 @@
       overflow: hidden;
       cursor: pointer;
       transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s;
+      display: flex;
+      flex-direction: column;
     }
     .dwb-element-card:hover:not(.selected) {
       transform: translateY(-1px);
@@ -854,7 +856,7 @@
     }
     .dwb-element-menu-btn:hover { background: var(--border); color: var(--text-main); }
 
-    .dwb-element-content { padding: 16px; min-height: 160px; }
+    .dwb-element-content { padding: 16px; min-height: 280px; flex: 1; }
 
     .dwb-add-element-btn {
       display: block; width: 100%; padding: 8px; text-align: center;
@@ -1474,17 +1476,6 @@
     }
     .dash-weight-pill:hover { border-color: var(--border-strong); color: var(--text-main); }
     .dash-weight-pill.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-
-    /* Height controls */
-    .dwb-height-controls { display: flex; gap: 2px; }
-    .dwb-height-btn {
-      padding: 3px; background: none; border: none; cursor: pointer;
-      color: var(--text-faint); border-radius: 3px; line-height: 1;
-      opacity: 0.5; transition: opacity 0.12s, background 0.12s;
-    }
-    .dwb-height-btn:hover { opacity: 0.85; background: var(--border); }
-    .dwb-height-btn.active { opacity: 1; color: var(--accent); }
-    .presentation-mode .dwb-height-controls { display: none !important; }
 
     /* Theme variable cascade to element cards */
     #viz-canvas .dwb-element-card {

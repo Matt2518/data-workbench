@@ -5,7 +5,10 @@
       "Bash(node compiler/build.js)",
       "Bash(node compiler/build.js --target=designer)",
       "Bash(node compiler/build.js --target=dwb)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\matt2\\\\documents\\\\dataworkbench\\\\src\\\\viz\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)"
     ]
   }
 }

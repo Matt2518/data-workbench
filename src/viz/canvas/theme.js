@@ -47,13 +47,6 @@
 
   const BG_TYPES   = ['flat', 'gradient', 'bold-gradient'];
   const BG_LABELS  = { flat: 'Flat', gradient: 'Gradient', 'bold-gradient': 'Bold' };
-  const H_SIZES    = { S: '180px', M: '280px', L: '572px' };
-  const H_TITLES   = { S: 'Short (180px)', M: 'Medium (280px)', L: 'Tall (572px)' };
-  const H_SVGS = {
-    S: `<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="1" y="5" width="10" height="5" rx="1.5"/></svg>`,
-    M: `<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="1" y="2" width="10" height="8" rx="1.5"/></svg>`,
-    L: `<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="1" y="0.5" width="10" height="11" rx="1.5"/></svg>`
-  };
 
   const DEFAULT_THEME = {
     preset: 'Corporate',
@@ -458,57 +451,6 @@
     canvas.dataset.titleStyle = t.titleStyle || 'chrome';
 
     if (DWB.workflow) DWB.workflow.markDirty();
-  };
-
-  // ─────────────────────── HEIGHT CONTROLS ─────────────────────────────
-
-  viz._renderElementCardHtml = function (element, slotId) {
-    const def      = viz._elementRegistry[element.type] || {};
-    const selected = viz.activeElementId === element.id ? ' selected' : '';
-    const h        = (element.config && element.config.height) || 'M';
-    const hStyle   = `min-height:${H_SIZES[h] || H_SIZES.M}`;
-
-    const heightBtns = ['S', 'M', 'L'].map(s =>
-      `<button class="dwb-height-btn${h === s ? ' active' : ''}" id="height-btn-${s}-${element.id}"
-        title="${H_TITLES[s]}"
-        onclick="event.stopPropagation();DWB.viz.setElementHeight('${element.id}','${s}')">${H_SVGS[s]}</button>`
-    ).join('');
-
-    return `<div class="dwb-element-card${selected}" id="elcard-${element.id}"
-      onclick="DWB.viz.selectElement('${element.id}')">
-      <div class="dwb-element-header">
-        <span>${def.icon || '📦'}</span>
-        <input type="text" class="dwb-element-title-input" id="el-title-${element.id}"
-          value="${(element.title || '').replace(/"/g, '&quot;')}"
-          oninput="DWB.viz._updateElementTitle('${element.id}',this.value)"
-          onclick="event.stopPropagation()">
-        <div class="dwb-height-controls">${heightBtns}</div>
-        <span class="dwb-element-type-badge">${def.title || element.type}</span>
-        <button class="dwb-element-menu-btn"
-          onclick="event.stopPropagation();DWB.viz._showElementMenu(event,'${element.id}','${slotId}')">⋯</button>
-      </div>
-      <div class="dwb-element-content" id="element-content-${element.id}" style="${hStyle}">
-        <div class="dwb-empty-state" style="min-height:80px">Loading…</div>
-      </div>
-    </div>`;
-  };
-
-  viz.setElementHeight = function (elementId, size) {
-    const found = viz.findElement(elementId);
-    if (!found) return;
-    found.element.config       = found.element.config || {};
-    found.element.config.height = size;
-
-    const contentEl = document.getElementById('element-content-' + elementId);
-    if (contentEl) contentEl.style.minHeight = H_SIZES[size] || H_SIZES.M;
-
-    ['S', 'M', 'L'].forEach(s => {
-      const btn = document.getElementById('height-btn-' + s + '-' + elementId);
-      if (btn) btn.classList.toggle('active', s === size);
-    });
-
-    if (DWB.workflow) DWB.workflow.markDirty();
-    viz.renderElement(elementId);
   };
 
   // ─────────────────────── INITIAL APPLY ───────────────────────────────

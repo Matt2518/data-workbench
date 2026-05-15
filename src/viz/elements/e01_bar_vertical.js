@@ -146,7 +146,6 @@ DWB.registerElement('BAR_V', {
     }
 
     const bottomPad = labelRotate > 0 ? Math.round(labelRotate * 1.4) : 24;
-    container.style.minHeight = '200px';
 
     if (element._instance) {
       element._instance.dispose();
