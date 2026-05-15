@@ -235,6 +235,7 @@ DWB.register('DATA_VALIDATION', {
       cfg.referenceSource = 'builtin';
       cfg.referenceValues = DEFAULT_VALIDATORS[key] || [];
       cfg.resolutions     = {};
+      DWB.renderActiveNode();
     });
 
     const uploadedSel = document.getElementById(`dv-uploaded-${id}`);
@@ -246,6 +247,7 @@ DWB.register('DATA_VALIDATION', {
         cfg.referenceSource = 'uploaded';
         cfg.referenceValues = (cfg.uploadedLists || {})[key] || [];
         cfg.resolutions     = {};
+        DWB.renderActiveNode();
       });
     }
 
