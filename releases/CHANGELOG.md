@@ -2,6 +2,23 @@
 
 *Releases are tagged and committed here.*
 
+## \[v0.14] — 2026-05-15
+
+*Release notes:* 
+
+*- Line chart viz element with multi-series, dual Y axis,* 
+
+&#x20; *smooth/straight, markers, area fill*
+
+*- Vertical bar chart height fix*
+
+*- S/M/L element height controls removed*
+
+*- Data Validation Run Validation button*
+
+* DWB build: 739.8 KB, 55 plugin(s)
+* Designer build: 41.1 KB, 7 source file(s)
+
 ## \[v0.13] — 2026-05-15
 
 * *Release notes: Add "merge" mode and companion designer app.*
