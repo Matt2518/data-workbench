@@ -3,21 +3,21 @@
 const fs            = require('fs');
 const path          = require('path');
 const { execSync }  = require('child_process');
-const { build }     = require('./build');
+const { build, buildDesigner } = require('./build');
 
 const ROOT         = path.resolve(__dirname, '..');
 const RELEASES_DIR = path.join(ROOT, 'releases');
 const CHANGELOG    = path.join(RELEASES_DIR, 'CHANGELOG.md');
-const OUT_FILE     = path.join(ROOT, 'dist', 'workbench.html');
 
 const VERSION_RE   = /^v\d+\.\d+$/;
 
-function prependChangelog(version, kb, pluginCount) {
+function prependChangelog(version, dwb, designer) {
   const today = new Date().toISOString().slice(0, 10);
   const entry = [
     `## [${version}] — ${today}`,
     `_Release notes: (edit this line before committing)_`,
-    `- Build: ${kb} KB, ${pluginCount} plugin(s)`,
+    `- DWB build: ${dwb.kb} KB, ${dwb.pluginCount} plugin(s)`,
+    `- Designer build: ${designer.kb} KB, ${designer.sourceCount} source file(s)`,
     ''
   ].join('\n');
 
@@ -51,31 +51,35 @@ function main() {
     process.exit(1);
   }
 
-  // 1. Build
-  const { kb, pluginCount } = build();
+  // 1. Build both targets sequentially
+  const dwb      = build();
+  const designer = buildDesigner();
 
   // 2. Create releases/ directory
   if (!fs.existsSync(RELEASES_DIR)) fs.mkdirSync(RELEASES_DIR, { recursive: true });
 
-  // 3. Copy versioned and latest
-  const versionedFile = path.join(RELEASES_DIR, `workbench-${version}.html`);
-  const latestFile    = path.join(RELEASES_DIR, 'workbench-latest.html');
-  fs.copyFileSync(OUT_FILE, versionedFile);
-  fs.copyFileSync(OUT_FILE, latestFile);
+  // 3. Copy versioned and latest for each target
+  fs.copyFileSync(dwb.outFile,      path.join(RELEASES_DIR, `dwb-${version}.html`));
+  fs.copyFileSync(dwb.outFile,      path.join(RELEASES_DIR, 'dwb-latest.html'));
+  fs.copyFileSync(designer.outFile, path.join(RELEASES_DIR, `designer-${version}.html`));
+  fs.copyFileSync(designer.outFile, path.join(RELEASES_DIR, 'designer-latest.html'));
 
   // 4. Update CHANGELOG.md
-  prependChangelog(version, kb, pluginCount);
+  prependChangelog(version, dwb, designer);
 
   // 5. Git: stage, commit, tag
-  git('git add releases/');
+  git(`git add releases/dwb-${version}.html releases/dwb-latest.html releases/designer-${version}.html releases/designer-latest.html releases/CHANGELOG.md`);
   git(`git commit -m "release: ${version}"`);
   git(`git tag ${version}`);
 
   // 6. Summary
   console.log('');
-  console.log(`✓ Built: ${kb} KB`);
-  console.log(`✓ Copied to releases/workbench-${version}.html`);
-  console.log(`✓ Copied to releases/workbench-latest.html`);
+  console.log(`✓ DWB built: ${dwb.kb} KB`);
+  console.log(`✓ Copied to releases/dwb-${version}.html`);
+  console.log(`✓ Copied to releases/dwb-latest.html`);
+  console.log(`✓ Designer built: ${designer.kb} KB`);
+  console.log(`✓ Copied to releases/designer-${version}.html`);
+  console.log(`✓ Copied to releases/designer-latest.html`);
   console.log(`✓ CHANGELOG.md updated`);
   console.log(`✓ Committed and tagged ${version}`);
   console.log(`→ Next: edit release notes in releases/CHANGELOG.md, then:`);
