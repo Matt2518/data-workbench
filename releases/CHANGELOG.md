@@ -2,11 +2,18 @@
 
 *Releases are tagged and committed here.*
 
+## \[v0.15] — 2026-05-15
+
+*Release notes: AI Assist viz element — clipboard-based AI insight panel  with Big Picture, Chart Story, and Flag Anomalies modes,  preset request types, markdown rendering, full config persistence*
+
+* DWB build: 762.1 KB, 56 plugin(s)
+* Designer build: 41.1 KB, 7 source file(s)
+
 ## \[v0.14] — 2026-05-15
 
-*Release notes:* 
+*Release notes:*
 
-*- Line chart viz element with multi-series, dual Y axis,* 
+*- Line chart viz element with multi-series, dual Y axis,*
 
 &#x20; *smooth/straight, markers, area fill*
 
