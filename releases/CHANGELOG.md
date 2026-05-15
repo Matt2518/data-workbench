@@ -2,6 +2,11 @@
 
 *Releases are tagged and committed here.*
 
+## [v0.15] — 2026-05-15
+_Release notes: (edit this line before committing)_
+- DWB build: 762.1 KB, 56 plugin(s)
+- Designer build: 41.1 KB, 7 source file(s)
+
 ## \[v0.14] — 2026-05-15
 
 *Release notes:* 
