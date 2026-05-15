@@ -93,6 +93,8 @@ DWB.register('DATA_VALIDATION', {
       ? `<div style="font-size:11px;color:var(--text-faint);margin-top:6px">Active list: <strong>${esc(cfg.referenceKey)}</strong> (${cfg.referenceValues.length} values)</div>`
       : '';
 
+    const runBtn = `<button id="dv-run-${id}" class="btn-primary" style="margin-top:8px;width:100%"${cfg.referenceValues.length > 0 ? '' : ' disabled'}>Run Validation →</button>`;
+
     const step2 = `
       <div>
         ${stepLabel(2, 'Reference List Source')}
@@ -115,6 +117,7 @@ DWB.register('DATA_VALIDATION', {
           </div>
         </div>
         ${activeInfo}
+        ${runBtn}
       </div>`;
 
     // ── Step 3: Validation Results ─────────────────────────────────────────
@@ -232,7 +235,6 @@ DWB.register('DATA_VALIDATION', {
       cfg.referenceSource = 'builtin';
       cfg.referenceValues = DEFAULT_VALIDATORS[key] || [];
       cfg.resolutions     = {};
-      DWB.runFrom(node.id);
     });
 
     const uploadedSel = document.getElementById(`dv-uploaded-${id}`);
@@ -244,9 +246,12 @@ DWB.register('DATA_VALIDATION', {
         cfg.referenceSource = 'uploaded';
         cfg.referenceValues = (cfg.uploadedLists || {})[key] || [];
         cfg.resolutions     = {};
-        DWB.runFrom(node.id);
       });
     }
+
+    document.getElementById(`dv-run-${id}`).addEventListener('click', () => {
+      DWB.runFrom(node.id);
+    });
 
     document.getElementById(`dv-upload-${id}`).addEventListener('change', e => {
       const file = e.target.files[0];
