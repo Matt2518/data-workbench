@@ -2,6 +2,11 @@
 
 *Releases are tagged and committed here.*
 
+## [v1.0] — 2026-05-19
+_Release notes: (edit this line before committing)_
+- DWB build: 762.1 KB, 56 plugin(s)
+- Designer build: 41.1 KB, 7 source file(s)
+
 ## \[v0.15] — 2026-05-15
 
 *Release notes: AI Assist viz element — clipboard-based AI insight panel  with Big Picture, Chart Story, and Flag Anomalies modes,  preset request types, markdown rendering, full config persistence*
