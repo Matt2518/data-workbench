@@ -247,9 +247,442 @@ window.DWBDashboard = (function() {
     document.body.appendChild(overlay);
   }
 
+  // ── Shared chart palette ─────────────────────────────────────────────────────
+  var _D_PALETTE = ['#005EB8','#C5B230','#059669','#dc2626','#f59e0b','#0ea5e9','#8b5cf6','#ec4899'];
+
+  // Word-cloud CDN lazy-load promise (own cached promise, own failure state)
+  var _dWcPromise = null;
+
+  // ── Likert scale presets ─────────────────────────────────────────────────────
+  var _LIKERT_SCALES = {
+    '5point': ['Strongly Disagree','Disagree','Neutral','Agree','Strongly Agree'],
+    '7point': ['Strongly Disagree','Disagree','Somewhat Disagree','Neutral','Somewhat Agree','Agree','Strongly Agree']
+  };
+  var _LIKERT_COLORS_5 = ['#1d4ed8','#3b82f6','#94a3b8','#f97316','#c2410c'];
+  var _LIKERT_COLORS_7 = ['#1d4ed8','#3b82f6','#93c5fd','#94a3b8','#fdba74','#f97316','#c2410c'];
+
+  // ── Utilities ─────────────────────────────────────────────────────────────────
+
+  function _dMissingConfig(container, type) {
+    container.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px;text-align:center">⚙️ Configure ' + _dEsc(type) + ' in the config panel.</div>';
+  }
+
+  function _dDisposeDomCharts(container) {
+    if (window.echarts) {
+      container.querySelectorAll('.dash-block-chart').forEach(function(el) {
+        var inst = window.echarts.getInstanceByDom(el);
+        if (inst) inst.dispose();
+      });
+    }
+  }
+
+  // ── Single aggregation implementation ────────────────────────────────────────
+  function _dAggregateRows(rows, categoryField, valueField, aggregation) {
+    var groups = {};
+    var counts = {};
+    (rows || []).forEach(function(row) {
+      var cat = row[categoryField] !== undefined ? String(row[categoryField]) : '(blank)';
+      var val = parseFloat(row[valueField]) || 0;
+      if (!groups[cat]) { groups[cat] = 0; counts[cat] = 0; }
+      groups[cat] += val;
+      counts[cat]++;
+    });
+    return Object.keys(groups).map(function(cat) {
+      var value;
+      if (aggregation === 'count') value = counts[cat];
+      else if (aggregation === 'average') value = counts[cat] ? +(groups[cat] / counts[cat]).toFixed(2) : 0;
+      else value = groups[cat];
+      return { category: cat, value: value };
+    });
+  }
+
+  // ── BAR_VERTICAL renderer (uses _dAggregateRows) ─────────────────────────────
+  function _dRenderBarVertical(viz, rows, container) {
+    var cfg = viz.config || {};
+    var catField = cfg.categoryField || '';
+    var valField = cfg.valueField || '';
+    var agg = cfg.aggregation || 'sum';
+
+    if (!catField || !valField || !rows.length) {
+      _dMissingConfig(container, 'BAR_VERTICAL');
+      return;
+    }
+
+    var data = _dAggregateRows(rows, catField, valField, agg);
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:300px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      var existing = ec.getInstanceByDom(el);
+      if (existing) existing.dispose();
+      var chart = ec.init(el);
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: data.map(function(d) { return d.category; }), axisLabel: { rotate: 30, fontSize: 11 } },
+        yAxis: { type: 'value' },
+        series: [{ type: 'bar', data: data.map(function(d) { return d.value; }), itemStyle: { color: '#005EB8' } }],
+        grid: { left: 50, right: 20, bottom: 60, top: 20 }
+      });
+      setTimeout(function() { chart.resize(); }, 50);
+    }).catch(function() { _dMissingConfig(container, 'BAR_VERTICAL (ECharts unavailable)'); });
+  }
+
+  // ── LINE renderer ─────────────────────────────────────────────────────────────
+  function _dRenderLine(viz, rows, container) {
+    var cfg = viz.config || {};
+    var xField = cfg.xField || '';
+    var series = cfg.series || [];
+    var agg = cfg.aggregation || 'sum';
+
+    if (!xField || !series.length || !series.some(function(s) { return s.valueField; })) {
+      _dMissingConfig(container, 'LINE');
+      return;
+    }
+
+    // Collect unique x categories in row order
+    var xCats = [];
+    var xSeen = {};
+    rows.forEach(function(row) {
+      var x = row[xField] !== undefined ? String(row[xField]) : '(blank)';
+      if (!xSeen[x]) { xSeen[x] = true; xCats.push(x); }
+    });
+
+    var echartsSeries = series.filter(function(s) { return s.valueField; }).map(function(s, idx) {
+      var aggData = _dAggregateRows(rows, xField, s.valueField, agg);
+      var catMap = {};
+      aggData.forEach(function(d) { catMap[d.category] = d.value; });
+      var yData = xCats.map(function(x) { return catMap[x] !== undefined ? catMap[x] : 0; });
+      return {
+        type: 'line',
+        name: s.label || s.valueField,
+        smooth: cfg.smoothed || false,
+        data: yData,
+        itemStyle: { color: s.color || _D_PALETTE[idx % _D_PALETTE.length] },
+        yAxisIndex: cfg.dualYAxis ? (idx % 2) : 0
+      };
+    });
+
+    var yAxisDef;
+    if (cfg.dualYAxis) {
+      yAxisDef = [
+        { type: 'value', name: cfg.yLabel || '', nameTextStyle: { fontSize: 11 } },
+        { type: 'value', name: cfg.y2Label || '', nameTextStyle: { fontSize: 11 } }
+      ];
+    } else {
+      yAxisDef = { type: 'value', name: cfg.yLabel || '' };
+    }
+
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:300px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      var existing = ec.getInstanceByDom(el);
+      if (existing) existing.dispose();
+      var chart = ec.init(el);
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: echartsSeries.length > 1 ? { bottom: 0 } : { show: false },
+        xAxis: { type: 'category', data: xCats, name: cfg.xLabel || '', nameTextStyle: { fontSize: 11 } },
+        yAxis: yAxisDef,
+        series: echartsSeries,
+        grid: { top: 40, bottom: 40, left: 60, right: cfg.dualYAxis ? 60 : 20 }
+      });
+      setTimeout(function() { chart.resize(); }, 50);
+    }).catch(function() { _dMissingConfig(container, 'LINE (ECharts unavailable)'); });
+  }
+
+  // ── PIE renderer ──────────────────────────────────────────────────────────────
+  function _dRenderPie(viz, rows, container) {
+    var cfg = viz.config || {};
+    var catField = cfg.categoryField || '';
+    var agg = cfg.aggregation || 'sum';
+
+    if (!catField) {
+      _dMissingConfig(container, 'PIE');
+      return;
+    }
+
+    var data;
+    if (agg === 'count' || !cfg.valueField) {
+      var countMap = {};
+      rows.forEach(function(row) {
+        var cat = row[catField] !== undefined ? String(row[catField]) : '(blank)';
+        countMap[cat] = (countMap[cat] || 0) + 1;
+      });
+      data = Object.keys(countMap).map(function(cat) { return { name: cat, value: countMap[cat] }; });
+    } else {
+      data = _dAggregateRows(rows, catField, cfg.valueField, agg).map(function(d) { return { name: d.category, value: d.value }; });
+    }
+
+    var showLabels = cfg.showLabels !== false;
+    var showLegend = cfg.showLegend !== false;
+
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:300px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      var existing = ec.getInstanceByDom(el);
+      if (existing) existing.dispose();
+      var chart = ec.init(el);
+      chart.setOption({
+        color: _D_PALETTE,
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { show: showLegend, orient: 'vertical', right: 10, type: 'scroll' },
+        series: [{
+          type: 'pie',
+          radius: cfg.donut ? ['40%','70%'] : '70%',
+          data: data,
+          label: { show: showLabels, formatter: '{b}: {d}%' },
+          emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } }
+        }]
+      });
+      setTimeout(function() { chart.resize(); }, 50);
+    }).catch(function() { _dMissingConfig(container, 'PIE (ECharts unavailable)'); });
+  }
+
+  // ── STACKED_DIVERGING_BAR (Likert) renderer ───────────────────────────────────
+  function _dRenderStackedDivergingBar(viz, rows, container) {
+    var cfg = viz.config || {};
+    var questionField = cfg.questionField || '';
+    var responseField = cfg.responseField || '';
+
+    if (!questionField || !responseField) {
+      _dMissingConfig(container, 'STACKED_DIVERGING_BAR');
+      return;
+    }
+
+    var scaleType = cfg.scaleType || '5point';
+    var scaleLabels = (scaleType === 'custom') ? (cfg.scaleLabels || []) : (_LIKERT_SCALES[scaleType] || _LIKERT_SCALES['5point']);
+    var scaleColors;
+    if (scaleType === '7point') {
+      scaleColors = _LIKERT_COLORS_7.slice();
+    } else if (scaleType === 'custom') {
+      var baseC = ['#1d4ed8','#3b82f6','#93c5fd','#94a3b8','#fdba74','#f97316','#c2410c'];
+      scaleColors = baseC.slice(0, scaleLabels.length);
+    } else {
+      scaleColors = _LIKERT_COLORS_5.slice();
+    }
+
+    var n = scaleLabels.length;
+    if (!n) { _dMissingConfig(container, 'STACKED_DIVERGING_BAR'); return; }
+
+    var midIdx = Math.floor(n / 2);
+    var hasNeutral = (n % 2 === 1);
+
+    // Unique questions in first-occurrence order
+    var questions = [];
+    var qSeen = {};
+    rows.forEach(function(row) {
+      var q = row[questionField] !== undefined ? String(row[questionField]) : '';
+      if (q && !qSeen[q]) { qSeen[q] = true; questions.push(q); }
+    });
+    if (!questions.length) { _dMissingConfig(container, 'STACKED_DIVERGING_BAR'); return; }
+
+    // Count responses per question per scale label
+    var counts = {};
+    questions.forEach(function(q) {
+      counts[q] = {};
+      scaleLabels.forEach(function(l) { counts[q][l] = 0; });
+    });
+
+    rows.forEach(function(row) {
+      var q = row[questionField] !== undefined ? String(row[questionField]) : '';
+      var r = row[responseField] !== undefined ? String(row[responseField]) : '';
+      if (!q || !counts[q]) return;
+      var rLower = r.toLowerCase().trim();
+      var matched = null;
+      for (var li = 0; li < scaleLabels.length; li++) {
+        if (scaleLabels[li].toLowerCase().trim() === rLower) { matched = scaleLabels[li]; break; }
+      }
+      if (matched) {
+        var inc = 1;
+        if (cfg.countField && row[cfg.countField] !== undefined) inc = parseInt(row[cfg.countField]) || 1;
+        counts[q][matched] = (counts[q][matched] || 0) + inc;
+      }
+    });
+
+    // Build diverging series following v1.0 stacking pattern:
+    // [neutral-left(neg), ...negOrd(outermost-first, idx 0..midIdx-1), neutral-right(pos), ...posOrd(innermost-first, idx midIdx+1..n-1)]
+    var neutralLabel = hasNeutral ? scaleLabels[midIdx] : '';
+    var neutralColor = hasNeutral ? (scaleColors[midIdx] || '#94a3b8') : '';
+
+    var series = [];
+
+    if (hasNeutral) {
+      series.push({
+        type: 'bar', name: '__nl_' + neutralLabel, stack: 'likert',
+        data: questions.map(function(q) { return -Math.floor((counts[q][neutralLabel] || 0) / 2); }),
+        itemStyle: { color: neutralColor }, label: { show: false }
+      });
+    }
+
+    // Negative series: outermost first = ascending index order (index 0 = most negative)
+    for (var ni = 0; ni < midIdx; ni++) {
+      (function(idx) {
+        var lbl = scaleLabels[idx];
+        series.push({
+          type: 'bar', name: lbl, stack: 'likert',
+          data: questions.map(function(q) { return -(counts[q][lbl] || 0); }),
+          itemStyle: { color: scaleColors[idx] || '#94a3b8' },
+          emphasis: { focus: 'series' }
+        });
+      })(ni);
+    }
+
+    if (hasNeutral) {
+      series.push({
+        type: 'bar', name: neutralLabel, stack: 'likert',
+        data: questions.map(function(q) { return Math.ceil((counts[q][neutralLabel] || 0) / 2); }),
+        itemStyle: { color: neutralColor }, emphasis: { focus: 'series' }
+      });
+    }
+
+    // Positive series: innermost first = ascending index order (midIdx+1 = least positive)
+    var posStart = midIdx + (hasNeutral ? 1 : 0);
+    for (var pi = posStart; pi < n; pi++) {
+      (function(idx) {
+        var lbl = scaleLabels[idx];
+        series.push({
+          type: 'bar', name: lbl, stack: 'likert',
+          data: questions.map(function(q) { return counts[q][lbl] || 0; }),
+          itemStyle: { color: scaleColors[idx] || '#94a3b8' },
+          emphasis: { focus: 'series' }
+        });
+      })(pi);
+    }
+
+    // Legend (skip __ ghost series, deduplicate)
+    var legendData = [];
+    var legendSeen = {};
+    series.forEach(function(s) {
+      if (!s.name.startsWith('__') && !legendSeen[s.name]) { legendSeen[s.name] = true; legendData.push(s.name); }
+    });
+
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:' + Math.max(200, questions.length * 40 + 80) + 'px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      var existing = ec.getInstanceByDom(el);
+      if (existing) existing.dispose();
+      var chart = ec.init(el);
+      chart.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        legend: { data: legendData, bottom: 4, type: 'scroll' },
+        grid: { top: 20, bottom: 40, left: 160, right: 20 },
+        xAxis: {
+          type: 'value',
+          min: function(value) { return -Math.max(Math.abs(value.min), Math.abs(value.max)); },
+          max: function(value) { return Math.max(Math.abs(value.min), Math.abs(value.max)); }
+        },
+        yAxis: { type: 'category', data: questions, inverse: true },
+        series: series
+      });
+      setTimeout(function() { chart.resize(); }, 50);
+    }).catch(function() { _dMissingConfig(container, 'STACKED_DIVERGING_BAR (ECharts unavailable)'); });
+  }
+
+  // ── WORD_CLOUD renderer ───────────────────────────────────────────────────────
+  function _dRenderWordCloud(viz, rows, container) {
+    var cfg = viz.config || {};
+    var wordField = cfg.wordField || '';
+
+    if (!wordField) {
+      _dMissingConfig(container, 'WORD_CLOUD');
+      return;
+    }
+
+    var maxWords = cfg.maxWords || 100;
+    var wordMap = {};
+    rows.forEach(function(row) {
+      var word = row[wordField] !== undefined ? String(row[wordField]).trim() : '';
+      if (!word) return;
+      if (cfg.weightField && row[cfg.weightField] !== undefined) {
+        wordMap[word] = (wordMap[word] || 0) + (parseFloat(row[cfg.weightField]) || 0);
+      } else {
+        wordMap[word] = (wordMap[word] || 0) + 1;
+      }
+    });
+
+    var wordData = Object.keys(wordMap)
+      .map(function(w) { return { name: w, value: wordMap[w] }; })
+      .sort(function(a, b) { return b.value - a.value; })
+      .slice(0, maxWords);
+
+    if (!wordData.length) { _dMissingConfig(container, 'WORD_CLOUD'); return; }
+
+    var colorMode = cfg.colorMode || 'palette';
+
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:300px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      if (!_dWcPromise) {
+        _dWcPromise = new Promise(function(resolve, reject) {
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/echarts-wordcloud@2/dist/echarts-wordcloud.min.js';
+          s.onload = resolve;
+          s.onerror = function() { _dWcPromise = null; reject(new Error('Word cloud library unavailable')); };
+          document.head.appendChild(s);
+        });
+      }
+      _dWcPromise.then(function() {
+        var existing = ec.getInstanceByDom(el);
+        if (existing) existing.dispose();
+        var chart = ec.init(el);
+        var accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#005EB8';
+        chart.setOption({
+          series: [{
+            type: 'wordCloud',
+            shape: 'circle',
+            sizeRange: [12, 48],
+            rotationRange: [0, 0],
+            gridSize: 8,
+            data: wordData,
+            textStyle: {
+              color: colorMode === 'single'
+                ? accentColor
+                : function() { return _D_PALETTE[Math.floor(Math.random() * _D_PALETTE.length)]; }
+            }
+          }]
+        });
+        setTimeout(function() { chart.resize(); }, 50);
+      }).catch(function() {
+        container.innerHTML = '<div style="padding:20px;color:var(--danger);font-size:12px">⚠️ Word cloud library unavailable.</div>';
+      });
+    }).catch(function() { _dMissingConfig(container, 'WORD_CLOUD (ECharts unavailable)'); });
+  }
+
   function _dEsc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  return { mount: mount };
+  return {
+    mount: mount,
+    renderBarVertical: _dRenderBarVertical,
+    renderLine: _dRenderLine,
+    renderPie: _dRenderPie,
+    renderStackedDivergingBar: _dRenderStackedDivergingBar,
+    renderWordCloud: _dRenderWordCloud,
+    aggregateRows: _dAggregateRows
+  };
 })();

@@ -27,6 +27,15 @@ window.DWBPipelineTab = (function() {
     if (!panel) return;
     panel.innerHTML = `
       <div class="pt-main">
+        <div id="pt-config-panel">
+          <div class="panel-header" id="pt-config-header">
+            <span>Node Config</span><em class="ph-arrow">▾</em>
+          </div>
+          <div id="pt-config-body">
+            <div style="color:var(--text-faint);font-size:12px;padding:8px 0">Select a node to configure it.</div>
+          </div>
+        </div>
+        <div id="pt-resize-divider"></div>
         <div id="pt-inspector">
           <div id="pt-inspector-meta">
             <span id="pt-meta-text">No data — add an INGEST node</span>
@@ -35,15 +44,6 @@ window.DWBPipelineTab = (function() {
           </div>
           <div id="pt-table-wrap">
             <div class="pt-inspector-empty"><div class="ei-icon">📊</div><div>Add an INGEST node to load data</div></div>
-          </div>
-        </div>
-        <div id="pt-resize-divider"></div>
-        <div id="pt-config-panel">
-          <div class="panel-header" id="pt-config-header">
-            <span>Node Config</span><em class="ph-arrow">▾</em>
-          </div>
-          <div id="pt-config-body">
-            <div style="color:var(--text-faint);font-size:12px;padding:8px 0">Select a node to configure it.</div>
           </div>
         </div>
       </div>
@@ -433,7 +433,7 @@ window.DWBPipelineTab = (function() {
     function onMove(e) {
       const panel = document.getElementById('pt-config-panel');
       if (!panel) return;
-      const delta = startY - e.clientY;
+      const delta = e.clientY - startY;
       const newH = Math.max(32, Math.min(600, startH + delta));
       panel.style.flexBasis = newH + 'px';
     }

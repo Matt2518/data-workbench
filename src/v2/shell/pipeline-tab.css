@@ -78,7 +78,7 @@
 #pt-config-panel {
   flex: 0 0 220px;
   background: var(--bg-surface);
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -147,11 +147,11 @@
   display: flex; align-items: center; justify-content: center;
   width: calc(100% - 16px); margin: 2px 8px;
   padding: 5px; background: transparent;
-  border: 1px dashed var(--border-strong); border-radius: 4px;
-  color: var(--text-faint); font-size: 11px;
+  border: 1px dashed var(--accent); border-radius: 4px;
+  color: var(--accent); font-size: 11px;
   transition: all var(--transition-fast);
 }
-.pt-add-node-btn:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.pt-add-node-btn:hover { background: var(--accent-light); }
 
 /* Stash panel */
 #pt-stash-panel {

@@ -116,12 +116,12 @@
 .dash-add-placement-btn {
   display: flex; align-items: center; justify-content: center;
   width: 100%; padding: 20px;
-  background: none; border: 2px dashed var(--border);
-  border-radius: 8px; color: var(--text-faint); font-size: 12px; cursor: pointer;
+  background: none; border: 2px dashed var(--accent);
+  border-radius: 8px; color: var(--accent); font-size: 12px; cursor: pointer;
   transition: all var(--transition-fast);
   font-family: inherit;
 }
-.dash-add-placement-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.dash-add-placement-btn:hover { background: var(--accent-light); }
 
 /* Infographic / fullscreen mode */
 .dash-fullscreen-btn {

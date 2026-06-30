@@ -545,12 +545,12 @@ input:focus, select:focus, textarea:focus {
 .dash-add-placement-btn {
   display: flex; align-items: center; justify-content: center;
   width: 100%; padding: 20px;
-  background: none; border: 2px dashed var(--border);
-  border-radius: 8px; color: var(--text-faint); font-size: 12px; cursor: pointer;
+  background: none; border: 2px dashed var(--accent);
+  border-radius: 8px; color: var(--accent); font-size: 12px; cursor: pointer;
   transition: all var(--transition-fast);
   font-family: inherit;
 }
-.dash-add-placement-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.dash-add-placement-btn:hover { background: var(--accent-light); }
 
 /* Infographic / fullscreen mode */
 .dash-fullscreen-btn {
@@ -885,7 +885,7 @@ input:focus, select:focus, textarea:focus {
 #pt-config-panel {
   flex: 0 0 220px;
   background: var(--bg-surface);
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -954,11 +954,11 @@ input:focus, select:focus, textarea:focus {
   display: flex; align-items: center; justify-content: center;
   width: calc(100% - 16px); margin: 2px 8px;
   padding: 5px; background: transparent;
-  border: 1px dashed var(--border-strong); border-radius: 4px;
-  color: var(--text-faint); font-size: 11px;
+  border: 1px dashed var(--accent); border-radius: 4px;
+  color: var(--accent); font-size: 11px;
   transition: all var(--transition-fast);
 }
-.pt-add-node-btn:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.pt-add-node-btn:hover { background: var(--accent-light); }
 
 /* Stash panel */
 #pt-stash-panel {
@@ -1123,11 +1123,11 @@ input:focus, select:focus, textarea:focus {
   display: flex; align-items: center; justify-content: center;
   width: calc(100% - 16px); margin: 4px 8px;
   padding: 5px; background: transparent;
-  border: 1px dashed var(--border-strong); border-radius: 4px;
-  color: var(--text-faint); font-size: 11px;
+  border: 1px dashed var(--accent); border-radius: 4px;
+  color: var(--accent); font-size: 11px;
   transition: all var(--transition-fast);
 }
-.vt-add-btn:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.vt-add-btn:hover { background: var(--accent-light); }
 
 /* Main area */
 #vt-main {
@@ -1793,11 +1793,444 @@ window.DWBDashboard = (function() {
     document.body.appendChild(overlay);
   }
 
+  // ── Shared chart palette ─────────────────────────────────────────────────────
+  var _D_PALETTE = ['#005EB8','#C5B230','#059669','#dc2626','#f59e0b','#0ea5e9','#8b5cf6','#ec4899'];
+
+  // Word-cloud CDN lazy-load promise (own cached promise, own failure state)
+  var _dWcPromise = null;
+
+  // ── Likert scale presets ─────────────────────────────────────────────────────
+  var _LIKERT_SCALES = {
+    '5point': ['Strongly Disagree','Disagree','Neutral','Agree','Strongly Agree'],
+    '7point': ['Strongly Disagree','Disagree','Somewhat Disagree','Neutral','Somewhat Agree','Agree','Strongly Agree']
+  };
+  var _LIKERT_COLORS_5 = ['#1d4ed8','#3b82f6','#94a3b8','#f97316','#c2410c'];
+  var _LIKERT_COLORS_7 = ['#1d4ed8','#3b82f6','#93c5fd','#94a3b8','#fdba74','#f97316','#c2410c'];
+
+  // ── Utilities ─────────────────────────────────────────────────────────────────
+
+  function _dMissingConfig(container, type) {
+    container.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px;text-align:center">⚙️ Configure ' + _dEsc(type) + ' in the config panel.</div>';
+  }
+
+  function _dDisposeDomCharts(container) {
+    if (window.echarts) {
+      container.querySelectorAll('.dash-block-chart').forEach(function(el) {
+        var inst = window.echarts.getInstanceByDom(el);
+        if (inst) inst.dispose();
+      });
+    }
+  }
+
+  // ── Single aggregation implementation ────────────────────────────────────────
+  function _dAggregateRows(rows, categoryField, valueField, aggregation) {
+    var groups = {};
+    var counts = {};
+    (rows || []).forEach(function(row) {
+      var cat = row[categoryField] !== undefined ? String(row[categoryField]) : '(blank)';
+      var val = parseFloat(row[valueField]) || 0;
+      if (!groups[cat]) { groups[cat] = 0; counts[cat] = 0; }
+      groups[cat] += val;
+      counts[cat]++;
+    });
+    return Object.keys(groups).map(function(cat) {
+      var value;
+      if (aggregation === 'count') value = counts[cat];
+      else if (aggregation === 'average') value = counts[cat] ? +(groups[cat] / counts[cat]).toFixed(2) : 0;
+      else value = groups[cat];
+      return { category: cat, value: value };
+    });
+  }
+
+  // ── BAR_VERTICAL renderer (uses _dAggregateRows) ─────────────────────────────
+  function _dRenderBarVertical(viz, rows, container) {
+    var cfg = viz.config || {};
+    var catField = cfg.categoryField || '';
+    var valField = cfg.valueField || '';
+    var agg = cfg.aggregation || 'sum';
+
+    if (!catField || !valField || !rows.length) {
+      _dMissingConfig(container, 'BAR_VERTICAL');
+      return;
+    }
+
+    var data = _dAggregateRows(rows, catField, valField, agg);
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:300px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      var existing = ec.getInstanceByDom(el);
+      if (existing) existing.dispose();
+      var chart = ec.init(el);
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: data.map(function(d) { return d.category; }), axisLabel: { rotate: 30, fontSize: 11 } },
+        yAxis: { type: 'value' },
+        series: [{ type: 'bar', data: data.map(function(d) { return d.value; }), itemStyle: { color: '#005EB8' } }],
+        grid: { left: 50, right: 20, bottom: 60, top: 20 }
+      });
+      setTimeout(function() { chart.resize(); }, 50);
+    }).catch(function() { _dMissingConfig(container, 'BAR_VERTICAL (ECharts unavailable)'); });
+  }
+
+  // ── LINE renderer ─────────────────────────────────────────────────────────────
+  function _dRenderLine(viz, rows, container) {
+    var cfg = viz.config || {};
+    var xField = cfg.xField || '';
+    var series = cfg.series || [];
+    var agg = cfg.aggregation || 'sum';
+
+    if (!xField || !series.length || !series.some(function(s) { return s.valueField; })) {
+      _dMissingConfig(container, 'LINE');
+      return;
+    }
+
+    // Collect unique x categories in row order
+    var xCats = [];
+    var xSeen = {};
+    rows.forEach(function(row) {
+      var x = row[xField] !== undefined ? String(row[xField]) : '(blank)';
+      if (!xSeen[x]) { xSeen[x] = true; xCats.push(x); }
+    });
+
+    var echartsSeries = series.filter(function(s) { return s.valueField; }).map(function(s, idx) {
+      var aggData = _dAggregateRows(rows, xField, s.valueField, agg);
+      var catMap = {};
+      aggData.forEach(function(d) { catMap[d.category] = d.value; });
+      var yData = xCats.map(function(x) { return catMap[x] !== undefined ? catMap[x] : 0; });
+      return {
+        type: 'line',
+        name: s.label || s.valueField,
+        smooth: cfg.smoothed || false,
+        data: yData,
+        itemStyle: { color: s.color || _D_PALETTE[idx % _D_PALETTE.length] },
+        yAxisIndex: cfg.dualYAxis ? (idx % 2) : 0
+      };
+    });
+
+    var yAxisDef;
+    if (cfg.dualYAxis) {
+      yAxisDef = [
+        { type: 'value', name: cfg.yLabel || '', nameTextStyle: { fontSize: 11 } },
+        { type: 'value', name: cfg.y2Label || '', nameTextStyle: { fontSize: 11 } }
+      ];
+    } else {
+      yAxisDef = { type: 'value', name: cfg.yLabel || '' };
+    }
+
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:300px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      var existing = ec.getInstanceByDom(el);
+      if (existing) existing.dispose();
+      var chart = ec.init(el);
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: echartsSeries.length > 1 ? { bottom: 0 } : { show: false },
+        xAxis: { type: 'category', data: xCats, name: cfg.xLabel || '', nameTextStyle: { fontSize: 11 } },
+        yAxis: yAxisDef,
+        series: echartsSeries,
+        grid: { top: 40, bottom: 40, left: 60, right: cfg.dualYAxis ? 60 : 20 }
+      });
+      setTimeout(function() { chart.resize(); }, 50);
+    }).catch(function() { _dMissingConfig(container, 'LINE (ECharts unavailable)'); });
+  }
+
+  // ── PIE renderer ──────────────────────────────────────────────────────────────
+  function _dRenderPie(viz, rows, container) {
+    var cfg = viz.config || {};
+    var catField = cfg.categoryField || '';
+    var agg = cfg.aggregation || 'sum';
+
+    if (!catField) {
+      _dMissingConfig(container, 'PIE');
+      return;
+    }
+
+    var data;
+    if (agg === 'count' || !cfg.valueField) {
+      var countMap = {};
+      rows.forEach(function(row) {
+        var cat = row[catField] !== undefined ? String(row[catField]) : '(blank)';
+        countMap[cat] = (countMap[cat] || 0) + 1;
+      });
+      data = Object.keys(countMap).map(function(cat) { return { name: cat, value: countMap[cat] }; });
+    } else {
+      data = _dAggregateRows(rows, catField, cfg.valueField, agg).map(function(d) { return { name: d.category, value: d.value }; });
+    }
+
+    var showLabels = cfg.showLabels !== false;
+    var showLegend = cfg.showLegend !== false;
+
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:300px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      var existing = ec.getInstanceByDom(el);
+      if (existing) existing.dispose();
+      var chart = ec.init(el);
+      chart.setOption({
+        color: _D_PALETTE,
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { show: showLegend, orient: 'vertical', right: 10, type: 'scroll' },
+        series: [{
+          type: 'pie',
+          radius: cfg.donut ? ['40%','70%'] : '70%',
+          data: data,
+          label: { show: showLabels, formatter: '{b}: {d}%' },
+          emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } }
+        }]
+      });
+      setTimeout(function() { chart.resize(); }, 50);
+    }).catch(function() { _dMissingConfig(container, 'PIE (ECharts unavailable)'); });
+  }
+
+  // ── STACKED_DIVERGING_BAR (Likert) renderer ───────────────────────────────────
+  function _dRenderStackedDivergingBar(viz, rows, container) {
+    var cfg = viz.config || {};
+    var questionField = cfg.questionField || '';
+    var responseField = cfg.responseField || '';
+
+    if (!questionField || !responseField) {
+      _dMissingConfig(container, 'STACKED_DIVERGING_BAR');
+      return;
+    }
+
+    var scaleType = cfg.scaleType || '5point';
+    var scaleLabels = (scaleType === 'custom') ? (cfg.scaleLabels || []) : (_LIKERT_SCALES[scaleType] || _LIKERT_SCALES['5point']);
+    var scaleColors;
+    if (scaleType === '7point') {
+      scaleColors = _LIKERT_COLORS_7.slice();
+    } else if (scaleType === 'custom') {
+      var baseC = ['#1d4ed8','#3b82f6','#93c5fd','#94a3b8','#fdba74','#f97316','#c2410c'];
+      scaleColors = baseC.slice(0, scaleLabels.length);
+    } else {
+      scaleColors = _LIKERT_COLORS_5.slice();
+    }
+
+    var n = scaleLabels.length;
+    if (!n) { _dMissingConfig(container, 'STACKED_DIVERGING_BAR'); return; }
+
+    var midIdx = Math.floor(n / 2);
+    var hasNeutral = (n % 2 === 1);
+
+    // Unique questions in first-occurrence order
+    var questions = [];
+    var qSeen = {};
+    rows.forEach(function(row) {
+      var q = row[questionField] !== undefined ? String(row[questionField]) : '';
+      if (q && !qSeen[q]) { qSeen[q] = true; questions.push(q); }
+    });
+    if (!questions.length) { _dMissingConfig(container, 'STACKED_DIVERGING_BAR'); return; }
+
+    // Count responses per question per scale label
+    var counts = {};
+    questions.forEach(function(q) {
+      counts[q] = {};
+      scaleLabels.forEach(function(l) { counts[q][l] = 0; });
+    });
+
+    rows.forEach(function(row) {
+      var q = row[questionField] !== undefined ? String(row[questionField]) : '';
+      var r = row[responseField] !== undefined ? String(row[responseField]) : '';
+      if (!q || !counts[q]) return;
+      var rLower = r.toLowerCase().trim();
+      var matched = null;
+      for (var li = 0; li < scaleLabels.length; li++) {
+        if (scaleLabels[li].toLowerCase().trim() === rLower) { matched = scaleLabels[li]; break; }
+      }
+      if (matched) {
+        var inc = 1;
+        if (cfg.countField && row[cfg.countField] !== undefined) inc = parseInt(row[cfg.countField]) || 1;
+        counts[q][matched] = (counts[q][matched] || 0) + inc;
+      }
+    });
+
+    // Build diverging series following v1.0 stacking pattern:
+    // [neutral-left(neg), ...negOrd(outermost-first, idx 0..midIdx-1), neutral-right(pos), ...posOrd(innermost-first, idx midIdx+1..n-1)]
+    var neutralLabel = hasNeutral ? scaleLabels[midIdx] : '';
+    var neutralColor = hasNeutral ? (scaleColors[midIdx] || '#94a3b8') : '';
+
+    var series = [];
+
+    if (hasNeutral) {
+      series.push({
+        type: 'bar', name: '__nl_' + neutralLabel, stack: 'likert',
+        data: questions.map(function(q) { return -Math.floor((counts[q][neutralLabel] || 0) / 2); }),
+        itemStyle: { color: neutralColor }, label: { show: false }
+      });
+    }
+
+    // Negative series: outermost first = ascending index order (index 0 = most negative)
+    for (var ni = 0; ni < midIdx; ni++) {
+      (function(idx) {
+        var lbl = scaleLabels[idx];
+        series.push({
+          type: 'bar', name: lbl, stack: 'likert',
+          data: questions.map(function(q) { return -(counts[q][lbl] || 0); }),
+          itemStyle: { color: scaleColors[idx] || '#94a3b8' },
+          emphasis: { focus: 'series' }
+        });
+      })(ni);
+    }
+
+    if (hasNeutral) {
+      series.push({
+        type: 'bar', name: neutralLabel, stack: 'likert',
+        data: questions.map(function(q) { return Math.ceil((counts[q][neutralLabel] || 0) / 2); }),
+        itemStyle: { color: neutralColor }, emphasis: { focus: 'series' }
+      });
+    }
+
+    // Positive series: innermost first = ascending index order (midIdx+1 = least positive)
+    var posStart = midIdx + (hasNeutral ? 1 : 0);
+    for (var pi = posStart; pi < n; pi++) {
+      (function(idx) {
+        var lbl = scaleLabels[idx];
+        series.push({
+          type: 'bar', name: lbl, stack: 'likert',
+          data: questions.map(function(q) { return counts[q][lbl] || 0; }),
+          itemStyle: { color: scaleColors[idx] || '#94a3b8' },
+          emphasis: { focus: 'series' }
+        });
+      })(pi);
+    }
+
+    // Legend (skip __ ghost series, deduplicate)
+    var legendData = [];
+    var legendSeen = {};
+    series.forEach(function(s) {
+      if (!s.name.startsWith('__') && !legendSeen[s.name]) { legendSeen[s.name] = true; legendData.push(s.name); }
+    });
+
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:' + Math.max(200, questions.length * 40 + 80) + 'px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      var existing = ec.getInstanceByDom(el);
+      if (existing) existing.dispose();
+      var chart = ec.init(el);
+      chart.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        legend: { data: legendData, bottom: 4, type: 'scroll' },
+        grid: { top: 20, bottom: 40, left: 160, right: 20 },
+        xAxis: {
+          type: 'value',
+          min: function(value) { return -Math.max(Math.abs(value.min), Math.abs(value.max)); },
+          max: function(value) { return Math.max(Math.abs(value.min), Math.abs(value.max)); }
+        },
+        yAxis: { type: 'category', data: questions, inverse: true },
+        series: series
+      });
+      setTimeout(function() { chart.resize(); }, 50);
+    }).catch(function() { _dMissingConfig(container, 'STACKED_DIVERGING_BAR (ECharts unavailable)'); });
+  }
+
+  // ── WORD_CLOUD renderer ───────────────────────────────────────────────────────
+  function _dRenderWordCloud(viz, rows, container) {
+    var cfg = viz.config || {};
+    var wordField = cfg.wordField || '';
+
+    if (!wordField) {
+      _dMissingConfig(container, 'WORD_CLOUD');
+      return;
+    }
+
+    var maxWords = cfg.maxWords || 100;
+    var wordMap = {};
+    rows.forEach(function(row) {
+      var word = row[wordField] !== undefined ? String(row[wordField]).trim() : '';
+      if (!word) return;
+      if (cfg.weightField && row[cfg.weightField] !== undefined) {
+        wordMap[word] = (wordMap[word] || 0) + (parseFloat(row[cfg.weightField]) || 0);
+      } else {
+        wordMap[word] = (wordMap[word] || 0) + 1;
+      }
+    });
+
+    var wordData = Object.keys(wordMap)
+      .map(function(w) { return { name: w, value: wordMap[w] }; })
+      .sort(function(a, b) { return b.value - a.value; })
+      .slice(0, maxWords);
+
+    if (!wordData.length) { _dMissingConfig(container, 'WORD_CLOUD'); return; }
+
+    var colorMode = cfg.colorMode || 'palette';
+
+    _dDisposeDomCharts(container);
+    var el = document.createElement('div');
+    el.className = 'dash-block-chart';
+    el.style.cssText = 'width:100%;height:300px';
+    container.innerHTML = '';
+    container.appendChild(el);
+
+    window.DWBVizTab.loadEcharts().then(function(ec) {
+      if (!_dWcPromise) {
+        _dWcPromise = new Promise(function(resolve, reject) {
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/echarts-wordcloud@2/dist/echarts-wordcloud.min.js';
+          s.onload = resolve;
+          s.onerror = function() { _dWcPromise = null; reject(new Error('Word cloud library unavailable')); };
+          document.head.appendChild(s);
+        });
+      }
+      _dWcPromise.then(function() {
+        var existing = ec.getInstanceByDom(el);
+        if (existing) existing.dispose();
+        var chart = ec.init(el);
+        var accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#005EB8';
+        chart.setOption({
+          series: [{
+            type: 'wordCloud',
+            shape: 'circle',
+            sizeRange: [12, 48],
+            rotationRange: [0, 0],
+            gridSize: 8,
+            data: wordData,
+            textStyle: {
+              color: colorMode === 'single'
+                ? accentColor
+                : function() { return _D_PALETTE[Math.floor(Math.random() * _D_PALETTE.length)]; }
+            }
+          }]
+        });
+        setTimeout(function() { chart.resize(); }, 50);
+      }).catch(function() {
+        container.innerHTML = '<div style="padding:20px;color:var(--danger);font-size:12px">⚠️ Word cloud library unavailable.</div>';
+      });
+    }).catch(function() { _dMissingConfig(container, 'WORD_CLOUD (ECharts unavailable)'); });
+  }
+
   function _dEsc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  return { mount: mount };
+  return {
+    mount: mount,
+    renderBarVertical: _dRenderBarVertical,
+    renderLine: _dRenderLine,
+    renderPie: _dRenderPie,
+    renderStackedDivergingBar: _dRenderStackedDivergingBar,
+    renderWordCloud: _dRenderWordCloud,
+    aggregateRows: _dAggregateRows
+  };
 })();
 
 /* --- src\v2\displays\displays-tab.js --- */
@@ -3625,6 +4058,15 @@ window.DWBPipelineTab = (function() {
     if (!panel) return;
     panel.innerHTML = `
       <div class="pt-main">
+        <div id="pt-config-panel">
+          <div class="panel-header" id="pt-config-header">
+            <span>Node Config</span><em class="ph-arrow">▾</em>
+          </div>
+          <div id="pt-config-body">
+            <div style="color:var(--text-faint);font-size:12px;padding:8px 0">Select a node to configure it.</div>
+          </div>
+        </div>
+        <div id="pt-resize-divider"></div>
         <div id="pt-inspector">
           <div id="pt-inspector-meta">
             <span id="pt-meta-text">No data — add an INGEST node</span>
@@ -3633,15 +4075,6 @@ window.DWBPipelineTab = (function() {
           </div>
           <div id="pt-table-wrap">
             <div class="pt-inspector-empty"><div class="ei-icon">📊</div><div>Add an INGEST node to load data</div></div>
-          </div>
-        </div>
-        <div id="pt-resize-divider"></div>
-        <div id="pt-config-panel">
-          <div class="panel-header" id="pt-config-header">
-            <span>Node Config</span><em class="ph-arrow">▾</em>
-          </div>
-          <div id="pt-config-body">
-            <div style="color:var(--text-faint);font-size:12px;padding:8px 0">Select a node to configure it.</div>
           </div>
         </div>
       </div>
@@ -4031,7 +4464,7 @@ window.DWBPipelineTab = (function() {
     function onMove(e) {
       const panel = document.getElementById('pt-config-panel');
       if (!panel) return;
-      const delta = startY - e.clientY;
+      const delta = e.clientY - startY;
       const newH = Math.max(32, Math.min(600, startH + delta));
       panel.style.flexBasis = newH + 'px';
     }
@@ -4458,9 +4891,23 @@ window.DWBVizTab = (function() {
 
   function _vtRenderViz(viz, rows, container) {
     if (!container) return;
+    var db = window.DWBDashboard;
     switch (viz.type) {
-      case 'BAR_VERTICAL':  _vtRenderBarVertical(viz, rows, container); break;
-      case 'LINE':          _vtRenderLine(viz, rows, container); break;
+      case 'BAR_VERTICAL':
+        db ? db.renderBarVertical(viz, rows, container) : _vtRenderBarVertical(viz, rows, container);
+        break;
+      case 'LINE':
+        db ? db.renderLine(viz, rows, container) : _vtPlaceholder(container, 'LINE');
+        break;
+      case 'PIE':
+        db ? db.renderPie(viz, rows, container) : _vtPlaceholder(container, 'PIE');
+        break;
+      case 'STACKED_DIVERGING_BAR':
+        db ? db.renderStackedDivergingBar(viz, rows, container) : _vtPlaceholder(container, 'STACKED_DIVERGING_BAR');
+        break;
+      case 'WORD_CLOUD':
+        db ? db.renderWordCloud(viz, rows, container) : _vtPlaceholder(container, 'WORD_CLOUD');
+        break;
       case 'KPI_STAT':      _vtRenderKpi(viz, rows, container); break;
       case 'DATA_TABLE':    _vtRenderDataTable(viz, rows, container); break;
       case 'TIMELINE_HORIZONTAL':
@@ -4470,6 +4917,23 @@ window.DWBVizTab = (function() {
         break;
       default:
         _vtPlaceholder(container, viz.type);
+    }
+  }
+
+  function _vtRenderPreview(viz) {
+    var renderArea = document.getElementById('vt-render-area');
+    if (renderArea) {
+      if (window.echarts) {
+        renderArea.querySelectorAll('.dash-block-chart').forEach(function(el) {
+          var inst = window.echarts.getInstanceByDom(el);
+          if (inst) inst.dispose();
+        });
+      }
+      var snapshots = window.DWBState.snapshots || {};
+      var rows = snapshots[viz.snapshotName] || [];
+      _vtRenderViz(viz, rows, renderArea);
+    } else {
+      _vtRenderCanvas();
     }
   }
 
@@ -4598,6 +5062,8 @@ window.DWBVizTab = (function() {
     const cols = rows.length ? Object.keys(rows[0]) : [];
 
     configEl.classList.add('visible');
+
+    // Common header (label + snapshot)
     configEl.innerHTML = `
       <div style="padding:10px 12px;border-bottom:1px solid var(--border)">
         <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px">Viz Config</div>
@@ -4608,73 +5074,347 @@ window.DWBVizTab = (function() {
             <option value="">-- none --</option>
             ${snapshotNames.map(function(n) { return '<option value="' + _vtEsc(n) + '"' + (viz.snapshotName === n ? ' selected' : '') + '>' + _vtEsc(n) + '</option>'; }).join('')}
           </select></div>
-      </div>
-      ${_vtBuildTypeConfig(viz, cols)}
-      <div style="padding:10px 12px">
-        <button class="btn-primary" id="vc-apply" style="width:100%;padding:7px">Apply</button>
       </div>`;
 
     document.getElementById('vc-label').addEventListener('input', function(e) { viz.label = e.target.value; });
-    document.getElementById('vc-snap').addEventListener('change', function(e) { viz.snapshotName = e.target.value; });
-    document.getElementById('vc-apply').addEventListener('click', function() {
-      _vtSaveConfigFromForm(viz, configEl);
-      window.DWBShell.markDirty();
+    document.getElementById('vc-snap').addEventListener('change', function(e) {
+      viz.snapshotName = e.target.value;
+      window.DWBShell && window.DWBShell.markDirty();
       _vtRenderCanvas();
     });
+
+    // onChange callback for live-update builders
+    const onChange = function() {
+      window.DWBShell && window.DWBShell.markDirty();
+      _vtRenderPreview(viz);
+    };
+
+    // Type-specific config dispatch
+    if (viz.type === 'LINE') {
+      configEl.appendChild(_vtBuildLineConfig(viz, cols, onChange));
+    } else if (viz.type === 'PIE') {
+      configEl.appendChild(_vtBuildPieConfig(viz, cols, onChange));
+    } else if (viz.type === 'STACKED_DIVERGING_BAR') {
+      configEl.appendChild(_vtBuildStackedDivergingBarConfig(viz, cols, onChange));
+    } else if (viz.type === 'WORD_CLOUD') {
+      configEl.appendChild(_vtBuildWordCloudConfig(viz, cols, onChange));
+    } else if (viz.type === 'BAR_VERTICAL') {
+      configEl.appendChild(_vtBuildBarVerticalConfig(viz, cols, onChange));
+    } else if (viz.type === 'KPI_STAT') {
+      configEl.appendChild(_vtBuildKpiConfig(viz, cols, onChange));
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'vt-config-section';
+      ph.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">⚙️ Configuration coming soon.</span>';
+      configEl.appendChild(ph);
+    }
   }
 
-  function _vtBuildTypeConfig(viz, cols) {
-    const cfg = viz.config || {};
-    const colOpts = ['<option value="">-- select --</option>'].concat(cols.map(function(c) {
-      return '<option value="' + _vtEsc(c) + '">' + _vtEsc(c) + '</option>';
-    })).join('');
-    const aggOpts = [['sum','Sum'],['count','Count'],['average','Average']].map(function(a) {
-      return '<option value="' + a[0] + '"' + (cfg.aggregation === a[0] ? ' selected' : '') + '>' + a[1] + '</option>';
-    }).join('');
-
-    if (viz.type === 'BAR_VERTICAL' || viz.type === 'LINE') {
-      return `<div class="vt-config-section">
-        <span class="vt-config-label">Chart Settings</span>
-        <div class="form-row"><label>Category field</label>
-          <select id="vc-cat" style="width:100%">${colOpts.replace('value="' + _vtEsc(cfg.categoryField||'') + '"', 'value="' + _vtEsc(cfg.categoryField||'') + '" selected')}</select></div>
-        <div class="form-row"><label>Value field</label>
-          <select id="vc-val" style="width:100%">${colOpts.replace('value="' + _vtEsc(cfg.valueField||'') + '"', 'value="' + _vtEsc(cfg.valueField||'') + '" selected')}</select></div>
-        <div class="form-row"><label>Aggregation</label>
-          <select id="vc-agg" style="width:100%">${aggOpts}</select></div>
-      </div>`;
-    }
-    if (viz.type === 'KPI_STAT') {
-      return `<div class="vt-config-section">
-        <span class="vt-config-label">KPI Settings</span>
-        <div class="form-row"><label>Value field</label>
-          <select id="vc-val" style="width:100%">${colOpts}</select></div>
-        <div class="form-row"><label>Aggregation</label>
-          <select id="vc-agg" style="width:100%">${aggOpts}</select></div>
-        <div class="form-row"><label>Prefix</label>
-          <input id="vc-prefix" type="text" value="${_vtEsc(cfg.prefix||'')}" style="width:100%" placeholder="$"></div>
-        <div class="form-row"><label>Suffix</label>
-          <input id="vc-suffix" type="text" value="${_vtEsc(cfg.suffix||'')}" style="width:100%" placeholder="%"></div>
-        <div class="form-row"><label>Decimals</label>
-          <input id="vc-decimals" type="number" value="${cfg.decimals||0}" min="0" max="4" style="width:100%"></div>
-      </div>`;
-    }
-    return '<div class="vt-config-section"><span style="font-size:12px;color:var(--text-muted)">No additional config for ' + viz.type + '.</span></div>';
-  }
-
-  function _vtSaveConfigFromForm(viz, el) {
+  // ── BAR_VERTICAL config builder ───────────────────────────────────────────────
+  function _vtBuildBarVerticalConfig(viz, cols, onChange) {
     viz.config = viz.config || {};
-    const cat  = el.querySelector('#vc-cat');
-    const val  = el.querySelector('#vc-val');
-    const agg  = el.querySelector('#vc-agg');
-    const pre  = el.querySelector('#vc-prefix');
-    const suf  = el.querySelector('#vc-suffix');
-    const dec  = el.querySelector('#vc-decimals');
-    if (cat) viz.config.categoryField = cat.value;
-    if (val) viz.config.valueField    = val.value;
-    if (agg) viz.config.aggregation   = agg.value;
-    if (pre) viz.config.prefix        = pre.value;
-    if (suf) viz.config.suffix        = suf.value;
-    if (dec) viz.config.decimals      = parseInt(dec.value, 10) || 0;
+    const cfg = viz.config;
+    const el = document.createElement('div');
+
+    function colSel(id, selected) {
+      return '<select id="' + id + '" style="width:100%"><option value="">-- select --</option>' +
+        cols.map(function(c) { return '<option value="' + _vtEsc(c) + '"' + (c === selected ? ' selected' : '') + '>' + _vtEsc(c) + '</option>'; }).join('') + '</select>';
+    }
+
+    const aggVal = cfg.aggregation || 'sum';
+    el.innerHTML = '<div class="vt-config-section"><span class="vt-config-label">Chart Settings</span>' +
+      '<div class="form-row"><label>Category field</label>' + colSel('vcbv-cat', cfg.categoryField) + '</div>' +
+      '<div class="form-row"><label>Value field</label>' + colSel('vcbv-val', cfg.valueField) + '</div>' +
+      '<div class="form-row"><label>Aggregation</label><div style="display:flex;gap:10px">' +
+      ['sum','count','average'].map(function(a) {
+        return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcbv-agg" value="' + a + '"' + (aggVal === a ? ' checked' : '') + '> ' + (a.charAt(0).toUpperCase() + a.slice(1)) + '</label>';
+      }).join('') + '</div></div></div>';
+
+    el.querySelector('#vcbv-cat').addEventListener('change', function() { cfg.categoryField = this.value; onChange(); });
+    el.querySelector('#vcbv-val').addEventListener('change', function() { cfg.valueField = this.value; onChange(); });
+    el.querySelectorAll('input[name="vcbv-agg"]').forEach(function(r) {
+      r.addEventListener('change', function() { cfg.aggregation = this.value; onChange(); });
+    });
+
+    return el;
+  }
+
+  // ── KPI_STAT config builder ───────────────────────────────────────────────────
+  function _vtBuildKpiConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    const cfg = viz.config;
+    const el = document.createElement('div');
+
+    function colSel(id, selected, includeNone) {
+      const blank = includeNone ? '<option value="">-- none --</option>' : '<option value="">-- select --</option>';
+      return '<select id="' + id + '" style="width:100%">' + blank +
+        cols.map(function(c) { return '<option value="' + _vtEsc(c) + '"' + (c === selected ? ' selected' : '') + '>' + _vtEsc(c) + '</option>'; }).join('') + '</select>';
+    }
+
+    const aggVal = cfg.aggregation || 'count';
+    el.innerHTML = '<div class="vt-config-section"><span class="vt-config-label">KPI Settings</span>' +
+      '<div class="form-row"><label>Value field</label>' + colSel('vck-val', cfg.valueField, true) + '</div>' +
+      '<div class="form-row"><label>Aggregation</label><div style="display:flex;gap:10px">' +
+      ['sum','count','average'].map(function(a) {
+        return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vck-agg" value="' + a + '"' + (aggVal === a ? ' checked' : '') + '> ' + (a.charAt(0).toUpperCase() + a.slice(1)) + '</label>';
+      }).join('') + '</div></div>' +
+      '<div class="form-row"><label>Prefix</label><input id="vck-pre" type="text" value="' + _vtEsc(cfg.prefix || '') + '" style="width:100%" placeholder="$"></div>' +
+      '<div class="form-row"><label>Suffix</label><input id="vck-suf" type="text" value="' + _vtEsc(cfg.suffix || '') + '" style="width:100%" placeholder="%"></div>' +
+      '<div class="form-row"><label>Decimals</label><input id="vck-dec" type="number" value="' + (cfg.decimals || 0) + '" min="0" max="4" style="width:100%"></div>' +
+      '</div>';
+
+    el.querySelector('#vck-val').addEventListener('change', function() { cfg.valueField = this.value || ''; onChange(); });
+    el.querySelectorAll('input[name="vck-agg"]').forEach(function(r) {
+      r.addEventListener('change', function() { cfg.aggregation = this.value; onChange(); });
+    });
+    el.querySelector('#vck-pre').addEventListener('input', function() { cfg.prefix = this.value; onChange(); });
+    el.querySelector('#vck-suf').addEventListener('input', function() { cfg.suffix = this.value; onChange(); });
+    el.querySelector('#vck-dec').addEventListener('change', function() { cfg.decimals = Math.max(0, Math.min(4, parseInt(this.value) || 0)); onChange(); });
+
+    return el;
+  }
+
+  // ── LINE config builder ───────────────────────────────────────────────────────
+  function _vtBuildLineConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    const cfg = viz.config;
+    if (!cfg.series) cfg.series = [];
+
+    const el = document.createElement('div');
+
+    function colSel(id, selected, style) {
+      const opts = ['<option value="">-- select --</option>'].concat(
+        cols.map(function(c) { return '<option value="' + _vtEsc(c) + '"' + (c === selected ? ' selected' : '') + '>' + _vtEsc(c) + '</option>'; })
+      ).join('');
+      return '<select id="' + id + '" style="' + (style || 'width:100%') + '">' + opts + '</select>';
+    }
+
+    function rebuild() {
+      el.innerHTML = '';
+
+      // CHART DATA section
+      const ds = document.createElement('div');
+      ds.className = 'vt-config-section';
+      const aggVal = cfg.aggregation || 'sum';
+      ds.innerHTML = '<span class="vt-config-label">Chart Data</span>' +
+        '<div class="form-row"><label>X axis field</label>' + colSel('vcl-xf', cfg.xField) + '</div>' +
+        '<div class="form-row"><label>Aggregation</label><div style="display:flex;gap:10px">' +
+        ['sum','count','average'].map(function(a) {
+          return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal">' +
+            '<input type="radio" name="vcl-agg" value="' + a + '"' + (aggVal === a ? ' checked' : '') + '> ' +
+            (a.charAt(0).toUpperCase() + a.slice(1)) + '</label>';
+        }).join('') + '</div></div>' +
+        '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Series</div>' +
+        '<div id="vcl-series-list"></div>' +
+        '<button class="vt-add-btn" id="vcl-add-series" style="margin-top:4px;width:calc(100% - 0px)">＋ Add Series</button>';
+      el.appendChild(ds);
+
+      ds.querySelector('#vcl-xf').addEventListener('change', function() { cfg.xField = this.value; onChange(); });
+      ds.querySelectorAll('input[name="vcl-agg"]').forEach(function(r) {
+        r.addEventListener('change', function() { cfg.aggregation = this.value; onChange(); });
+      });
+
+      const seriesList = ds.querySelector('#vcl-series-list');
+      cfg.series.forEach(function(s, idx) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:5px;margin-bottom:6px;position:relative';
+        const swatchBg = s.color || '#005EB8';
+        row.innerHTML =
+          '<span class="vcl-swatch" style="width:16px;height:16px;border-radius:50%;background:' + swatchBg + ';cursor:pointer;flex-shrink:0" title="Cycle color"></span>' +
+          colSel('vcl-sf-' + idx, s.valueField, 'flex:1;min-width:0') +
+          '<input type="text" class="vcl-sl-' + idx + '" value="' + _vtEsc(s.label || '') + '" placeholder="Label" style="width:70px">' +
+          '<button class="vcl-del" style="background:none;border:none;color:var(--text-faint);opacity:0;font-size:14px;padding:0 2px;transition:opacity 0.15s">✕</button>';
+
+        row.addEventListener('mouseenter', function() { row.querySelector('.vcl-del').style.opacity = '1'; });
+        row.addEventListener('mouseleave', function() { row.querySelector('.vcl-del').style.opacity = '0'; });
+
+        row.querySelector('.vcl-swatch').addEventListener('click', function() {
+          const pal = ['#005EB8','#C5B230','#059669','#dc2626','#f59e0b','#0ea5e9','#8b5cf6','#ec4899'];
+          const ci = pal.indexOf(s.color || pal[0]);
+          s.color = pal[(ci + 1) % pal.length];
+          this.style.background = s.color;
+          onChange();
+        });
+        row.querySelector('#vcl-sf-' + idx).addEventListener('change', function() { s.valueField = this.value; onChange(); });
+        row.querySelector('.vcl-sl-' + idx).addEventListener('input', function() { s.label = this.value; onChange(); });
+        row.querySelector('.vcl-del').addEventListener('click', function() { cfg.series.splice(idx, 1); rebuild(); onChange(); });
+
+        seriesList.appendChild(row);
+      });
+
+      ds.querySelector('#vcl-add-series').addEventListener('click', function() {
+        cfg.series.push({ valueField: '', label: '', color: '' });
+        rebuild();
+      });
+
+      // DISPLAY section
+      const disp = document.createElement('div');
+      disp.className = 'vt-config-section';
+      disp.innerHTML = '<span class="vt-config-label">Display</span>' +
+        '<div class="form-row form-row-inline" style="margin-bottom:8px"><label><input type="checkbox" id="vcl-smooth"' + (cfg.smoothed ? ' checked' : '') + '> Smooth lines</label></div>' +
+        '<div class="form-row form-row-inline" style="margin-bottom:8px"><label><input type="checkbox" id="vcl-dual"' + (cfg.dualYAxis ? ' checked' : '') + '> Dual Y axis</label></div>' +
+        '<div class="form-row"><label>X axis label</label><input type="text" id="vcl-xl" value="' + _vtEsc(cfg.xLabel || '') + '" style="width:100%"></div>' +
+        '<div class="form-row"><label>Y axis label</label><input type="text" id="vcl-yl" value="' + _vtEsc(cfg.yLabel || '') + '" style="width:100%"></div>' +
+        '<div class="form-row" id="vcl-y2r" style="' + (cfg.dualYAxis ? '' : 'display:none') + '"><label>Y2 axis label</label><input type="text" id="vcl-y2l" value="' + _vtEsc(cfg.y2Label || '') + '" style="width:100%"></div>';
+      el.appendChild(disp);
+
+      disp.querySelector('#vcl-smooth').addEventListener('change', function() { cfg.smoothed = this.checked; onChange(); });
+      const dualCk = disp.querySelector('#vcl-dual');
+      const y2Row  = disp.querySelector('#vcl-y2r');
+      dualCk.addEventListener('change', function() { cfg.dualYAxis = this.checked; y2Row.style.display = cfg.dualYAxis ? '' : 'none'; onChange(); });
+      disp.querySelector('#vcl-xl').addEventListener('input', function() { cfg.xLabel = this.value; onChange(); });
+      disp.querySelector('#vcl-yl').addEventListener('input', function() { cfg.yLabel = this.value; onChange(); });
+      disp.querySelector('#vcl-y2l').addEventListener('input', function() { cfg.y2Label = this.value; onChange(); });
+    }
+
+    rebuild();
+    return el;
+  }
+
+  // ── PIE config builder ────────────────────────────────────────────────────────
+  function _vtBuildPieConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    const cfg = viz.config;
+    const el = document.createElement('div');
+
+    function colSel(id, selected, includeNone) {
+      const blank = includeNone ? '<option value="">-- none --</option>' : '<option value="">-- select --</option>';
+      return '<select id="' + id + '" style="width:100%">' + blank +
+        cols.map(function(c) { return '<option value="' + _vtEsc(c) + '"' + (c === selected ? ' selected' : '') + '>' + _vtEsc(c) + '</option>'; }).join('') + '</select>';
+    }
+
+    const aggVal = cfg.aggregation || 'count';
+    el.innerHTML = '<div class="vt-config-section"><span class="vt-config-label">Chart Data</span>' +
+      '<div class="form-row"><label>Category field</label>' + colSel('vcp-cat', cfg.categoryField) + '</div>' +
+      '<div class="form-row" id="vcp-vr" style="' + (aggVal === 'count' ? 'display:none' : '') + '"><label>Value field</label>' + colSel('vcp-val', cfg.valueField) + '</div>' +
+      '<div class="form-row"><label>Aggregation</label><div style="display:flex;gap:10px">' +
+      ['sum','count','average'].map(function(a) {
+        return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcp-agg" value="' + a + '"' + (aggVal === a ? ' checked' : '') + '> ' + (a.charAt(0).toUpperCase() + a.slice(1)) + '</label>';
+      }).join('') + '</div></div></div>' +
+      '<div class="vt-config-section"><span class="vt-config-label">Display</span>' +
+      '<div class="form-row form-row-inline"><label><input type="checkbox" id="vcp-donut"' + (cfg.donut ? ' checked' : '') + '> Donut style</label></div>' +
+      '<div class="form-row form-row-inline"><label><input type="checkbox" id="vcp-labels"' + (cfg.showLabels !== false ? ' checked' : '') + '> Show labels</label></div>' +
+      '<div class="form-row form-row-inline"><label><input type="checkbox" id="vcp-legend"' + (cfg.showLegend !== false ? ' checked' : '') + '> Show legend</label></div></div>';
+
+    el.querySelector('#vcp-cat').addEventListener('change', function() { cfg.categoryField = this.value; onChange(); });
+    el.querySelector('#vcp-val').addEventListener('change', function() { cfg.valueField = this.value; onChange(); });
+    const valRow = el.querySelector('#vcp-vr');
+    el.querySelectorAll('input[name="vcp-agg"]').forEach(function(r) {
+      r.addEventListener('change', function() {
+        cfg.aggregation = this.value;
+        valRow.style.display = this.value === 'count' ? 'none' : '';
+        onChange();
+      });
+    });
+    el.querySelector('#vcp-donut').addEventListener('change', function() { cfg.donut = this.checked; onChange(); });
+    el.querySelector('#vcp-labels').addEventListener('change', function() { cfg.showLabels = this.checked; onChange(); });
+    el.querySelector('#vcp-legend').addEventListener('change', function() { cfg.showLegend = this.checked; onChange(); });
+
+    return el;
+  }
+
+  // ── STACKED_DIVERGING_BAR config builder ──────────────────────────────────────
+  function _vtBuildStackedDivergingBarConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    const cfg = viz.config;
+    const el = document.createElement('div');
+
+    function colSel(id, selected, includeNone) {
+      const blank = includeNone ? '<option value="">-- none --</option>' : '<option value="">-- select --</option>';
+      return '<select id="' + id + '" style="width:100%">' + blank +
+        cols.map(function(c) { return '<option value="' + _vtEsc(c) + '"' + (c === selected ? ' selected' : '') + '>' + _vtEsc(c) + '</option>'; }).join('') + '</select>';
+    }
+
+    function rebuild() {
+      el.innerHTML = '';
+      const scaleType = cfg.scaleType || '5point';
+      const ds = document.createElement('div');
+      ds.className = 'vt-config-section';
+      ds.innerHTML = '<span class="vt-config-label">Chart Data</span>' +
+        '<div class="form-row"><label>Question/category field</label>' + colSel('vcsdb-q', cfg.questionField) + '</div>' +
+        '<div class="form-row"><label>Response field</label>' + colSel('vcsdb-r', cfg.responseField) + '</div>' +
+        '<div class="form-row"><label>Scale type</label><div style="display:flex;gap:10px">' +
+        [['5point','5-point'],['7point','7-point'],['custom','Custom']].map(function(pair) {
+          return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcsdb-scale" value="' + pair[0] + '"' + (scaleType === pair[0] ? ' checked' : '') + '> ' + pair[1] + '</label>';
+        }).join('') + '</div></div>' +
+        '<div id="vcsdb-custom" style="' + (scaleType !== 'custom' ? 'display:none' : '') + ';margin-bottom:8px">' +
+        '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Custom scale labels</div>' +
+        '<div id="vcsdb-clist"></div>' +
+        '<button class="vt-add-btn" id="vcsdb-add" style="margin-top:2px;width:calc(100%)">＋ Add point</button>' +
+        '</div>' +
+        '<div class="form-row"><label>Pre-aggregated count field</label>' + colSel('vcsdb-cnt', cfg.countField, true) +
+        '<span style="font-size:10px;color:var(--text-faint);margin-top:2px">Leave blank to compute counts from raw responses</span></div>';
+      el.appendChild(ds);
+
+      ds.querySelector('#vcsdb-q').addEventListener('change', function() { cfg.questionField = this.value; onChange(); });
+      ds.querySelector('#vcsdb-r').addEventListener('change', function() { cfg.responseField = this.value; onChange(); });
+      ds.querySelector('#vcsdb-cnt').addEventListener('change', function() { cfg.countField = this.value || ''; onChange(); });
+
+      const customSec = ds.querySelector('#vcsdb-custom');
+      ds.querySelectorAll('input[name="vcsdb-scale"]').forEach(function(r) {
+        r.addEventListener('change', function() {
+          cfg.scaleType = this.value;
+          customSec.style.display = this.value === 'custom' ? '' : 'none';
+          onChange();
+        });
+      });
+
+      if (scaleType === 'custom') {
+        const clist = ds.querySelector('#vcsdb-clist');
+        (cfg.scaleLabels || []).forEach(function(lbl, idx) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:4px';
+          row.innerHTML = '<input type="text" value="' + _vtEsc(lbl) + '" placeholder="Scale point ' + (idx + 1) + '" style="flex:1">' +
+            '<button style="background:none;border:none;color:var(--text-faint);font-size:14px;padding:0 2px">✕</button>';
+          row.querySelector('input').addEventListener('input', function() { cfg.scaleLabels[idx] = this.value; onChange(); });
+          row.querySelector('button').addEventListener('click', function() { cfg.scaleLabels.splice(idx, 1); rebuild(); onChange(); });
+          clist.appendChild(row);
+        });
+        ds.querySelector('#vcsdb-add').addEventListener('click', function() {
+          cfg.scaleLabels = cfg.scaleLabels || [];
+          cfg.scaleLabels.push('');
+          rebuild();
+        });
+      }
+    }
+
+    rebuild();
+    return el;
+  }
+
+  // ── WORD_CLOUD config builder ─────────────────────────────────────────────────
+  function _vtBuildWordCloudConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    const cfg = viz.config;
+    const el = document.createElement('div');
+
+    function colSel(id, selected, includeNone) {
+      const blank = includeNone ? '<option value="">-- none --</option>' : '<option value="">-- select --</option>';
+      return '<select id="' + id + '" style="width:100%">' + blank +
+        cols.map(function(c) { return '<option value="' + _vtEsc(c) + '"' + (c === selected ? ' selected' : '') + '>' + _vtEsc(c) + '</option>'; }).join('') + '</select>';
+    }
+
+    const colorMode = cfg.colorMode || 'palette';
+    el.innerHTML = '<div class="vt-config-section"><span class="vt-config-label">Chart Data</span>' +
+      '<div class="form-row"><label>Word field</label>' + colSel('vcwc-word', cfg.wordField) + '</div>' +
+      '<div class="form-row"><label>Weight field</label>' + colSel('vcwc-wt', cfg.weightField, true) +
+      '<span style="font-size:10px;color:var(--text-faint);margin-top:2px">Leave blank to use word frequency</span></div>' +
+      '<div class="form-row"><label>Max words</label><input type="number" id="vcwc-max" value="' + (cfg.maxWords || 100) + '" min="10" max="500" style="width:100%"></div>' +
+      '</div>' +
+      '<div class="vt-config-section"><span class="vt-config-label">Display</span>' +
+      '<div class="form-row"><label>Color mode</label><div style="display:flex;gap:12px">' +
+      '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcwc-color" value="palette"' + (colorMode !== 'single' ? ' checked' : '') + '> Palette</label>' +
+      '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcwc-color" value="single"' + (colorMode === 'single' ? ' checked' : '') + '> Single accent color</label>' +
+      '</div></div></div>';
+
+    el.querySelector('#vcwc-word').addEventListener('change', function() { cfg.wordField = this.value; onChange(); });
+    el.querySelector('#vcwc-wt').addEventListener('change', function() { cfg.weightField = this.value || ''; onChange(); });
+    el.querySelector('#vcwc-max').addEventListener('change', function() { cfg.maxWords = Math.max(10, Math.min(500, parseInt(this.value) || 100)); onChange(); });
+    el.querySelectorAll('input[name="vcwc-color"]').forEach(function(r) {
+      r.addEventListener('change', function() { cfg.colorMode = this.value; onChange(); });
+    });
+
+    return el;
   }
 
   function _vtShowAddModal() {
