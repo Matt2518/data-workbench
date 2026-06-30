@@ -104,7 +104,7 @@ window.DWBReport = (function() {
 
       section.querySelector('[data-del-id]').addEventListener('click', function() {
         display.placements = display.placements.filter(function(p) { return p.id !== placement.id; });
-        window.DWBShell.markDirty();
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
         _rRenderPages(display, container);
       });
 
@@ -161,7 +161,7 @@ window.DWBReport = (function() {
       p.pageBreakBefore = overlay.querySelector('#r-pagebreak').checked;
       display.placements = display.placements || [];
       display.placements.push(p);
-      window.DWBShell.markDirty();
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
       document.body.removeChild(overlay);
       _rRenderPages(display, container);
     });

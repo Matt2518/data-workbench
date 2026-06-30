@@ -107,19 +107,19 @@ window.DWBPresentation = (function() {
     const titleEl = canvas.querySelector('#pres-slide-title');
     titleEl.addEventListener('input', function() {
       p.slideTitle = titleEl.textContent.trim();
-      window.DWBShell.markDirty();
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
       _presRenderStrip(display, container);
     });
 
     canvas.querySelector('#pres-notes-input').addEventListener('input', function(e) {
       p.notes = e.target.value;
-      window.DWBShell.markDirty();
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
     });
 
     canvas.querySelector('#pres-del-slide').addEventListener('click', function() {
       display.placements.splice(_presActiveIdx, 1);
       if (_presActiveIdx >= display.placements.length) _presActiveIdx = Math.max(0, display.placements.length - 1);
-      window.DWBShell.markDirty();
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
       _presRenderStrip(display, container);
       _presRenderSlide(display, container);
     });
@@ -142,7 +142,7 @@ window.DWBPresentation = (function() {
     display.placements = display.placements || [];
     display.placements.push(placement);
     _presActiveIdx = display.placements.length - 1;
-    window.DWBShell.markDirty();
+    if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
     _presRenderStrip(display, container);
     _presRenderSlide(display, container);
   }
@@ -171,7 +171,7 @@ window.DWBPresentation = (function() {
     overlay.querySelector('#pres-bind-close').addEventListener('click', function() { document.body.removeChild(overlay); });
     overlay.querySelector('#pres-bind-ok').addEventListener('click', function() {
       placement.vizId = overlay.querySelector('#pres-bind-sel').value || null;
-      window.DWBShell.markDirty();
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
       document.body.removeChild(overlay);
       _presRenderSlide(display, container);
     });

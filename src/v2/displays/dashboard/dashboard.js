@@ -51,7 +51,7 @@ window.DWBDashboard = (function() {
       btn.addEventListener('click', function() {
         display.config = display.config || {};
         display.config.layout = btn.dataset.layout;
-        window.DWBShell.markDirty();
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
         mount(container, display);
       });
     });
@@ -70,14 +70,14 @@ window.DWBDashboard = (function() {
     container.querySelectorAll('.dash-filter-chip-remove').forEach(function(btn) {
       btn.addEventListener('click', function() {
         if (display.filterContext) delete display.filterContext.activeFilters[btn.dataset.filterKey];
-        window.DWBShell.markDirty();
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
         mount(container, display);
       });
     });
     const clearBtn = container.querySelector('.dash-clear-filters');
     if (clearBtn) clearBtn.addEventListener('click', function() {
       display.filterContext = { activeFilters: {} };
-      window.DWBShell.markDirty();
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
       mount(container, display);
     });
 
@@ -122,7 +122,7 @@ window.DWBDashboard = (function() {
 
       card.querySelector('.dash-fullscreen-btn').addEventListener('click', function() {
         display.placements = display.placements.filter(function(p) { return p.id !== placement.id; });
-        window.DWBShell.markDirty();
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
         const gridEl = grid;
         _dRenderPlacements(display, gridEl, filters);
       });
@@ -200,7 +200,7 @@ window.DWBDashboard = (function() {
       placement.column = col;
       display.placements = display.placements || [];
       display.placements.push(placement);
-      window.DWBShell.markDirty();
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
       document.body.removeChild(overlay);
       // Re-mount
       window.DWBDisplaysTab && window.DWBDisplaysTab.mount();
@@ -829,7 +829,7 @@ window.DWBDashboard = (function() {
     respEl.addEventListener('blur', function() {
       viz.config = viz.config || {};
       viz.config.response = this.value;
-      window.DWBShell && window.DWBShell.markDirty();
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
     });
   }
 
