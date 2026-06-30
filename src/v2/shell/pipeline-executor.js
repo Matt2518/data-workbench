@@ -82,7 +82,7 @@ window.DWBPipeline = (function() {
             onLog('Stash "' + sname + '" not found', 'warn');
           }
         } else if (type === 'PUSH_TO_VIZ') {
-          const sname = node.promotedAs || (node.config && node.config.name) || ('snapshot_' + i);
+          const sname = node.promotedAs || ('snapshot_' + i);
           if (sname) {
             snapshots[sname] = currentRows.slice();
             onLog('Pushed to viz as "' + sname + '": ' + currentRows.length + ' rows', 'success');

@@ -75,23 +75,9 @@ window.DWBNodes.PUSH_TO_VIZ = {
   label: 'Push to Viz',
   icon: '📊',
   category: 'Input & Output',
-  defaultConfig: { name: '' },
+  defaultConfig: {},
   run: function(rows, config) { return rows; }, // handled by executor
-  validate: function(config) { return (config.name || '').trim() ? null : 'Snapshot name is required'; },
-  configUI: function(config, onChange) {
-    const div = document.createElement('div');
-    div.style.cssText = 'display:flex;flex-direction:column;gap:8px';
-    div.innerHTML = `
-      <div class="form-row">
-        <label>Snapshot Name</label>
-        <input type="text" id="pvz-name" value="${(config.name||'').replace(/"/g,'&quot;')}" placeholder="e.g. final_results" style="width:100%">
-      </div>
-      <div style="font-size:11px;color:var(--text-muted)">Name this dataset to use in Viz and Displays tabs.</div>`;
-    div.querySelector('#pvz-name').addEventListener('input', function(e) {
-      onChange('name', e.target.value.trim());
-    });
-    return div;
-  }
+  validate: function(config) { return null; } // name lives on node.promotedAs, not in config
 };
 
 window.DWBNodes.TRIM_WHITESPACE = {

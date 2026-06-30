@@ -212,7 +212,7 @@ window.DWBPipelineTab = (function() {
     if (node.type === 'PUSH_TO_VIZ') {
       // promotedAs config
       const d = document.createElement('div');
-      d.innerHTML = `<div class="form-row"><label>Snapshot name (promotedAs)</label>
+      d.innerHTML = `<div class="form-row"><label>Snapshot name</label>
         <input type="text" id="pv-promoted" value="${_esc(node.promotedAs||'')}" placeholder="e.g. sales_data" style="width:100%"></div>`;
       d.querySelector('#pv-promoted').addEventListener('input', function(e) {
         node.promotedAs = e.target.value.trim();
