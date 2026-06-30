@@ -561,6 +561,22 @@ input:focus, select:focus, textarea:focus {
 }
 .dash-fullscreen-btn:hover { background: rgba(255,255,255,0.22); }
 
+/* Stat Card */
+.dash-statcard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  padding: 16px;
+}
+
+.dash-statcard-line {
+  line-height: 1.3;
+  color: var(--text-main);
+}
+
 /* --- src\v2\displays\displays-tab.css --- */
 /* === Displays Tab === */
 #panel-displays {
@@ -1658,6 +1674,7 @@ window.DWBDashboard = (function() {
       }
 
       const rows = _dGetFilteredRows(viz, snapshots, filters);
+      const allRows = snapshots[viz.snapshotName] || [];
 
       card.innerHTML = `<div class="dash-placement-header">
         <span class="dash-placement-title">${_dEsc(viz.label)}</span>
@@ -1677,7 +1694,7 @@ window.DWBDashboard = (function() {
       // Render viz into placement body
       const body = card.querySelector('#dash-pb-' + placement.id);
       if (body && window.DWBVizTab) {
-        window.DWBVizTab.renderViz(viz, rows, body);
+        window.DWBVizTab.renderViz(viz, rows, body, allRows);
       }
     });
   }
@@ -2218,6 +2235,62 @@ window.DWBDashboard = (function() {
     }).catch(function() { _dMissingConfig(container, 'WORD_CLOUD (ECharts unavailable)'); });
   }
 
+  // ── STAT_CARD renderer ─────────────────────────────────────────────────────────
+  function _dComputeStatVar(variable, allRows, filteredRows) {
+    var rows = variable.scope === 'unfiltered' ? allRows : filteredRows;
+    if (variable.aggregation === 'count') return rows.length;
+    if (!variable.field) return 0;
+    var vals = rows.map(function(r) { return r[variable.field]; }).filter(function(v) { return v !== undefined && v !== null && v !== ''; });
+    if (variable.aggregation === 'sum') {
+      return vals.reduce(function(s, v) { return s + (parseFloat(v) || 0); }, 0);
+    }
+    if (variable.aggregation === 'average') {
+      if (!vals.length) return 0;
+      var sum = vals.reduce(function(s, v) { return s + (parseFloat(v) || 0); }, 0);
+      return +(sum / vals.length).toFixed(2);
+    }
+    if (variable.aggregation === 'mode') {
+      var freq = {};
+      vals.forEach(function(v) { freq[v] = (freq[v] || 0) + 1; });
+      var best = null, bestCount = -1;
+      Object.keys(freq).forEach(function(k) {
+        if (freq[k] > bestCount) { best = k; bestCount = freq[k]; }
+      });
+      return best;
+    }
+    return 0;
+  }
+
+  function _dRenderStatCardLine(text, varMap) {
+    return text.replace(/\{\{(\w+)\}\}/g, function(match, name) {
+      return varMap.hasOwnProperty(name) ? String(varMap[name]) : match;
+    });
+  }
+
+  function _dRenderStatCard(contentEl, viz, allRows, filteredRows) {
+    var cfg = viz.config || {};
+    if (!(cfg.lines || []).length) {
+      _dMissingConfig(contentEl, 'STAT_CARD');
+      return;
+    }
+    contentEl.innerHTML = '<div class="dash-statcard"></div>';
+    var cardEl = contentEl.querySelector('.dash-statcard');
+    var varMap = {};
+    (cfg.variables || []).forEach(function(v) {
+      if (v.name) varMap[v.name] = _dComputeStatVar(v, allRows, filteredRows);
+    });
+    (cfg.lines || []).forEach(function(line) {
+      var div = document.createElement('div');
+      div.className = 'dash-statcard-line';
+      div.style.fontSize = (line.fontSize || 16) + 'px';
+      div.style.fontWeight = line.weight === 'bold' ? '700' : '400';
+      div.style.textAlign = line.align || 'center';
+      if (line.color) div.style.color = line.color;
+      div.textContent = _dRenderStatCardLine(line.text || '', varMap);
+      cardEl.appendChild(div);
+    });
+  }
+
   function _dEsc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -2229,6 +2302,7 @@ window.DWBDashboard = (function() {
     renderPie: _dRenderPie,
     renderStackedDivergingBar: _dRenderStackedDivergingBar,
     renderWordCloud: _dRenderWordCloud,
+    renderStatCard: _dRenderStatCard,
     aggregateRows: _dAggregateRows
   };
 })();
@@ -4725,7 +4799,7 @@ window.DWBVizTab = (function() {
     { type: 'PIE',                    icon: '🥧', name: 'Pie Chart',         desc: 'Part-to-whole proportions' },
     { type: 'KPI_STAT',               icon: '🎯', name: 'KPI Stat',          desc: 'Single metric spotlight' },
     { type: 'DATA_TABLE',             icon: '📋', name: 'Data Table',        desc: 'Searchable tabular view' },
-    { type: 'STAT_CARD',              icon: '🃏', name: 'Stat Card',         desc: 'Multi-stat summary card' },
+    { type: 'STAT_CARD',              icon: '🏷️', name: 'Stat Card',         desc: 'Tokenized text with computed variables' },
     { type: 'WORD_CLOUD',             icon: '☁',  name: 'Word Cloud',        desc: 'Frequency visualization' },
     { type: 'STACKED_DIVERGING_BAR',  icon: '⚖',  name: 'Diverging Bar',    desc: 'Likert / agreement scale' },
     { type: 'RICH_TEXT',              icon: '📝', name: 'Rich Text',         desc: 'Formatted text block' },
@@ -4889,7 +4963,7 @@ window.DWBVizTab = (function() {
     _vtRenderViz(viz, rows, document.getElementById('vt-render-area'));
   }
 
-  function _vtRenderViz(viz, rows, container) {
+  function _vtRenderViz(viz, rows, container, allRows) {
     if (!container) return;
     var db = window.DWBDashboard;
     switch (viz.type) {
@@ -4907,6 +4981,9 @@ window.DWBVizTab = (function() {
         break;
       case 'WORD_CLOUD':
         db ? db.renderWordCloud(viz, rows, container) : _vtPlaceholder(container, 'WORD_CLOUD');
+        break;
+      case 'STAT_CARD':
+        db ? db.renderStatCard(viz, allRows || rows, rows, container) : _vtPlaceholder(container, 'STAT_CARD');
         break;
       case 'KPI_STAT':      _vtRenderKpi(viz, rows, container); break;
       case 'DATA_TABLE':    _vtRenderDataTable(viz, rows, container); break;
@@ -5102,6 +5179,8 @@ window.DWBVizTab = (function() {
       configEl.appendChild(_vtBuildBarVerticalConfig(viz, cols, onChange));
     } else if (viz.type === 'KPI_STAT') {
       configEl.appendChild(_vtBuildKpiConfig(viz, cols, onChange));
+    } else if (viz.type === 'STAT_CARD') {
+      configEl.appendChild(_vtBuildStatCardConfig(viz, cols, onChange));
     } else {
       const ph = document.createElement('div');
       ph.className = 'vt-config-section';
@@ -5414,6 +5493,281 @@ window.DWBVizTab = (function() {
       r.addEventListener('change', function() { cfg.colorMode = this.value; onChange(); });
     });
 
+    return el;
+  }
+
+  // ── STAT_CARD config builder ──────────────────────────────────────────────────
+  function _vtBuildStatCardConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    var cfg = viz.config;
+    if (!cfg.variables) cfg.variables = [];
+    if (!cfg.lines) cfg.lines = [];
+
+    var el = document.createElement('div');
+    var _focusedLineInput = null;
+
+    function rebuildAvailableVars() {
+      var helper = el.querySelector('#vsc-avail-helper');
+      if (!helper) return;
+      var validVars = cfg.variables.filter(function(v) { return v.name && /^\w+$/.test(v.name); });
+      if (!validVars.length) {
+        helper.textContent = 'Define variables above to use them in your template.';
+        return;
+      }
+      helper.innerHTML = '<span style="color:var(--text-faint)">Available: </span>' +
+        validVars.map(function(v) {
+          return '<span class="vsc-var-pill" style="display:inline-block;padding:1px 7px;background:var(--accent-light);color:var(--accent);border-radius:10px;cursor:pointer;margin:0 2px;font-size:10px">{{' + v.name + '}}</span>';
+        }).join('');
+      helper.querySelectorAll('.vsc-var-pill').forEach(function(pill) {
+        pill.addEventListener('click', function() {
+          var token = this.textContent;
+          if (!_focusedLineInput) return;
+          var inp = _focusedLineInput;
+          var start = inp.selectionStart;
+          var end = inp.selectionEnd;
+          inp.value = inp.value.slice(0, start) + token + inp.value.slice(end);
+          inp.setSelectionRange(start + token.length, start + token.length);
+          inp.focus();
+          var lineIdx = parseInt(inp.dataset.lineIdx);
+          if (!isNaN(lineIdx) && cfg.lines[lineIdx]) cfg.lines[lineIdx].text = inp.value;
+          onChange();
+        });
+      });
+    }
+
+    function rebuild() {
+      el.innerHTML = '';
+
+      // ── VARIABLES section ──────────────────────────────────────────────────────
+      var varSec = document.createElement('div');
+      varSec.className = 'vt-config-section';
+      varSec.innerHTML = '<span class="vt-config-label">Variables</span>' +
+        '<div id="vsc-var-list"></div>' +
+        '<button class="vt-add-btn" id="vsc-add-var" style="width:100%;margin-top:4px">＋ Add Variable</button>';
+      el.appendChild(varSec);
+
+      var varList = varSec.querySelector('#vsc-var-list');
+
+      cfg.variables.forEach(function(v, idx) {
+        var isCount = (v.aggregation || 'count') === 'count';
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-bottom:8px;padding:8px;background:var(--bg-raised);border-radius:4px;border:1px solid var(--border)';
+        row.innerHTML =
+          '<div style="display:flex;align-items:center;gap:4px">' +
+            '<input type="text" id="vsc-name-' + idx + '" value="' + _vtEsc(v.name || '') + '" placeholder="e.g. avg_score" style="flex:1;min-width:0">' +
+            '<button class="vsc-var-del" style="background:none;border:none;color:var(--text-faint);font-size:14px;padding:0 4px;cursor:pointer;flex-shrink:0" title="Remove">✕</button>' +
+          '</div>' +
+          '<div id="vsc-name-err-' + idx + '" style="display:none;font-size:10px;color:var(--danger)"></div>' +
+          '<div style="display:flex;gap:4px;align-items:center">' +
+            '<select id="vsc-agg-' + idx + '" style="width:90px;flex-shrink:0">' +
+              '<option value="count"' + (v.aggregation === 'count' || !v.aggregation ? ' selected' : '') + '>Count</option>' +
+              '<option value="sum"' + (v.aggregation === 'sum' ? ' selected' : '') + '>Sum</option>' +
+              '<option value="average"' + (v.aggregation === 'average' ? ' selected' : '') + '>Average</option>' +
+              '<option value="mode"' + (v.aggregation === 'mode' ? ' selected' : '') + '>Mode</option>' +
+            '</select>' +
+            '<select id="vsc-field-' + idx + '" style="flex:1;min-width:0' + (isCount ? ';opacity:0.4' : '') + '"' + (isCount ? ' disabled' : '') + '>' +
+              '<option value="">-- field --</option>' +
+              cols.map(function(c) { return '<option value="' + _vtEsc(c) + '"' + (c === (v.field || '') ? ' selected' : '') + '>' + _vtEsc(c) + '</option>'; }).join('') +
+            '</select>' +
+            '<select id="vsc-scope-' + idx + '" style="width:90px;flex-shrink:0">' +
+              '<option value="filtered"' + (v.scope !== 'unfiltered' ? ' selected' : '') + '>Filtered</option>' +
+              '<option value="unfiltered"' + (v.scope === 'unfiltered' ? ' selected' : '') + '>Unfiltered</option>' +
+            '</select>' +
+          '</div>';
+
+        varList.appendChild(row);
+
+        var nameInput = row.querySelector('#vsc-name-' + idx);
+        var nameErr = row.querySelector('#vsc-name-err-' + idx);
+        var aggSel = row.querySelector('#vsc-agg-' + idx);
+        var fieldSel = row.querySelector('#vsc-field-' + idx);
+        var scopeSel = row.querySelector('#vsc-scope-' + idx);
+
+        nameInput.addEventListener('input', function() {
+          var val = this.value;
+          if (!val || !/^\w+$/.test(val)) {
+            nameErr.textContent = 'Use letters, numbers, and underscores only (no spaces)';
+            nameErr.style.display = '';
+          } else {
+            var isDupe = cfg.variables.some(function(other, oi) { return oi !== idx && other.name === val; });
+            if (isDupe) {
+              nameErr.textContent = 'Duplicate name — last write wins';
+              nameErr.style.display = '';
+            } else {
+              nameErr.style.display = 'none';
+            }
+            v.name = val;
+            onChange();
+            rebuildAvailableVars();
+          }
+        });
+
+        aggSel.addEventListener('change', function() {
+          v.aggregation = this.value;
+          var isCountNow = this.value === 'count';
+          fieldSel.disabled = isCountNow;
+          fieldSel.style.opacity = isCountNow ? '0.4' : '';
+          onChange();
+        });
+
+        fieldSel.addEventListener('change', function() { v.field = this.value; onChange(); });
+        scopeSel.addEventListener('change', function() { v.scope = this.value; onChange(); });
+
+        row.querySelector('.vsc-var-del').addEventListener('click', function() {
+          cfg.variables.splice(idx, 1);
+          rebuild();
+          onChange();
+        });
+      });
+
+      varSec.querySelector('#vsc-add-var').addEventListener('click', function() {
+        cfg.variables.push({ name: '', field: '', aggregation: 'count', scope: 'filtered' });
+        rebuild();
+      });
+
+      // ── Available variables helper ─────────────────────────────────────────────
+      var availHelper = document.createElement('div');
+      availHelper.id = 'vsc-avail-helper';
+      availHelper.style.cssText = 'padding:4px 0 6px;font-size:11px';
+      el.appendChild(availHelper);
+      rebuildAvailableVars();
+
+      // ── TEMPLATE section ───────────────────────────────────────────────────────
+      var tplSec = document.createElement('div');
+      tplSec.className = 'vt-config-section';
+      tplSec.innerHTML = '<span class="vt-config-label">Template</span>' +
+        '<div id="vsc-line-list"></div>' +
+        '<button class="vt-add-btn" id="vsc-add-line" style="width:100%;margin-top:4px">＋ Add Line</button>';
+      el.appendChild(tplSec);
+
+      var lineList = tplSec.querySelector('#vsc-line-list');
+      var _dragSrcIdx = null;
+
+      cfg.lines.forEach(function(line, idx) {
+        var card = document.createElement('div');
+        card.className = 'vsc-line-card';
+        card.style.cssText = 'background:var(--bg-raised);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:8px;position:relative';
+        card.draggable = true;
+        card.dataset.lineIdx = String(idx);
+
+        var colorVal = line.color || '';
+        card.innerHTML =
+          '<div style="display:flex;align-items:center;gap:4px">' +
+            '<span class="vsc-drag-handle" style="cursor:grab;color:var(--text-faint);font-size:16px;padding:0 2px;line-height:1;flex-shrink:0;user-select:none" title="Drag to reorder">⠿</span>' +
+            '<input type="text" class="vsc-line-text" data-line-idx="' + idx + '" value="' + _vtEsc(line.text || '') + '" placeholder="Type text, use {{variable}} to insert a value" style="flex:1;min-width:0">' +
+            '<button class="vsc-line-del" style="background:none;border:none;color:var(--text-faint);font-size:14px;padding:0 4px;cursor:pointer;flex-shrink:0" title="Remove">✕</button>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">' +
+            '<input type="number" class="vsc-font-size" value="' + (line.fontSize || 16) + '" min="10" max="72" style="width:60px" title="Font size">' +
+            '<button class="vsc-bold-btn" style="padding:2px 8px;font-weight:700;font-size:12px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:' + (line.weight === 'bold' ? 'var(--accent)' : 'var(--bg-surface)') + ';color:' + (line.weight === 'bold' ? '#fff' : 'var(--text-muted)') + '" title="Bold">B</button>' +
+            '<div style="display:flex;border-radius:3px;overflow:hidden">' +
+              ['left','center','right'].map(function(a) {
+                var icons = { left: '⬅', center: '↔', right: '➡' };
+                var active = (line.align || 'center') === a;
+                return '<button class="vsc-align-btn" data-align="' + a + '" style="padding:2px 7px;font-size:11px;cursor:pointer;border:1px solid var(--border);border-right:none;background:' + (active ? 'var(--accent)' : 'var(--bg-surface)') + ';color:' + (active ? '#fff' : 'var(--text-muted)') + ';' + (a === 'right' ? 'border-right:1px solid var(--border)' : '') + '">' + icons[a] + '</button>';
+              }).join('') +
+            '</div>' +
+            '<input type="color" class="vsc-color-pick" value="' + (colorVal || '#000000') + '" style="width:28px;height:28px;border:1px solid var(--border);border-radius:3px;cursor:pointer;padding:1px" title="Text color">' +
+            '<button class="vsc-color-auto" style="font-size:10px;padding:2px 6px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:' + (colorVal ? 'var(--bg-surface)' : 'var(--accent)') + ';color:' + (colorVal ? 'var(--text-muted)' : '#fff') + '" title="Use theme default color">Auto</button>' +
+          '</div>';
+
+        lineList.appendChild(card);
+
+        var textInput = card.querySelector('.vsc-line-text');
+        var fontSizeInput = card.querySelector('.vsc-font-size');
+        var boldBtn = card.querySelector('.vsc-bold-btn');
+        var colorPick = card.querySelector('.vsc-color-pick');
+        var colorAuto = card.querySelector('.vsc-color-auto');
+
+        textInput.addEventListener('focus', function() { _focusedLineInput = this; });
+        textInput.addEventListener('input', function() { line.text = this.value; onChange(); });
+
+        fontSizeInput.addEventListener('change', function() {
+          line.fontSize = Math.max(10, Math.min(72, parseInt(this.value) || 16));
+          this.value = line.fontSize;
+          onChange();
+        });
+
+        boldBtn.addEventListener('click', function() {
+          line.weight = line.weight === 'bold' ? 'normal' : 'bold';
+          this.style.background = line.weight === 'bold' ? 'var(--accent)' : 'var(--bg-surface)';
+          this.style.color = line.weight === 'bold' ? '#fff' : 'var(--text-muted)';
+          onChange();
+        });
+
+        card.querySelectorAll('.vsc-align-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            line.align = btn.dataset.align;
+            card.querySelectorAll('.vsc-align-btn').forEach(function(b) {
+              var isActive = b.dataset.align === line.align;
+              b.style.background = isActive ? 'var(--accent)' : 'var(--bg-surface)';
+              b.style.color = isActive ? '#fff' : 'var(--text-muted)';
+            });
+            onChange();
+          });
+        });
+
+        colorPick.addEventListener('input', function() {
+          line.color = this.value;
+          colorAuto.style.background = 'var(--bg-surface)';
+          colorAuto.style.color = 'var(--text-muted)';
+          onChange();
+        });
+
+        colorAuto.addEventListener('click', function() {
+          line.color = '';
+          colorPick.value = '#000000';
+          this.style.background = 'var(--accent)';
+          this.style.color = '#fff';
+          onChange();
+        });
+
+        card.querySelector('.vsc-line-del').addEventListener('click', function() {
+          cfg.lines.splice(idx, 1);
+          rebuild();
+          onChange();
+        });
+
+        // Drag-to-reorder
+        card.addEventListener('dragstart', function(e) {
+          _dragSrcIdx = idx;
+          e.dataTransfer.effectAllowed = 'move';
+          card.style.opacity = '0.5';
+        });
+
+        card.addEventListener('dragend', function() {
+          _dragSrcIdx = null;
+          card.style.opacity = '';
+          lineList.querySelectorAll('.vsc-line-card').forEach(function(c) { c.style.outline = ''; });
+        });
+
+        card.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          lineList.querySelectorAll('.vsc-line-card').forEach(function(c) { c.style.outline = ''; });
+          card.style.outline = '2px solid var(--accent)';
+        });
+
+        card.addEventListener('drop', function(e) {
+          e.preventDefault();
+          lineList.querySelectorAll('.vsc-line-card').forEach(function(c) { c.style.outline = ''; });
+          if (_dragSrcIdx === null || _dragSrcIdx === idx) return;
+          var moved = cfg.lines.splice(_dragSrcIdx, 1)[0];
+          var insertAt = idx > _dragSrcIdx ? idx - 1 : idx;
+          cfg.lines.splice(insertAt, 0, moved);
+          _dragSrcIdx = null;
+          rebuild();
+          onChange();
+        });
+      });
+
+      tplSec.querySelector('#vsc-add-line').addEventListener('click', function() {
+        cfg.lines.push({ text: '', fontSize: 16, weight: 'normal', color: '', align: 'center' });
+        rebuild();
+      });
+    }
+
+    rebuild();
     return el;
   }
 

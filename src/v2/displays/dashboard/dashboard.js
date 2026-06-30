@@ -112,6 +112,7 @@ window.DWBDashboard = (function() {
       }
 
       const rows = _dGetFilteredRows(viz, snapshots, filters);
+      const allRows = snapshots[viz.snapshotName] || [];
 
       card.innerHTML = `<div class="dash-placement-header">
         <span class="dash-placement-title">${_dEsc(viz.label)}</span>
@@ -131,7 +132,7 @@ window.DWBDashboard = (function() {
       // Render viz into placement body
       const body = card.querySelector('#dash-pb-' + placement.id);
       if (body && window.DWBVizTab) {
-        window.DWBVizTab.renderViz(viz, rows, body);
+        window.DWBVizTab.renderViz(viz, rows, body, allRows);
       }
     });
   }
@@ -672,6 +673,62 @@ window.DWBDashboard = (function() {
     }).catch(function() { _dMissingConfig(container, 'WORD_CLOUD (ECharts unavailable)'); });
   }
 
+  // ── STAT_CARD renderer ─────────────────────────────────────────────────────────
+  function _dComputeStatVar(variable, allRows, filteredRows) {
+    var rows = variable.scope === 'unfiltered' ? allRows : filteredRows;
+    if (variable.aggregation === 'count') return rows.length;
+    if (!variable.field) return 0;
+    var vals = rows.map(function(r) { return r[variable.field]; }).filter(function(v) { return v !== undefined && v !== null && v !== ''; });
+    if (variable.aggregation === 'sum') {
+      return vals.reduce(function(s, v) { return s + (parseFloat(v) || 0); }, 0);
+    }
+    if (variable.aggregation === 'average') {
+      if (!vals.length) return 0;
+      var sum = vals.reduce(function(s, v) { return s + (parseFloat(v) || 0); }, 0);
+      return +(sum / vals.length).toFixed(2);
+    }
+    if (variable.aggregation === 'mode') {
+      var freq = {};
+      vals.forEach(function(v) { freq[v] = (freq[v] || 0) + 1; });
+      var best = null, bestCount = -1;
+      Object.keys(freq).forEach(function(k) {
+        if (freq[k] > bestCount) { best = k; bestCount = freq[k]; }
+      });
+      return best;
+    }
+    return 0;
+  }
+
+  function _dRenderStatCardLine(text, varMap) {
+    return text.replace(/\{\{(\w+)\}\}/g, function(match, name) {
+      return varMap.hasOwnProperty(name) ? String(varMap[name]) : match;
+    });
+  }
+
+  function _dRenderStatCard(contentEl, viz, allRows, filteredRows) {
+    var cfg = viz.config || {};
+    if (!(cfg.lines || []).length) {
+      _dMissingConfig(contentEl, 'STAT_CARD');
+      return;
+    }
+    contentEl.innerHTML = '<div class="dash-statcard"></div>';
+    var cardEl = contentEl.querySelector('.dash-statcard');
+    var varMap = {};
+    (cfg.variables || []).forEach(function(v) {
+      if (v.name) varMap[v.name] = _dComputeStatVar(v, allRows, filteredRows);
+    });
+    (cfg.lines || []).forEach(function(line) {
+      var div = document.createElement('div');
+      div.className = 'dash-statcard-line';
+      div.style.fontSize = (line.fontSize || 16) + 'px';
+      div.style.fontWeight = line.weight === 'bold' ? '700' : '400';
+      div.style.textAlign = line.align || 'center';
+      if (line.color) div.style.color = line.color;
+      div.textContent = _dRenderStatCardLine(line.text || '', varMap);
+      cardEl.appendChild(div);
+    });
+  }
+
   function _dEsc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -683,6 +740,7 @@ window.DWBDashboard = (function() {
     renderPie: _dRenderPie,
     renderStackedDivergingBar: _dRenderStackedDivergingBar,
     renderWordCloud: _dRenderWordCloud,
+    renderStatCard: _dRenderStatCard,
     aggregateRows: _dAggregateRows
   };
 })();
