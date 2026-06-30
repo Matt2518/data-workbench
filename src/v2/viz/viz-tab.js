@@ -12,9 +12,9 @@ window.DWBVizTab = (function() {
     { type: 'STAT_CARD',              icon: '🏷️', name: 'Stat Card',         desc: 'Tokenized text with computed variables' },
     { type: 'WORD_CLOUD',             icon: '☁',  name: 'Word Cloud',        desc: 'Frequency visualization' },
     { type: 'STACKED_DIVERGING_BAR',  icon: '⚖',  name: 'Diverging Bar',    desc: 'Likert / agreement scale' },
-    { type: 'RICH_TEXT',              icon: '📝', name: 'Rich Text',         desc: 'Formatted text block' },
-    { type: 'QUOTES_BOARD',           icon: '💬', name: 'Quotes Board',      desc: 'Highlighted text quotes' },
-    { type: 'AI_ASSIST',              icon: '🤖', name: 'AI Insights',       desc: 'AI-powered summary (requires API key)' },
+    { type: 'RICH_TEXT',              icon: '📝', name: 'Rich Text',         desc: 'Formatted text with data tokens' },
+    { type: 'QUOTES_BOARD',           icon: '💬', name: 'Quotes Board',      desc: 'Display quotes with sentiment indicators' },
+    { type: 'AI_ASSIST',              icon: '🤖', name: 'AI Assist',         desc: 'Clipboard-based prompt builder for external AI tools' },
     { type: 'TIMELINE_HORIZONTAL',   icon: '⏩', name: 'Timeline (H)',      desc: 'Horizontal timeline events' },
     { type: 'TIMELINE_GANTT',         icon: '📅', name: 'Gantt Chart',       desc: 'Duration bars on a timeline' },
     { type: 'TIMELINE_VERTICAL',      icon: '📌', name: 'Timeline (V)',      desc: 'Vertical event timeline' }
@@ -193,7 +193,16 @@ window.DWBVizTab = (function() {
         db ? db.renderWordCloud(viz, rows, container) : _vtPlaceholder(container, 'WORD_CLOUD');
         break;
       case 'STAT_CARD':
-        db ? db.renderStatCard(viz, allRows || rows, rows, container) : _vtPlaceholder(container, 'STAT_CARD');
+        db ? db.renderStatCard(container, viz, allRows || rows, rows) : _vtPlaceholder(container, 'STAT_CARD');
+        break;
+      case 'QUOTES_BOARD':
+        db ? db.renderQuotesBoard(container, viz, rows) : _vtPlaceholder(container, 'QUOTES_BOARD');
+        break;
+      case 'RICH_TEXT':
+        db ? db.renderRichText(container, viz, rows) : _vtPlaceholder(container, 'RICH_TEXT');
+        break;
+      case 'AI_ASSIST':
+        container.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--text-faint);text-align:center">AI Assist renders an interactive copy/paste panel in the Dashboard — preview not available here.</div>';
         break;
       case 'KPI_STAT':      _vtRenderKpi(viz, rows, container); break;
       case 'DATA_TABLE':    _vtRenderDataTable(viz, rows, container); break;
@@ -391,6 +400,12 @@ window.DWBVizTab = (function() {
       configEl.appendChild(_vtBuildKpiConfig(viz, cols, onChange));
     } else if (viz.type === 'STAT_CARD') {
       configEl.appendChild(_vtBuildStatCardConfig(viz, cols, onChange));
+    } else if (viz.type === 'QUOTES_BOARD') {
+      configEl.appendChild(_vtBuildQuotesBoardConfig(viz, cols, onChange));
+    } else if (viz.type === 'RICH_TEXT') {
+      configEl.appendChild(_vtBuildRichTextConfig(viz, cols, onChange));
+    } else if (viz.type === 'AI_ASSIST') {
+      configEl.appendChild(_vtBuildAiAssistConfig(viz, cols, onChange));
     } else {
       const ph = document.createElement('div');
       ph.className = 'vt-config-section';
@@ -978,6 +993,224 @@ window.DWBVizTab = (function() {
     }
 
     rebuild();
+    return el;
+  }
+
+  // ── QUOTES_BOARD config builder ───────────────────────────────────────────────
+  function _vtBuildQuotesBoardConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    var cfg = viz.config;
+    var el = document.createElement('div');
+
+    function colSel(id, selected, includeNone) {
+      var blank = includeNone ? '<option value="">-- none --</option>' : '<option value="">-- select --</option>';
+      return '<select id="' + id + '" style="width:100%">' + blank +
+        cols.map(function(c) {
+          return '<option value="' + _vtEsc(c) + '"' + (c === selected ? ' selected' : '') + '>' + _vtEsc(c) + '</option>';
+        }).join('') + '</select>';
+    }
+
+    var layout = cfg.layout || 'grid';
+    el.innerHTML =
+      '<div class="vt-config-section"><span class="vt-config-label">Chart Data</span>' +
+        '<div class="form-row"><label>Quote field</label>' + colSel('vcqb-quote', cfg.quoteField) + '</div>' +
+        '<div class="form-row"><label>Attribution field</label>' + colSel('vcqb-attr', cfg.attributionField, true) + '</div>' +
+        '<div class="form-row"><label>Sentiment field</label>' + colSel('vcqb-sent', cfg.sentimentField, true) +
+          '<span style="font-size:10px;color:var(--text-faint);margin-top:2px">Expects values: positive, neutral, or negative — produced by the Sentiment Analysis pipeline node</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="vt-config-section"><span class="vt-config-label">Display</span>' +
+        '<div class="form-row"><label>Max quotes</label>' +
+          '<input type="number" id="vcqb-max" value="' + (cfg.maxQuotes != null ? cfg.maxQuotes : 12) + '" min="1" max="50" style="width:100%"></div>' +
+        '<div class="form-row"><label>Layout</label><div style="display:flex;gap:12px">' +
+          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcqb-layout" value="grid"' + (layout === 'grid' ? ' checked' : '') + '> Grid</label>' +
+          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcqb-layout" value="list"' + (layout !== 'grid' ? ' checked' : '') + '> List</label>' +
+        '</div></div>' +
+      '</div>';
+
+    el.querySelector('#vcqb-quote').addEventListener('change', function() { cfg.quoteField = this.value; onChange(); });
+    el.querySelector('#vcqb-attr').addEventListener('change', function() { cfg.attributionField = this.value || ''; onChange(); });
+    el.querySelector('#vcqb-sent').addEventListener('change', function() { cfg.sentimentField = this.value || ''; onChange(); });
+    el.querySelector('#vcqb-max').addEventListener('change', function() {
+      cfg.maxQuotes = Math.max(1, Math.min(50, parseInt(this.value) || 12));
+      this.value = cfg.maxQuotes;
+      onChange();
+    });
+    el.querySelectorAll('input[name="vcqb-layout"]').forEach(function(r) {
+      r.addEventListener('change', function() { cfg.layout = this.value; onChange(); });
+    });
+
+    return el;
+  }
+
+  // ── RICH_TEXT config builder ──────────────────────────────────────────────────
+  function _vtBuildRichTextConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    var cfg = viz.config;
+    var el = document.createElement('div');
+    var _focusedTextArea = null;
+
+    function buildPills() {
+      var pillsEl = el.querySelector('#vrt-col-pills');
+      if (!pillsEl) return;
+      if (!cols.length) {
+        pillsEl.innerHTML = '<span style="font-size:10px;color:var(--text-faint)">No columns — select a dataset above.</span>';
+        return;
+      }
+      pillsEl.innerHTML = '<span style="font-size:10px;color:var(--text-faint);margin-right:4px">Insert column:</span>' +
+        cols.map(function(c) {
+          return '<span class="vsc-var-pill" style="display:inline-block;padding:1px 7px;background:var(--accent-light);color:var(--accent);border-radius:10px;cursor:pointer;margin:0 2px;font-size:10px">{{' + _vtEsc(c) + '}}</span>';
+        }).join('');
+      pillsEl.querySelectorAll('.vsc-var-pill').forEach(function(pill) {
+        pill.addEventListener('click', function() {
+          var token = this.textContent;
+          if (!_focusedTextArea) return;
+          var ta = _focusedTextArea;
+          var start = ta.selectionStart;
+          var end = ta.selectionEnd;
+          ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+          ta.setSelectionRange(start + token.length, start + token.length);
+          ta.focus();
+          cfg.text = ta.value;
+          onChange();
+        });
+      });
+    }
+
+    var align = cfg.align || 'left';
+    var weight = cfg.weight || 'normal';
+    var colorVal = cfg.color || '';
+
+    el.innerHTML =
+      '<div class="vt-config-section"><span class="vt-config-label">Text</span>' +
+        '<div class="form-row"><label>Content</label>' +
+          '<textarea id="vrt-text" rows="4" style="width:100%;resize:vertical" placeholder="Type text, use {{column_name}} to insert a value from the first row">' + _vtEsc(cfg.text || '') + '</textarea>' +
+        '</div>' +
+        '<div id="vrt-col-pills" style="padding:2px 0 10px;font-size:11px;line-height:2"></div>' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-bottom:8px">' +
+          '<input type="number" id="vrt-size" value="' + (cfg.fontSize || 16) + '" min="10" max="72" style="width:60px" title="Font size (px)">' +
+          '<button id="vrt-bold" style="padding:2px 8px;font-weight:700;font-size:12px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:' + (weight === 'bold' ? 'var(--accent)' : 'var(--bg-surface)') + ';color:' + (weight === 'bold' ? '#fff' : 'var(--text-muted)') + '" title="Bold">B</button>' +
+          '<div style="display:flex;border-radius:3px;overflow:hidden">' +
+            ['left','center','right'].map(function(a) {
+              var icon = { left: '⬅', center: '↔', right: '➡' }[a];
+              var active = align === a;
+              return '<button class="vrt-align-btn" data-align="' + a + '" style="padding:2px 7px;font-size:11px;cursor:pointer;border:1px solid var(--border);border-right:' + (a === 'right' ? '1px solid var(--border)' : 'none') + ';background:' + (active ? 'var(--accent)' : 'var(--bg-surface)') + ';color:' + (active ? '#fff' : 'var(--text-muted)') + '">' + icon + '</button>';
+            }).join('') +
+          '</div>' +
+          '<input type="color" id="vrt-color" value="' + (colorVal || '#000000') + '" style="width:28px;height:28px;border:1px solid var(--border);border-radius:3px;cursor:pointer;padding:1px" title="Text color">' +
+          '<button id="vrt-color-auto" style="font-size:10px;padding:2px 6px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:' + (!colorVal ? 'var(--accent)' : 'var(--bg-surface)') + ';color:' + (!colorVal ? '#fff' : 'var(--text-muted)') + '" title="Use theme default color">Auto</button>' +
+        '</div>' +
+      '</div>';
+
+    buildPills();
+
+    var textArea = el.querySelector('#vrt-text');
+    textArea.addEventListener('focus', function() { _focusedTextArea = this; });
+    textArea.addEventListener('input', function() { cfg.text = this.value; onChange(); });
+
+    el.querySelector('#vrt-size').addEventListener('change', function() {
+      cfg.fontSize = Math.max(10, Math.min(72, parseInt(this.value) || 16));
+      this.value = cfg.fontSize;
+      onChange();
+    });
+
+    el.querySelector('#vrt-bold').addEventListener('click', function() {
+      cfg.weight = cfg.weight === 'bold' ? 'normal' : 'bold';
+      this.style.background = cfg.weight === 'bold' ? 'var(--accent)' : 'var(--bg-surface)';
+      this.style.color = cfg.weight === 'bold' ? '#fff' : 'var(--text-muted)';
+      onChange();
+    });
+
+    el.querySelectorAll('.vrt-align-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        cfg.align = btn.dataset.align;
+        el.querySelectorAll('.vrt-align-btn').forEach(function(b) {
+          var isActive = b.dataset.align === cfg.align;
+          b.style.background = isActive ? 'var(--accent)' : 'var(--bg-surface)';
+          b.style.color = isActive ? '#fff' : 'var(--text-muted)';
+        });
+        onChange();
+      });
+    });
+
+    el.querySelector('#vrt-color').addEventListener('input', function() {
+      cfg.color = this.value;
+      el.querySelector('#vrt-color-auto').style.background = 'var(--bg-surface)';
+      el.querySelector('#vrt-color-auto').style.color = 'var(--text-muted)';
+      onChange();
+    });
+
+    el.querySelector('#vrt-color-auto').addEventListener('click', function() {
+      cfg.color = '';
+      el.querySelector('#vrt-color').value = '#000000';
+      this.style.background = 'var(--accent)';
+      this.style.color = '#fff';
+      onChange();
+    });
+
+    return el;
+  }
+
+  // ── AI_ASSIST config builder ──────────────────────────────────────────────────
+  function _vtBuildAiAssistConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    var cfg = viz.config;
+    if (!cfg.includeFields) cfg.includeFields = [];
+    if (cfg.promptTemplate == null) {
+      cfg.promptTemplate = 'Analyze the following data and provide insights:\n\n{{data}}';
+    }
+
+    var el = document.createElement('div');
+    var promptSec = document.createElement('div');
+    promptSec.className = 'vt-config-section';
+    promptSec.innerHTML =
+      '<span class="vt-config-label">Prompt</span>' +
+      '<div class="form-row"><label>Prompt template</label>' +
+        '<textarea id="vcai-tmpl" rows="4" style="width:100%;resize:vertical" placeholder="Use {{data}} to insert the data sample as JSON">' +
+          _vtEsc(cfg.promptTemplate) +
+        '</textarea>' +
+        '<span style="font-size:10px;color:var(--text-faint);margin-top:2px">Use {{data}} to insert the data sample as JSON</span>' +
+      '</div>' +
+      '<div class="form-row"><label>Max rows to include</label>' +
+        '<input type="number" id="vcai-max" value="' + (cfg.maxRows || 50) + '" min="1" max="500" style="width:100%"></div>' +
+      '<div class="form-row"><label>Include fields</label>' +
+        '<div id="vcai-fields" style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:6px"></div>' +
+        '<span style="font-size:10px;color:var(--text-faint);margin-top:2px">Leave all checked to include all columns</span>' +
+      '</div>';
+    el.appendChild(promptSec);
+
+    var fieldsContainer = promptSec.querySelector('#vcai-fields');
+    if (!cols.length) {
+      fieldsContainer.innerHTML = '<span style="font-size:11px;color:var(--text-faint)">No columns — select a dataset first</span>';
+    } else {
+      cols.forEach(function(col) {
+        var isChecked = cfg.includeFields.length === 0 || cfg.includeFields.indexOf(col) !== -1;
+        var lbl = document.createElement('label');
+        lbl.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;font-weight:normal;padding:2px 0;cursor:pointer';
+        lbl.innerHTML = '<input type="checkbox" value="' + _vtEsc(col) + '"' + (isChecked ? ' checked' : '') + '> ' + _vtEsc(col);
+        fieldsContainer.appendChild(lbl);
+      });
+
+      fieldsContainer.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+          var checked = Array.from(fieldsContainer.querySelectorAll('input[type="checkbox"]:checked')).map(function(c) { return c.value; });
+          cfg.includeFields = (checked.length === cols.length) ? [] : checked;
+          window.DWBShell && window.DWBShell.markDirty();
+        });
+      });
+    }
+
+    promptSec.querySelector('#vcai-tmpl').addEventListener('input', function() {
+      cfg.promptTemplate = this.value;
+      window.DWBShell && window.DWBShell.markDirty();
+    });
+
+    promptSec.querySelector('#vcai-max').addEventListener('change', function() {
+      cfg.maxRows = Math.max(1, Math.min(500, parseInt(this.value) || 50));
+      this.value = cfg.maxRows;
+      window.DWBShell && window.DWBShell.markDirty();
+    });
+
     return el;
   }
 

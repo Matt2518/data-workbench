@@ -131,8 +131,12 @@ window.DWBDashboard = (function() {
 
       // Render viz into placement body
       const body = card.querySelector('#dash-pb-' + placement.id);
-      if (body && window.DWBVizTab) {
-        window.DWBVizTab.renderViz(viz, rows, body, allRows);
+      if (body) {
+        if (viz.type === 'AI_ASSIST') {
+          _dRenderAiAssist(body, viz, rows);
+        } else if (window.DWBVizTab) {
+          window.DWBVizTab.renderViz(viz, rows, body, allRows);
+        }
       }
     });
   }
@@ -242,7 +246,13 @@ window.DWBDashboard = (function() {
       if (!viz) return;
       const rows = snapshots[viz.snapshotName] || [];
       const body = overlay.querySelector('#fs-pb-' + placement.id);
-      if (body && window.DWBVizTab) window.DWBVizTab.renderViz(viz, rows, body);
+      if (body) {
+        if (viz.type === 'AI_ASSIST') {
+          _dRenderAiAssist(body, viz, rows);
+        } else if (window.DWBVizTab) {
+          window.DWBVizTab.renderViz(viz, rows, body);
+        }
+      }
     });
 
     document.body.appendChild(overlay);
@@ -729,6 +739,100 @@ window.DWBDashboard = (function() {
     });
   }
 
+  // ── QUOTES_BOARD renderer ──────────────────────────────────────────────────────
+  function _dRenderQuotesBoard(contentEl, viz, rows) {
+    var cfg = viz.config || {};
+    if (!cfg.quoteField) { _dMissingConfig(contentEl, 'QUOTES_BOARD'); return; }
+    var maxQuotes = (cfg.maxQuotes != null) ? Math.max(1, cfg.maxQuotes) : 12;
+    var layout = cfg.layout || 'grid';
+    var filtered = (rows || []).filter(function(row) {
+      var val = row[cfg.quoteField];
+      return val !== undefined && val !== null && String(val).trim() !== '';
+    }).slice(0, maxQuotes);
+    var cardsHtml = filtered.map(function(row) {
+      var text = String(row[cfg.quoteField]);
+      var attribution = (cfg.attributionField && row[cfg.attributionField] != null)
+        ? String(row[cfg.attributionField]).trim() : '';
+      var sentiment = '';
+      if (cfg.sentimentField && row[cfg.sentimentField] != null) {
+        var s = String(row[cfg.sentimentField]).toLowerCase().trim();
+        if (s === 'positive' || s === 'neutral' || s === 'negative') sentiment = s;
+      }
+      return '<div class="dash-quote-card' + (sentiment ? ' dash-quote-' + sentiment : '') + '">' +
+        '<div class="dash-quote-text">“' + _dEsc(text) + '”</div>' +
+        (attribution ? '<div class="dash-quote-attribution">— ' + _dEsc(attribution) + '</div>' : '') +
+        '</div>';
+    }).join('');
+    contentEl.innerHTML = '<div class="dash-quotes-board' + (layout === 'list' ? ' layout-list' : '') + '">' + cardsHtml + '</div>';
+  }
+
+  // ── RICH_TEXT renderer ─────────────────────────────────────────────────────────
+  function _dRenderRichText(contentEl, viz, rows) {
+    var cfg = viz.config || {};
+    if (!cfg.text) { _dMissingConfig(contentEl, 'RICH_TEXT'); return; }
+    var row = (rows && rows[0]) ? rows[0] : {};
+    var text = cfg.text.replace(/\{\{(\w+)\}\}/g, function(match, name) {
+      return row.hasOwnProperty(name) ? String(row[name]) : match;
+    });
+    contentEl.innerHTML = '<div class="dash-richtext"></div>';
+    var el = contentEl.querySelector('.dash-richtext');
+    el.style.fontSize = (cfg.fontSize || 16) + 'px';
+    el.style.fontWeight = cfg.weight === 'bold' ? '700' : '400';
+    el.style.textAlign = cfg.align || 'left';
+    if (cfg.color) el.style.color = cfg.color;
+    el.textContent = text;
+  }
+
+  // ── AI_ASSIST renderer ─────────────────────────────────────────────────────────
+  function _dBuildAiPrompt(viz, rows) {
+    var cfg = viz.config || {};
+    var maxRows = cfg.maxRows || 50;
+    var fields = (cfg.includeFields && cfg.includeFields.length)
+      ? cfg.includeFields
+      : (rows[0] ? Object.keys(rows[0]) : []);
+    var sample = rows.slice(0, maxRows).map(function(row) {
+      var obj = {};
+      fields.forEach(function(f) { obj[f] = row[f]; });
+      return obj;
+    });
+    var template = cfg.promptTemplate || 'Analyze the following data and provide insights:\n\n{{data}}';
+    return template.replace('{{data}}', JSON.stringify(sample, null, 2));
+  }
+
+  function _dRenderAiAssist(contentEl, viz, rows) {
+    var existing = (viz.config && viz.config.response) ? viz.config.response : '';
+    contentEl.innerHTML =
+      '<div class="dash-ai-assist">' +
+        '<div class="dash-ai-controls">' +
+          '<button class="dash-ai-copy-btn">📋 Copy Prompt</button>' +
+          '<span class="dash-ai-copy-status"></span>' +
+        '</div>' +
+        '<div class="dash-ai-response-label">Response (paste here):</div>' +
+        '<textarea class="dash-ai-response" placeholder="Paste the AI response here...">' + _dEsc(existing) + '</textarea>' +
+      '</div>';
+    var copyBtn = contentEl.querySelector('.dash-ai-copy-btn');
+    var statusEl = contentEl.querySelector('.dash-ai-copy-status');
+    var respEl = contentEl.querySelector('.dash-ai-response');
+    copyBtn.addEventListener('click', function() {
+      var prompt = _dBuildAiPrompt(viz, rows);
+      try {
+        navigator.clipboard.writeText(prompt).then(function() {
+          statusEl.textContent = '✓ Copied';
+          setTimeout(function() { statusEl.textContent = ''; }, 2000);
+        }).catch(function() {
+          statusEl.textContent = '⚠️ Copy failed — select and copy manually';
+        });
+      } catch (e) {
+        statusEl.textContent = '⚠️ Clipboard unavailable';
+      }
+    });
+    respEl.addEventListener('blur', function() {
+      viz.config = viz.config || {};
+      viz.config.response = this.value;
+      window.DWBShell && window.DWBShell.markDirty();
+    });
+  }
+
   function _dEsc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -741,6 +845,9 @@ window.DWBDashboard = (function() {
     renderStackedDivergingBar: _dRenderStackedDivergingBar,
     renderWordCloud: _dRenderWordCloud,
     renderStatCard: _dRenderStatCard,
+    renderQuotesBoard: _dRenderQuotesBoard,
+    renderRichText: _dRenderRichText,
+    renderAiAssist: _dRenderAiAssist,
     aggregateRows: _dAggregateRows
   };
 })();
