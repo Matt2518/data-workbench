@@ -1,0 +1,48 @@
+/* === Report Display === */
+.report-root { display:flex;flex-direction:column;height:100%;overflow:hidden; }
+
+.report-toolbar {
+  display:flex;align-items:center;gap:8px;
+  padding:6px 14px;background:var(--bg-surface);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+
+.report-canvas {
+  flex:1;overflow:auto;background:#e0e0e0;padding:24px;
+  display:flex;flex-direction:column;align-items:center;gap:16px;
+}
+
+.report-page {
+  width:210mm;min-height:297mm;
+  background:white;box-shadow:0 2px 12px rgba(0,0,0,0.15);
+  padding:20mm 20mm 20mm 20mm;
+  box-sizing:border-box;
+  display:flex;flex-direction:column;
+}
+
+.report-cover { text-align:center;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center; }
+.report-cover-title { font-size:28px;font-weight:800;color:#002244;margin-bottom:8px; }
+.report-cover-sub   { font-size:14px;color:#64748b; }
+
+.report-page-header {
+  border-bottom:2px solid #C5B230;padding-bottom:8px;margin-bottom:16px;
+  display:flex;align-items:flex-end;justify-content:space-between;
+  font-size:10px;color:#64748b;
+}
+.report-page-footer {
+  border-top:1px solid #e2e8f0;margin-top:auto;padding-top:8px;
+  font-size:10px;color:#94a3b8;display:flex;justify-content:space-between;
+}
+
+.report-section { margin-bottom:24px; }
+.report-section-title { font-size:16px;font-weight:700;color:#002244;margin-bottom:12px;border-bottom:1px solid #e2e8f0;padding-bottom:6px; }
+
+.report-caption { font-size:11px;color:#64748b;margin-top:8px;font-style:italic; }
+
+.report-add-btn {
+  width:100%;padding:12px;border:2px dashed #e2e8f0;
+  border-radius:4px;background:none;color:#94a3b8;cursor:pointer;
+  font-size:12px;margin-top:12px;font-family:inherit;
+  transition:all var(--transition-fast);
+}
+.report-add-btn:hover { border-color:#005EB8;color:#005EB8; }

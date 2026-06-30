@@ -1,0 +1,2 @@
+/* topbar styles are in design-tokens.css — this file intentionally minimal */
+#topbar .tb-btn + .tb-btn { margin-left: 2px; }

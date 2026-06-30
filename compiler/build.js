@@ -16,6 +16,10 @@ const MERGE_DIR     = path.join(ROOT, 'src', 'merge');
 const DESIGNER_SRC  = path.join(ROOT, 'designer', 'src');
 const DESIGNER_OUT  = path.join(OUT_DIR, 'designer.html');
 
+const V2_SRC        = path.join(ROOT, 'src', 'v2');
+const V2_FRAME      = path.join(V2_SRC, 'frame', 'frame.html');
+const V2_OUT        = path.join(OUT_DIR, 'dwb2.html');
+
 const VALIDATOR_NAME_MAP = {
   'cyp-tracks':    'CYP Tracks',
   'employee-type': 'Employee Type',
@@ -70,6 +74,72 @@ function collectPlugins(pluginsDir) {
     }
   }
   return results;
+}
+
+function collectV2Recursive(dir, ext) {
+  if (!fs.existsSync(dir)) return [];
+  const results = [];
+  const entries = fs.readdirSync(dir).sort();
+  for (const entry of entries) {
+    const full = path.join(dir, entry);
+    const stat = fs.statSync(full);
+    if (stat.isDirectory()) {
+      results.push(...collectV2Recursive(full, ext));
+    } else if (entry.endsWith(ext)) {
+      results.push({ file: full, rel: path.relative(ROOT, full) });
+    }
+  }
+  return results;
+}
+
+function guardStyleClose(block, label) {
+  const _unsafeClose = /<\/style/i;
+  if (_unsafeClose.test(block)) {
+    const lines = block.split('\n');
+    console.error(`\nBUILD ERROR: Unescaped </style found in compiled ${label} block.`);
+    lines.forEach((line, i) => {
+      if (_unsafeClose.test(line)) console.error(`  line ${i + 1}: ${line.trim().slice(0, 120)}`);
+    });
+    console.error('\nBuild aborted.\n');
+    process.exit(1);
+  }
+}
+
+function buildV2() {
+  if (!fs.existsSync(V2_FRAME)) { console.error('Missing src/v2/frame/frame.html'); process.exit(1); }
+  const shell = fs.readFileSync(V2_FRAME, 'utf8');
+
+  const cssFiles = collectV2Recursive(V2_SRC, '.css');
+  const jsFiles  = collectV2Recursive(V2_SRC, '.js');
+
+  const cssBlock = cssFiles.map(({ file, rel }) => {
+    return `/* --- ${rel} --- */\n${fs.readFileSync(file, 'utf8').trimEnd()}`;
+  }).join('\n\n');
+
+  const jsBlock = jsFiles.map(({ file, rel }) => {
+    return `/* --- ${rel} --- */\n${fs.readFileSync(file, 'utf8').trimEnd()}`;
+  }).join('\n\n');
+
+  guardStyleClose(cssBlock, 'v2 styles');
+  guardScriptClose(jsBlock, 'v2 scripts');
+
+  let output = shell.replace(
+    '<!-- {{STYLE}} -->',
+    () => `<style>\n/* injected by compiler/build.js --v2 */\n\n${cssBlock}\n</style>`
+  );
+  output = output.replace(
+    '<!-- {{SCRIPTS}} -->',
+    () => `<script>\n/* injected by compiler/build.js --v2 */\n\n${jsBlock}\n</script>`
+  );
+
+  if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
+  fs.writeFileSync(V2_OUT, output, 'utf8');
+
+  const kb = (fs.statSync(V2_OUT).size / 1024).toFixed(1);
+  console.log(`Built: dist/dwb2.html  (${kb} KB, ${jsFiles.length} JS file(s), ${cssFiles.length} CSS file(s))`);
+  jsFiles.forEach(({ rel }) => console.log('  +', rel));
+
+  return { kb, jsCount: jsFiles.length, cssCount: cssFiles.length, outFile: V2_OUT };
 }
 
 function guardScriptClose(block, label) {
@@ -184,10 +254,13 @@ function buildDesigner() {
 
 // Only execute when run directly; require('./build') just gets the export.
 if (require.main === module) {
+  const v2Only  = process.argv.includes('--v2');
   const targetArg = process.argv.find(a => a.startsWith('--target='));
-  const target    = targetArg ? targetArg.split('=')[1] : 'dwb';
+  const target    = targetArg ? targetArg.split('=')[1] : null;
 
-  if (target === 'designer') {
+  if (v2Only) {
+    buildV2();
+  } else if (target === 'designer') {
     buildDesigner();
   } else if (target === 'dwb' || target === 'workbench') {
     const result = build();
@@ -198,10 +271,22 @@ if (require.main === module) {
       fs.copyFileSync(result.outFile, relFile);
       console.log('→ Release copy written to releases/workbench-latest.html');
     }
+  } else if (!target) {
+    // No flags — build all targets
+    const result = build();
+    if (process.argv.includes('--release')) {
+      const relDir  = path.join(ROOT, 'releases');
+      const relFile = path.join(relDir, 'workbench-latest.html');
+      if (!fs.existsSync(relDir)) fs.mkdirSync(relDir, { recursive: true });
+      fs.copyFileSync(result.outFile, relFile);
+      console.log('→ Release copy written to releases/workbench-latest.html');
+    }
+    buildDesigner();
+    buildV2();
   } else {
     console.error(`Unknown --target="${target}". Valid values: dwb, designer`);
     process.exit(1);
   }
 }
 
-module.exports = { build, buildDesigner };
+module.exports = { build, buildDesigner, buildV2 };

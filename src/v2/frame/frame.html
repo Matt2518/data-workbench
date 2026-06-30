@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Data Workbench 2</title>
+  <!-- {{STYLE}} -->
+</head>
+<body>
+<div id="app">
+  <div id="topbar"></div>
+  <div id="tab-panels">
+    <div id="panel-pipeline"  class="tab-panel"></div>
+    <div id="panel-viz"       class="tab-panel" style="display:none"></div>
+    <div id="panel-displays"  class="tab-panel" style="display:none"></div>
+    <div id="panel-wizard"    class="tab-panel" style="display:none"></div>
+  </div>
+</div>
+
+<!-- node-picker modal -->
+<div id="node-picker-overlay" class="overlay hidden">
+  <div class="modal" id="node-picker-modal" style="width:600px;max-height:78vh">
+    <div class="modal-header">
+      <span>Add Node</span>
+      <button class="modal-close" onclick="document.getElementById('node-picker-overlay').classList.add('hidden')">✕</button>
+    </div>
+    <div class="picker-body">
+      <div class="picker-tabs" id="picker-cat-tabs"></div>
+      <div class="picker-right">
+        <input type="text" id="picker-search" class="picker-search" placeholder="Search nodes…">
+        <div id="picker-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- file-open modal -->
+<div id="file-open-overlay" class="overlay hidden">
+  <div class="modal" style="width:400px">
+    <div class="modal-header">
+      <span>Open .dwbflow File</span>
+      <button class="modal-close" onclick="document.getElementById('file-open-overlay').classList.add('hidden')">✕</button>
+    </div>
+    <div style="padding:20px">
+      <label style="display:block;border:2px dashed var(--border-strong);border-radius:8px;padding:32px;text-align:center;cursor:pointer">
+        <div style="font-size:32px;margin-bottom:8px">📂</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-main);margin-bottom:4px">Click to browse</div>
+        <div style="font-size:12px;color:var(--text-muted)">or drag a .dwbflow file here</div>
+        <input type="file" accept=".dwbflow,.json" id="file-open-input" style="display:none">
+      </label>
+    </div>
+  </div>
+</div>
+
+<!-- generic confirm modal -->
+<div id="confirm-overlay" class="overlay hidden">
+  <div class="modal" style="width:360px">
+    <div class="modal-header"><span id="confirm-title">Confirm</span></div>
+    <div style="padding:16px 20px 8px;font-size:13px;color:var(--text-main)" id="confirm-body"></div>
+    <div style="padding:12px 20px 16px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-secondary" id="confirm-cancel">Cancel</button>
+      <button class="btn-primary" id="confirm-ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- {{SCRIPTS}} -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  window.DWBNodes = window.DWBNodes || {};
+  DWBTopbar.init();
+  const hasAutoSave = DWBio.loadAutoSave();
+  if (!hasAutoSave) { DWBShell.initNewFlow(); }
+  DWBPipelineTab.mount();
+  DWBShell.switchTab('pipeline');
+});
+</script>
+</body>
+</html>

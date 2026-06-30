@@ -1,0 +1,70 @@
+/* === Timeline Renderers === */
+
+/* Horizontal timeline */
+.tl-h-wrap { overflow-x: auto; padding: 20px 16px; }
+.tl-h-track {
+  position: relative; height: 4px;
+  background: var(--border); border-radius: 2px;
+  margin: 40px 0 60px;
+}
+.tl-h-event {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  cursor: pointer;
+}
+.tl-h-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--navy-sailor); border: 2px solid white;
+  box-shadow: 0 0 0 2px var(--navy-sailor);
+  position: relative; z-index: 1;
+}
+.tl-h-label {
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+  font-size: 11px; white-space: nowrap; color: var(--text-main);
+  font-weight: 600; text-align: center;
+}
+.tl-h-date {
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; color: var(--text-muted); white-space: nowrap;
+}
+
+/* Gantt chart */
+.tl-gantt-wrap { overflow: auto; padding: 8px; }
+.tl-gantt-table { min-width: 600px; width: 100%; border-collapse: collapse; }
+.tl-gantt-table th {
+  background: var(--bg-raised); padding: 6px 8px;
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-align: left; border-bottom: 2px solid var(--border-strong);
+  white-space: nowrap;
+}
+.tl-gantt-row td { padding: 4px 8px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.tl-gantt-bar-cell { padding: 4px 8px !important; }
+.tl-gantt-bar-track { background: var(--bg-raised); border-radius: 3px; height: 20px; position: relative; min-width: 100px; }
+.tl-gantt-bar {
+  position: absolute; height: 100%; border-radius: 3px;
+  background: var(--navy-sailor); display: flex; align-items: center;
+  padding: 0 6px; font-size: 10px; color: white; font-weight: 600;
+  white-space: nowrap; overflow: hidden;
+}
+
+/* Vertical timeline */
+.tl-v-wrap { padding: 16px; overflow-y: auto; }
+.tl-v-event {
+  display: flex; gap: 12px; margin-bottom: 24px; position: relative;
+}
+.tl-v-event::before {
+  content: '';
+  position: absolute; left: 19px; top: 28px; bottom: -18px;
+  width: 2px; background: var(--border);
+}
+.tl-v-event:last-child::before { display: none; }
+.tl-v-dot-col { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; padding-top: 4px; }
+.tl-v-dot {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--navy-sailor); border: 3px solid white;
+  box-shadow: 0 0 0 2px var(--navy-sailor);
+  flex-shrink: 0; z-index: 1;
+}
+.tl-v-content { flex: 1; min-width: 0; }
+.tl-v-title { font-size: 13px; font-weight: 700; color: var(--text-main); }
+.tl-v-date  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.tl-v-desc  { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }

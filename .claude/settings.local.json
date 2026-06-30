@@ -8,7 +8,13 @@
       "Bash(node -e ' *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\matt2\\\\documents\\\\dataworkbench\\\\src\\\\viz\" -Recurse -Force)",
       "Bash(Select-Object FullName, PSIsContainer)",
-      "Bash(Sort-Object FullName)"
+      "Bash(Sort-Object FullName)",
+      "Bash(git stash *)",
+      "Bash(grep -v \"//\\\\|element\\\\.\\\\|type ==\")",
+      "Bash(grep -v \"//\\\\|DWB\\\\.\")",
+      "Bash(dir dist *)",
+      "Bash(dir releases/)",
+      "Bash(node compiler/build.js --v2)"
     ]
   }
 }
