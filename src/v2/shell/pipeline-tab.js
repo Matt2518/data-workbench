@@ -10,7 +10,9 @@ window.DWBPipelineTab = (function() {
     { cat: 'Text Cleaning',  nodes: ['TRIM_WHITESPACE','CASE_NORMALIZE','FIND_REPLACE','FORMULA'] },
     { cat: 'Row Operations', nodes: ['FILTER','SORT','REMOVE_DUPS'] },
     { cat: 'Column Operations', nodes: ['REARRANGE_COLS','CONCAT_COLS'] },
-    { cat: 'Validation',     nodes: ['REGEX_VALIDATE','REGEX_EXTRACT','FUZZY_STANDARDIZE'] }
+    { cat: 'Validation',     nodes: ['REGEX_VALIDATE','REGEX_EXTRACT','FUZZY_STANDARDIZE'] },
+    { cat: 'Transform',      nodes: ['PAD_TEXT','SUBSTRING','DATE_FORMAT','FORMAT_PHONE','URL_SAFE','BASIC_MATH','AUTOINCREMENT'] },
+    { cat: 'Structure',      nodes: ['SPLIT_COL','ADD_COL','DROP_COLS','RENAME_COL','UNPIVOT','PIVOT'] }
   ];
 
   function _ptNodeIcon(type) {
