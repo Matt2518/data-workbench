@@ -6,14 +6,15 @@ window.DWBPipelineTab = (function() {
 
   // Node categories for the picker
   const _ptNodeCats = [
-    { cat: 'Input & Output', nodes: ['INGEST','PUSH_TO_VIZ','STASH_SAVE','STASH_RESTORE'] },
+    { cat: 'Input & Output', nodes: ['INGEST','PUSH_TO_VIZ','STASH_SAVE','STASH_RESTORE','EXPORT_CSV'] },
     { cat: 'Text Cleaning',  nodes: ['TRIM_WHITESPACE','CASE_NORMALIZE','FIND_REPLACE','FORMULA'] },
     { cat: 'Row Operations', nodes: ['FILTER','SORT','REMOVE_DUPS'] },
     { cat: 'Column Operations', nodes: ['REARRANGE_COLS','CONCAT_COLS'] },
     { cat: 'Validation',     nodes: ['REGEX_VALIDATE','REGEX_EXTRACT','FUZZY_STANDARDIZE'] },
     { cat: 'Transform',      nodes: ['PAD_TEXT','SUBSTRING','DATE_FORMAT','FORMAT_PHONE','URL_SAFE','BASIC_MATH','AUTOINCREMENT'] },
     { cat: 'Structure',      nodes: ['SPLIT_COL','ADD_COL','DROP_COLS','RENAME_COL','UNPIVOT','PIVOT'] },
-    { cat: 'Logic & Reconcile', nodes: ['IF_THEN_ELSE','FUZZY_MATCH','DATA_VALIDATION','LEFT_JOIN','DIFF_TABLES'] }
+    { cat: 'Logic & Reconcile', nodes: ['IF_THEN_ELSE','FUZZY_MATCH','DATA_VALIDATION','LEFT_JOIN','DIFF_TABLES'] },
+    { cat: 'Advanced',       nodes: ['SENTIMENT_ANALYSIS','ARBITRARY_DATE','SET_TYPES'] }
   ];
 
   function _ptNodeIcon(type) {
