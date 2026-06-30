@@ -1,8 +1,18 @@
 /* === DWBDisplaysTab: displays management and canvas === */
 
 window.DWBDisplaysTab = (function() {
-  const _dtTypeIcons = { DASHBOARD: '🖥', REPORT: '📄', PRESENTATION: '🎭', MERGE: '🔗' };
-  const _dtTypeLabels = { DASHBOARD: 'Dashboard', REPORT: 'Report', PRESENTATION: 'Presentation', MERGE: 'Merge' };
+  const _dtTypeIcons  = { DASHBOARD: '🖥', REPORT: '📄', PRESENTATION: '🎭', MERGE: '🔖' };
+  const _dtTypeLabels = { DASHBOARD: 'Dashboard', REPORT: 'Report', PRESENTATION: 'Presentation', MERGE: 'Certificates' };
+  const _dtTypeDescs  = {
+    DASHBOARD:    'Interactive charts and filters on a single canvas.',
+    REPORT:       'Multi-page printable report with paginated sections.',
+    PRESENTATION: 'Slide deck with one visualization per slide.',
+    MERGE:        'Generate one document per data row from a Designer template.'
+  };
+
+  function _dtFlow() {
+    return window.DWBState.flow;
+  }
 
   function _dtActiveDisplay() {
     const state = window.DWBState;
@@ -84,9 +94,10 @@ window.DWBDisplaysTab = (function() {
     }
 
     switch (display.type) {
-      case 'DASHBOARD':     window.DWBDashboard    && window.DWBDashboard.mount(area, display);    break;
-      case 'REPORT':        window.DWBReport       && window.DWBReport.mount(area, display);       break;
-      case 'PRESENTATION':  window.DWBPresentation && window.DWBPresentation.mount(area, display); break;
+      case 'DASHBOARD':     window.DWBDashboard    && window.DWBDashboard.mount(area, display);                     break;
+      case 'REPORT':        window.DWBReport       && window.DWBReport.mount(area, display);                        break;
+      case 'PRESENTATION':  window.DWBPresentation && window.DWBPresentation.mount(area, display);                  break;
+      case 'MERGE':         window.DWBMerge        && window.DWBMerge.render(area, display, _dtFlow());             break;
       default:
         area.innerHTML = '<div class="empty-state"><div class="es-icon">🔧</div><div class="es-title">' + _dtEsc(display.type) + '</div><div class="es-desc">Coming soon</div></div>';
     }
@@ -109,8 +120,8 @@ window.DWBDisplaysTab = (function() {
     overlay.className = 'overlay';
     overlay.style.zIndex = '600';
 
-    const types = ['DASHBOARD', 'REPORT', 'PRESENTATION'];
-    overlay.innerHTML = `<div class="modal" style="width:420px">
+    const types = ['DASHBOARD', 'REPORT', 'PRESENTATION', 'MERGE'];
+    overlay.innerHTML = `<div class="modal" style="width:440px">
       <div class="modal-header">
         <span>Add Display</span>
         <button class="modal-close" id="dt-modal-close">✕</button>
@@ -118,9 +129,10 @@ window.DWBDisplaysTab = (function() {
       <div style="padding:16px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
           ${types.map(function(t) {
-            return '<button class="dt-type-card" data-type="' + t + '" style="padding:16px 10px;border:2px solid var(--border);border-radius:8px;background:var(--bg-raised);cursor:pointer;text-align:center;font-family:inherit">' +
-              '<div style="font-size:28px;margin-bottom:6px">' + _dtTypeIcons[t] + '</div>' +
+            return '<button class="dt-type-card" data-type="' + t + '" style="padding:14px 10px;border:2px solid var(--border);border-radius:8px;background:var(--bg-raised);cursor:pointer;text-align:center;font-family:inherit">' +
+              '<div style="font-size:26px;margin-bottom:5px">' + _dtTypeIcons[t] + '</div>' +
               '<div style="font-weight:700;font-size:13px">' + _dtTypeLabels[t] + '</div>' +
+              '<div style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.3">' + _dtTypeDescs[t] + '</div>' +
               '</button>';
           }).join('')}
         </div>

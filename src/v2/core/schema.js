@@ -73,6 +73,11 @@ window.DWBSchema = (function() {
       base.config.layout = '2col';
       base.config.layoutSplit = '50-50';
       base.filterContext = { activeFilters: {} };
+    } else if (type === 'MERGE') {
+      base.config.templateSource = 'embedded';
+      base.config.template = null;
+      base.config.snapshotName = '';
+      base.config.bindings = {};
     }
     return base;
   }
