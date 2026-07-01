@@ -418,6 +418,7 @@ function _coreChecklist(label, cols, selected, onChange) {
 
   var box = document.createElement('div');
   box.className = 'pt-checklist';
+  box.style.cssText = 'max-width:100%;width:100%;box-sizing:border-box;';
 
   var hdr = document.createElement('div');
   hdr.className = 'pt-checklist-hdr';
@@ -426,6 +427,7 @@ function _coreChecklist(label, cols, selected, onChange) {
 
   var list = document.createElement('div');
   list.className = 'pt-checklist-list';
+  list.style.cssText = 'width:100%;';
 
   function render() {
     list.innerHTML = '';
@@ -437,9 +439,11 @@ function _coreChecklist(label, cols, selected, onChange) {
       var checked = selected.indexOf(item) !== -1;
       var row = document.createElement('label');
       row.className = 'pt-checklist-row' + (checked ? ' checked' : '');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;width:100%;box-sizing:border-box;justify-content:flex-start;text-align:left;font-weight:normal;';
       var cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = checked;
+      cb.style.cssText = 'flex-shrink:0;margin:0;padding:0;width:14px;height:14px;';
       cb.addEventListener('change', function() {
         if (cb.checked) {
           if (selected.indexOf(item) === -1) selected = selected.concat([item]);
@@ -452,6 +456,7 @@ function _coreChecklist(label, cols, selected, onChange) {
       row.appendChild(cb);
       var span = document.createElement('span');
       span.textContent = item;
+      span.style.cssText = 'flex:1;font-size:13px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;text-align:left;';
       row.appendChild(span);
       list.appendChild(row);
     });
@@ -485,6 +490,7 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
 
   var box = document.createElement('div');
   box.className = 'pt-checklist';
+  box.style.cssText = 'max-width:100%;width:100%;box-sizing:border-box;';
 
   var hdr = document.createElement('div');
   hdr.className = 'pt-checklist-hdr';
@@ -493,6 +499,7 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
 
   var list = document.createElement('div');
   list.className = 'pt-checklist-list';
+  list.style.cssText = 'width:100%;';
 
   // Build display order: selected cols first (in their order), then remaining cols
   var selSet = {};
@@ -518,17 +525,20 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
       var checked = !!checkedSet[item];
       var row = document.createElement('label');
       row.className = 'pt-checklist-row' + (checked ? ' checked' : '');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;width:100%;box-sizing:border-box;justify-content:flex-start;text-align:left;font-weight:normal;';
       row.draggable = true;
       row.dataset.idx = i;
 
       var handle = document.createElement('span');
       handle.className = 'pt-checklist-drag';
       handle.textContent = '⠿';
+      handle.style.cssText = 'flex-shrink:0;';
       row.appendChild(handle);
 
       var cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = checked;
+      cb.style.cssText = 'flex-shrink:0;margin:0;padding:0;width:14px;height:14px;';
       cb.addEventListener('change', function(e) {
         e.stopPropagation();
         if (cb.checked) { checkedSet[item] = true; }
@@ -540,6 +550,7 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
 
       var span = document.createElement('span');
       span.textContent = item;
+      span.style.cssText = 'flex:1;font-size:13px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;text-align:left;';
       row.appendChild(span);
 
       row.addEventListener('dragstart', function(e) {
