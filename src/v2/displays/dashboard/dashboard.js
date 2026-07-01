@@ -1,14 +1,6 @@
 /* === DWBDashboard: dashboard display renderer === */
 
 window.DWBDashboard = (function() {
-  const _dLayouts = [
-    { key: '1col',    label: '1 Col' },
-    { key: '2col',    label: '2 Col' },
-    { key: '3col',    label: '3 Col' },
-    { key: '2col-6040', label: '60/40' },
-    { key: '2col-7030', label: '70/30' }
-  ];
-
   function _dActiveFilters(display) {
     return (display.filterContext && display.filterContext.activeFilters) || {};
   }
@@ -522,45 +514,390 @@ window.DWBDashboard = (function() {
     }, 10);
   }
 
+  // ── Multi-row layout helpers ──────────────────────────────────────────────
+
+  function _dMigrateDisplayConfig(display) {
+    display.config = display.config || {};
+    var cfg = display.config;
+    if (!cfg.rows) {
+      var layoutMap = {
+        '1col':     { layout: 'single', split: '100' },
+        '2col':     { layout: '2col',   split: '50-50' },
+        '3col':     { layout: '3col',   split: '33-33-34' },
+        '2col-6040':{ layout: '2col',   split: '60-40' },
+        '2col-7030':{ layout: '2col',   split: '70-30' }
+      };
+      var mapped = layoutMap[cfg.layout || '2col'] || { layout: '2col', split: '50-50' };
+      var rowId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'row-' + Date.now();
+      cfg.rows = [{ id: rowId, layout: mapped.layout, split: mapped.split }];
+    }
+    var firstRowId = cfg.rows[0].id;
+    (display.placements || []).forEach(function(p) {
+      if (!p.rowId) p.rowId = firstRowId;
+      if (!p.column) p.column = 1;
+    });
+  }
+
+  function _dGetNumCols(layout) {
+    return layout === 'single' ? 1 : layout === '3col' ? 3 : 2;
+  }
+
+  function _dSplitToGridCols(split, numCols) {
+    if (!split || split === '100' || numCols === 1) return '1fr';
+    return split.split('-').map(function(p) { return p + 'fr'; }).join(' ');
+  }
+
+  function _dGetSplitOptions(layout) {
+    if (layout === '2col') return [['50-50','50/50'],['60-40','60/40'],['70-30','70/30'],['40-60','40/60'],['30-70','30/70']];
+    if (layout === '3col') return [['33-33-34','Equal']];
+    return [['100','Full']];
+  }
+
+  function _dBuildRowControls(row, rowIdx, layoutRows, display, placements, vizList, onRerender) {
+    var controls = document.createElement('div');
+    controls.className = 'dash-row-controls';
+
+    // Layout pills
+    var pillsGroup = document.createElement('div');
+    pillsGroup.style.cssText = 'display:flex;gap:3px';
+    [['single','1'],['2col','2'],['3col','3']].forEach(function(pair) {
+      var pill = document.createElement('button');
+      pill.className = 'dash-row-layout-pill' + (row.layout === pair[0] ? ' active' : '');
+      pill.textContent = pair[1];
+      pill.addEventListener('click', function() {
+        row.layout = pair[0];
+        var defaults = { 'single': '100', '2col': '50-50', '3col': '33-33-34' };
+        row.split = defaults[pair[0]] || '100';
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        onRerender();
+      });
+      pillsGroup.appendChild(pill);
+    });
+    controls.appendChild(pillsGroup);
+
+    // Split selector (only for multi-col)
+    if (row.layout !== 'single') {
+      var splitSel = document.createElement('select');
+      splitSel.className = 'dash-row-split-select';
+      _dGetSplitOptions(row.layout).forEach(function(opt) {
+        var o = document.createElement('option');
+        o.value = opt[0]; o.textContent = opt[1];
+        if (row.split === opt[0]) o.selected = true;
+        splitSel.appendChild(o);
+      });
+      splitSel.addEventListener('change', function() {
+        row.split = this.value;
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        onRerender();
+      });
+      controls.appendChild(splitSel);
+    }
+
+    var spacer = document.createElement('div');
+    spacer.style.flex = '1';
+    controls.appendChild(spacer);
+
+    // Reorder buttons
+    var upBtn = document.createElement('button');
+    upBtn.className = 'dash-row-btn';
+    upBtn.textContent = '↑';
+    upBtn.title = 'Move row up';
+    if (rowIdx === 0) upBtn.disabled = true;
+    upBtn.addEventListener('click', function() {
+      if (rowIdx === 0) return;
+      var tmp = layoutRows[rowIdx - 1];
+      layoutRows[rowIdx - 1] = layoutRows[rowIdx];
+      layoutRows[rowIdx] = tmp;
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+      onRerender();
+    });
+    controls.appendChild(upBtn);
+
+    var downBtn = document.createElement('button');
+    downBtn.className = 'dash-row-btn';
+    downBtn.textContent = '↓';
+    downBtn.title = 'Move row down';
+    if (rowIdx === layoutRows.length - 1) downBtn.disabled = true;
+    downBtn.addEventListener('click', function() {
+      if (rowIdx === layoutRows.length - 1) return;
+      var tmp = layoutRows[rowIdx + 1];
+      layoutRows[rowIdx + 1] = layoutRows[rowIdx];
+      layoutRows[rowIdx] = tmp;
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+      onRerender();
+    });
+    controls.appendChild(downBtn);
+
+    // Delete row button
+    var delBtn = document.createElement('button');
+    delBtn.className = 'dash-row-btn danger';
+    delBtn.textContent = '✕';
+    delBtn.title = 'Delete row';
+    delBtn.addEventListener('click', function() {
+      var rowPlacements = (display.placements || []).filter(function(p) {
+        if (p.rowId !== row.id) return false;
+        var viz = (vizList || []).find(function(v) { return v.id === p.vizId; });
+        return !viz || viz.type !== 'FILTER_WIDGET';
+      });
+
+      if (rowPlacements.length === 0) {
+        display.config.rows = layoutRows.filter(function(r) { return r.id !== row.id; });
+        if (!display.config.rows.length) {
+          var newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'row-' + Date.now();
+          display.config.rows = [{ id: newId, layout: 'single', split: '100' }];
+        }
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        onRerender();
+      } else {
+        controls.innerHTML = '';
+        var confirmEl = document.createElement('div');
+        confirmEl.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-main);width:100%';
+        var msg = document.createElement('span');
+        msg.textContent = 'Remove this row and ' + rowPlacements.length + ' visualization' + (rowPlacements.length !== 1 ? 's' : '') + '?';
+        confirmEl.appendChild(msg);
+
+        var yesBtn = document.createElement('button');
+        yesBtn.className = 'dash-row-btn danger';
+        yesBtn.textContent = 'Yes';
+        yesBtn.addEventListener('click', function() {
+          display.placements = (display.placements || []).filter(function(p) { return p.rowId !== row.id; });
+          display.config.rows = layoutRows.filter(function(r) { return r.id !== row.id; });
+          if (!display.config.rows.length) {
+            var newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'row-' + Date.now();
+            display.config.rows = [{ id: newId, layout: 'single', split: '100' }];
+          }
+          if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+          onRerender();
+        });
+        var cancelBtn = document.createElement('button');
+        cancelBtn.className = 'dash-row-btn';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', onRerender);
+
+        confirmEl.appendChild(yesBtn);
+        confirmEl.appendChild(cancelBtn);
+        controls.appendChild(confirmEl);
+      }
+    });
+    controls.appendChild(delBtn);
+
+    return controls;
+  }
+
+  function _dCreatePlacementCard(placement, viz, dataRows, allRows, display, row, layoutRows, numCols, vizList, onFilterChange, onRerender) {
+    var card = document.createElement('div');
+    card.className = 'dash-placement';
+    card.innerHTML =
+      '<div class="dash-placement-header">' +
+        '<span class="dash-placement-title">' + _dEsc(viz.label) + '</span>' +
+        '<button class="dash-placement-menu-btn" title="Options">⋮</button>' +
+        '<button class="dash-placement-close-btn" title="Remove">✕</button>' +
+      '</div>' +
+      '<div class="dash-placement-body" id="dash-pb-' + placement.id + '"></div>';
+
+    // ⋮ context menu
+    var menuBtn = card.querySelector('.dash-placement-menu-btn');
+    menuBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.querySelectorAll('.dash-placement-ctx-menu').forEach(function(m) { m.remove(); });
+
+      var menu = document.createElement('div');
+      menu.className = 'dash-placement-ctx-menu';
+      var hasItems = false;
+
+      // Move to column options
+      if (numCols > 1) {
+        for (var c = 1; c <= numCols; c++) {
+          if (c === (placement.column || 1)) continue;
+          (function(col) {
+            var item = document.createElement('button');
+            item.className = 'dash-ctx-item';
+            item.textContent = 'Move to Col ' + col;
+            item.addEventListener('click', function() {
+              placement.column = col;
+              if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+              menu.remove();
+              onRerender();
+            });
+            menu.appendChild(item);
+            hasItems = true;
+          })(c);
+        }
+      }
+
+      // Move to row options
+      if (layoutRows.length > 1) {
+        layoutRows.forEach(function(r, idx) {
+          if (r.id === row.id) return;
+          var item = document.createElement('button');
+          item.className = 'dash-ctx-item';
+          item.textContent = 'Move to Row ' + (idx + 1);
+          item.addEventListener('click', function() {
+            placement.rowId = r.id;
+            placement.column = 1;
+            if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+            menu.remove();
+            onRerender();
+          });
+          menu.appendChild(item);
+          hasItems = true;
+        });
+      }
+
+      if (!hasItems) return;
+
+      document.body.appendChild(menu);
+      var rect = menuBtn.getBoundingClientRect();
+      menu.style.top = (rect.bottom + 4) + 'px';
+      menu.style.left = Math.min(rect.left, window.innerWidth - 160) + 'px';
+      setTimeout(function() {
+        document.addEventListener('click', function _ctxCloser(ev) {
+          if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', _ctxCloser); }
+        });
+      }, 10);
+    });
+
+    // ✕ remove
+    card.querySelector('.dash-placement-close-btn').addEventListener('click', function() {
+      display.placements = (display.placements || []).filter(function(p) { return p.id !== placement.id; });
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+      onRerender();
+    });
+
+    // Render viz in body
+    var body = card.querySelector('#dash-pb-' + placement.id);
+    if (body) {
+      switch (viz.type) {
+        case 'BAR_VERTICAL':          _dRenderBarVertical(viz, dataRows, body, display, onFilterChange); break;
+        case 'LINE':                  _dRenderLine(viz, dataRows, body, display, onFilterChange); break;
+        case 'PIE':                   _dRenderPie(viz, dataRows, body, display, onFilterChange); break;
+        case 'STACKED_DIVERGING_BAR': _dRenderStackedDivergingBar(viz, dataRows, body, display, onFilterChange); break;
+        case 'WORD_CLOUD':            _dRenderWordCloud(viz, dataRows, body, display, onFilterChange); break;
+        case 'STAT_CARD':             _dRenderStatCard(body, viz, allRows, dataRows); break;
+        case 'DATA_TABLE':            _dRenderDataTable(body, viz, dataRows); break;
+        case 'AI_ASSIST':             _dRenderAiAssist(body, viz, dataRows); break;
+        case 'QUOTES_BOARD':          _dRenderQuotesBoard(body, viz, dataRows); break;
+        case 'RICH_TEXT':             _dRenderRichText(body, viz, dataRows); break;
+        default:
+          if (window.DWBVizTab) window.DWBVizTab.renderViz(viz, dataRows, body, allRows);
+      }
+    }
+
+    return card;
+  }
+
+  function _dRenderCanvas(display, canvasEl, filters, onFilterChange, onRerender) {
+    if (!canvasEl) return;
+    _dMigrateDisplayConfig(display);
+    canvasEl.innerHTML = '';
+
+    var state = window.DWBState;
+    var snapshots = state.snapshots || {};
+    var vizList = (state.flow && state.flow.visualizations) || [];
+    var placements = display.placements || [];
+    var layoutRows = display.config.rows;
+
+    var hasVizPlacements = placements.some(function(p) {
+      var viz = vizList.find(function(v) { return v.id === p.vizId; });
+      return viz && viz.type !== 'FILTER_WIDGET';
+    });
+
+    layoutRows.forEach(function(row, rowIdx) {
+      var numCols = _dGetNumCols(row.layout);
+      var rowEl = document.createElement('div');
+      rowEl.className = 'dash-row';
+      rowEl.dataset.rowId = row.id;
+
+      rowEl.appendChild(_dBuildRowControls(row, rowIdx, layoutRows, display, placements, vizList, onRerender));
+
+      var colsEl = document.createElement('div');
+      colsEl.className = 'dash-row-cols';
+      colsEl.style.gridTemplateColumns = _dSplitToGridCols(row.split, numCols);
+      rowEl.appendChild(colsEl);
+      canvasEl.appendChild(rowEl);
+
+      for (var c = 1; c <= numCols; c++) {
+        (function(colNum) {
+          var colEl = document.createElement('div');
+          colEl.className = 'dash-col';
+          colsEl.appendChild(colEl);
+
+          var colPlacements = placements.filter(function(p) {
+            if (p.rowId !== row.id) return false;
+            if ((p.column || 1) !== colNum) return false;
+            var viz = vizList.find(function(v) { return v.id === p.vizId; });
+            return viz && viz.type !== 'FILTER_WIDGET';
+          });
+
+          colPlacements.forEach(function(placement) {
+            var viz = vizList.find(function(v) { return v.id === placement.vizId; });
+            if (!viz) {
+              var missing = document.createElement('div');
+              missing.className = 'dash-placement';
+              missing.innerHTML = '<div class="dash-placement-body" style="display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12px">Visualization not found</div>';
+              colEl.appendChild(missing);
+              return;
+            }
+            var dataRows = _dGetFilteredRows(viz, snapshots, filters);
+            var allRows = snapshots[viz.snapshotName] || [];
+            colEl.appendChild(_dCreatePlacementCard(placement, viz, dataRows, allRows, display, row, layoutRows, numCols, vizList, onFilterChange, onRerender));
+          });
+        })(c);
+      }
+    });
+
+    // Show "add first viz" in the first cell if empty
+    if (!hasVizPlacements) {
+      var firstCol = canvasEl.querySelector('.dash-col');
+      if (firstCol) {
+        var addBtn = document.createElement('button');
+        addBtn.className = 'dash-add-placement-btn';
+        addBtn.textContent = '＋ Add your first visualization';
+        addBtn.addEventListener('click', function() {
+          _dShowAddPlacementModal(canvasEl.closest('.dash-root').parentElement, display);
+        });
+        firstCol.appendChild(addBtn);
+      }
+    }
+
+    // + Add Row button
+    var addRowWrap = document.createElement('div');
+    addRowWrap.className = 'dash-add-row-btn-wrap';
+    var addRowBtn = document.createElement('button');
+    addRowBtn.className = 'dash-add-row-btn';
+    addRowBtn.textContent = '+ Add Row';
+    addRowBtn.addEventListener('click', function() {
+      var newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'row-' + Date.now() + '-' + Math.random();
+      display.config.rows.push({ id: newId, layout: 'single', split: '100' });
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+      onRerender();
+    });
+    addRowWrap.appendChild(addRowBtn);
+    canvasEl.appendChild(addRowWrap);
+  }
+
   function mount(container, display) {
     if (!container || !display) return;
+    _dMigrateDisplayConfig(display);
 
-    const cfg = display.config || {};
-    const layout = cfg.layout || '2col';
     const state = window.DWBState;
     const snapshots = state.snapshots || {};
     const vizList = (state.flow && state.flow.visualizations) || [];
 
-    container.innerHTML = `
-      <div class="dash-root">
-        <div class="dash-toolbar">
-          <span class="dash-toolbar-label">${_dEsc(display.label)}</span>
-          <div style="display:flex;gap:4px">
-            ${_dLayouts.map(function(l) {
-              return '<button class="dash-layout-btn' + (layout === l.key ? ' active' : '') + '" data-layout="' + l.key + '">' + l.label + '</button>';
-            }).join('')}
-          </div>
-          <div class="flex-spacer"></div>
-          <button class="dash-tb-ghost" id="dash-add-viz-btn">＋ Add Viz</button>
-          <button class="dash-tb-ghost" id="dash-add-filter-btn">+ Filter</button>
-          <div class="dash-tb-sep"></div>
-          <button class="dash-tb-sec" id="dash-fullscreen-btn">⛶ Present</button>
-          <button class="dash-tb-sec" id="dash-export-btn">Export HTML</button>
-        </div>
-        <div class="dash-filter-bar hidden" id="dash-filter-bar"></div>
-        <div class="dash-canvas" id="dash-canvas">
-          <div class="dash-grid layout-${layout}" id="dash-grid"></div>
-        </div>
-      </div>`;
-
-    container.querySelectorAll('.dash-layout-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        display.config = display.config || {};
-        display.config.layout = btn.dataset.layout;
-        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
-        mount(container, display);
-      });
-    });
+    container.innerHTML =
+      '<div class="dash-root">' +
+        '<div class="dash-toolbar">' +
+          '<span class="dash-toolbar-label">' + _dEsc(display.label) + '</span>' +
+          '<div class="flex-spacer"></div>' +
+          '<button class="dash-tb-ghost" id="dash-add-viz-btn">＋ Add Viz</button>' +
+          '<button class="dash-tb-ghost" id="dash-add-filter-btn">+ Filter</button>' +
+          '<div class="dash-tb-sep"></div>' +
+          '<button class="dash-tb-sec" id="dash-fullscreen-btn">⛶ Present</button>' +
+          '<button class="dash-tb-sec" id="dash-export-btn">Export HTML</button>' +
+        '</div>' +
+        '<div class="dash-filter-bar hidden" id="dash-filter-bar"></div>' +
+        '<div class="dash-canvas" id="dash-canvas"></div>' +
+      '</div>';
 
     container.querySelector('#dash-add-filter-btn').addEventListener('click', function() {
       _dShowAddFilterModal(container, display);
@@ -579,85 +916,22 @@ window.DWBDashboard = (function() {
     });
 
     var filterBarEl = container.querySelector('#dash-filter-bar');
-    var gridEl = container.querySelector('#dash-grid');
+    var canvasEl = container.querySelector('#dash-canvas');
+
+    function _doRerender() {
+      _dDisposeDomCharts(canvasEl);
+      _dRenderCanvas(display, canvasEl, _dActiveFilters(display), _doFilterUpdate, _doRerender);
+    }
 
     function _doFilterUpdate() {
       _dRenderFilterBar(filterBarEl, display, vizList, snapshots, _doFilterUpdate);
-      _dDisposeDomCharts(gridEl);
-      gridEl.innerHTML = '';
-      _dRenderPlacements(display, gridEl, _dActiveFilters(display), _doFilterUpdate);
+      _doRerender();
     }
 
     _dRenderFilterBar(filterBarEl, display, vizList, snapshots, _doFilterUpdate);
-    _dRenderPlacements(display, gridEl, _dActiveFilters(display), _doFilterUpdate);
+    _dRenderCanvas(display, canvasEl, _dActiveFilters(display), _doFilterUpdate, _doRerender);
   }
 
-  function _dRenderPlacements(display, grid, filters, onFilterChange) {
-    if (!grid) return;
-    const placements = (display.placements || []);
-    const state = window.DWBState;
-    const snapshots = state.snapshots || {};
-    const vizList = (state.flow && state.flow.visualizations) || [];
-
-    if (placements.length === 0) {
-      grid.innerHTML = '<div style="grid-column:1/-1"><button class="dash-add-placement-btn" id="dash-first-add">＋ Add your first visualization</button></div>';
-      const firstAdd = grid.querySelector('#dash-first-add');
-      if (firstAdd) firstAdd.addEventListener('click', function() {
-        _dShowAddPlacementModal(grid.closest('.dash-root').parentElement, display);
-      });
-      return;
-    }
-
-    placements.forEach(function(placement) {
-      const viz = vizList.find(function(v) { return v.id === placement.vizId; });
-      if (viz && viz.type === 'FILTER_WIDGET') return; // rendered in filter bar, not canvas
-      const card = document.createElement('div');
-      card.className = 'dash-placement';
-
-      if (!viz) {
-        card.innerHTML = '<div class="dash-placement-body" style="display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12px">Visualization not found</div>';
-        grid.appendChild(card);
-        return;
-      }
-
-      const rows = _dGetFilteredRows(viz, snapshots, filters);
-      const allRows = snapshots[viz.snapshotName] || [];
-
-      card.innerHTML = `<div class="dash-placement-header">
-        <span class="dash-placement-title">${_dEsc(viz.label)}</span>
-        <button class="dash-fullscreen-btn" style="margin-left:auto" data-placement-id="${placement.id}" title="Remove">✕</button>
-      </div>
-      <div class="dash-placement-body" id="dash-pb-${placement.id}"></div>`;
-
-      card.querySelector('.dash-fullscreen-btn').addEventListener('click', function() {
-        display.placements = display.placements.filter(function(p) { return p.id !== placement.id; });
-        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
-        _dDisposeDomCharts(grid);
-        grid.innerHTML = '';
-        _dRenderPlacements(display, grid, _dActiveFilters(display), onFilterChange);
-      });
-
-      grid.appendChild(card);
-
-      const body = card.querySelector('#dash-pb-' + placement.id);
-      if (!body) return;
-
-      switch (viz.type) {
-        case 'BAR_VERTICAL':          _dRenderBarVertical(viz, rows, body, display, onFilterChange); break;
-        case 'LINE':                  _dRenderLine(viz, rows, body, display, onFilterChange); break;
-        case 'PIE':                   _dRenderPie(viz, rows, body, display, onFilterChange); break;
-        case 'STACKED_DIVERGING_BAR': _dRenderStackedDivergingBar(viz, rows, body, display, onFilterChange); break;
-        case 'WORD_CLOUD':            _dRenderWordCloud(viz, rows, body, display, onFilterChange); break;
-        case 'STAT_CARD':             _dRenderStatCard(body, viz, allRows, rows); break;
-        case 'DATA_TABLE':            _dRenderDataTable(body, viz, rows); break;
-        case 'AI_ASSIST':             _dRenderAiAssist(body, viz, rows); break;
-        case 'QUOTES_BOARD':          _dRenderQuotesBoard(body, viz, rows); break;
-        case 'RICH_TEXT':             _dRenderRichText(body, viz, rows); break;
-        default:
-          if (window.DWBVizTab) window.DWBVizTab.renderViz(viz, rows, body, allRows);
-      }
-    });
-  }
 
   function _dGetFilteredRows(viz, snapshots, filters) {
     let rows = snapshots[viz.snapshotName] || [];
@@ -728,57 +1002,84 @@ window.DWBDashboard = (function() {
   }
 
   function _dShowAddPlacementModal(container, display) {
-    const state = window.DWBState;
-    const vizList = ((state.flow && state.flow.visualizations) || []).filter(function(v) {
+    _dMigrateDisplayConfig(display);
+    var state = window.DWBState;
+    var vizList = ((state.flow && state.flow.visualizations) || []).filter(function(v) {
       return v.type !== 'FILTER_WIDGET';
     });
+    var layoutRows = display.config.rows;
 
     if (vizList.length === 0) {
       alert('No visualizations exist yet. Create some in the Viz tab first.');
       return;
     }
 
-    const overlay = document.createElement('div');
+    var rowSelectorHtml = '';
+    if (layoutRows.length > 1) {
+      rowSelectorHtml = '<div class="form-row"><label>Row</label>' +
+        '<select id="dash-row-select" style="width:100%">' +
+        layoutRows.map(function(r, idx) {
+          return '<option value="' + _dEsc(r.id) + '">Row ' + (idx + 1) + '</option>';
+        }).join('') +
+        '</select></div>';
+    }
+
+    var overlay = document.createElement('div');
     overlay.className = 'overlay';
     overlay.style.zIndex = '600';
-    overlay.innerHTML = `<div class="modal" style="width:400px">
-      <div class="modal-header">
-        <span>Add to Dashboard</span>
-        <button class="modal-close" id="dash-modal-close">✕</button>
-      </div>
-      <div style="padding:16px">
-        <div class="form-row">
-          <label>Select Visualization</label>
-          <select id="dash-viz-select" style="width:100%">
-            ${vizList.map(function(v) { return '<option value="' + _dEsc(v.id) + '">' + _dEsc(v.label) + ' (' + v.type + ')</option>'; }).join('')}
-          </select>
-        </div>
-        <div class="form-row">
-          <label>Column (for multi-column layouts)</label>
-          <select id="dash-col-select" style="width:100%">
-            <option value="1">Column 1</option>
-            <option value="2">Column 2</option>
-            <option value="3">Column 3</option>
-          </select>
-        </div>
-        <button class="btn-primary" id="dash-add-confirm" style="width:100%;padding:8px;margin-top:8px">Add to Dashboard</button>
-      </div>
-    </div>`;
+    overlay.innerHTML =
+      '<div class="modal" style="width:400px">' +
+        '<div class="modal-header">' +
+          '<span>Add to Dashboard</span>' +
+          '<button class="modal-close" id="dash-modal-close">✕</button>' +
+        '</div>' +
+        '<div style="padding:16px">' +
+          '<div class="form-row"><label>Select Visualization</label>' +
+            '<select id="dash-viz-select" style="width:100%">' +
+              vizList.map(function(v) { return '<option value="' + _dEsc(v.id) + '">' + _dEsc(v.label) + ' (' + v.type + ')</option>'; }).join('') +
+            '</select>' +
+          '</div>' +
+          rowSelectorHtml +
+          '<div class="form-row"><label>Column</label>' +
+            '<select id="dash-col-select" style="width:100%"></select>' +
+          '</div>' +
+          '<button class="btn-primary" id="dash-add-confirm" style="width:100%;padding:8px;margin-top:8px">Add to Dashboard</button>' +
+        '</div>' +
+      '</div>';
 
     document.body.appendChild(overlay);
     overlay.querySelector('#dash-modal-close').addEventListener('click', function() { document.body.removeChild(overlay); });
     overlay.addEventListener('click', function(e) { if (e.target === overlay) document.body.removeChild(overlay); });
 
+    var rowSelect = overlay.querySelector('#dash-row-select');
+    var colSelect = overlay.querySelector('#dash-col-select');
+
+    function updateColOptions() {
+      var selectedRowId = rowSelect ? rowSelect.value : layoutRows[0].id;
+      var selectedRow = layoutRows.find(function(r) { return r.id === selectedRowId; }) || layoutRows[0];
+      var numCols = _dGetNumCols(selectedRow.layout);
+      colSelect.innerHTML = '';
+      for (var i = 1; i <= numCols; i++) {
+        var opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = 'Column ' + i;
+        colSelect.appendChild(opt);
+      }
+    }
+    if (rowSelect) rowSelect.addEventListener('change', updateColOptions);
+    updateColOptions();
+
     overlay.querySelector('#dash-add-confirm').addEventListener('click', function() {
-      const vizId = overlay.querySelector('#dash-viz-select').value;
-      const col   = parseInt(overlay.querySelector('#dash-col-select').value, 10) || 1;
-      const placement = window.DWBSchema.createPlacement(vizId, 'DASHBOARD');
+      var vizId = overlay.querySelector('#dash-viz-select').value;
+      var col = parseInt(colSelect.value, 10) || 1;
+      var rowId = rowSelect ? rowSelect.value : layoutRows[0].id;
+      var placement = window.DWBSchema.createPlacement(vizId, 'DASHBOARD');
       placement.column = col;
+      placement.rowId = rowId;
       display.placements = display.placements || [];
       display.placements.push(placement);
       if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
       document.body.removeChild(overlay);
-      // Re-mount
       window.DWBDisplaysTab && window.DWBDisplaysTab.mount();
     });
   }
@@ -1610,12 +1911,9 @@ window.DWBDashboard = (function() {
     '.export-chip-option:hover{background:#f1f5f9}',
     '.export-chip-option.selected{background:#EAF2FB;color:#005EB8;font-weight:600}',
     '#dashboard-canvas{padding:20px}',
-    '.dash-grid{display:grid;gap:16px}',
-    '.dash-grid.layout-1col{grid-template-columns:1fr}',
-    '.dash-grid.layout-2col{grid-template-columns:1fr 1fr}',
-    '.dash-grid.layout-3col{grid-template-columns:1fr 1fr 1fr}',
-    '.dash-grid.layout-2col-6040{grid-template-columns:3fr 2fr}',
-    '.dash-grid.layout-2col-7030{grid-template-columns:7fr 3fr}',
+    '.dash-row{margin-bottom:16px}',
+    '.dash-row-cols{display:grid;gap:16px}',
+    '.dash-col{min-width:0}',
     '.dash-placement{background:#fff;border:1px solid #e2e8f0;border-left:3px solid #C5B230;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)}',
     '.dash-placement-header{display:flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(135deg,#002244 0%,#005EB8 100%)}',
     '.dash-placement-title{flex:1;font-size:13px;font-weight:600;color:#fff}',
@@ -2143,43 +2441,75 @@ window.DWBDashboard = (function() {
     }
   }
 
+  function migrateDisplayConfig() {
+    var cfg=display.config||{}; display.config=cfg;
+    if(!cfg.rows){
+      var lm={'1col':{l:'single',s:'100'},'2col':{l:'2col',s:'50-50'},'3col':{l:'3col',s:'33-33-34'},'2col-6040':{l:'2col',s:'60-40'},'2col-7030':{l:'2col',s:'70-30'}};
+      var m=lm[cfg.layout||'2col']||{l:'2col',s:'50-50'};
+      cfg.rows=[{id:'row-0',layout:m.l,split:m.s}];
+    }
+    var fid=cfg.rows[0].id;
+    (display.placements||[]).forEach(function(p){if(!p.rowId)p.rowId=fid;if(!p.column)p.column=1;});
+  }
+
+  function getNumCols(layout){return layout==='single'?1:layout==='3col'?3:2;}
+
+  function splitToGridCols(split,n){
+    if(!split||split==='100'||n===1) return '1fr';
+    return split.split('-').map(function(p){return p+'fr';}).join(' ');
+  }
+
   function renderPlacements() {
+    migrateDisplayConfig();
     var canvas=document.getElementById('dashboard-canvas');
     if(!canvas) return;
     disposeDomCharts(canvas);
     canvas.innerHTML='';
-    (display.placements||[]).forEach(function(placement){
-      var viz=vizList.find(function(v){return v.id===placement.vizId;});
-      if(!viz || viz.type==='FILTER_WIDGET') return;
-      var filteredRows=getFilteredRows(viz);
-      var allRows=snaps[viz.snapshotName]||[];
-      var card=document.createElement('div'); card.className='dash-placement';
-      var pid='exp-pb-'+String(placement.id).replace(/[^a-zA-Z0-9_-]/g,'_');
-      card.innerHTML='<div class="dash-placement-header"><span class="dash-placement-title">'+esc(viz.label)+'</span></div><div class="dash-placement-body" id="'+pid+'"></div>';
-      canvas.appendChild(card);
-      var body=document.getElementById(pid);
-      if(!body) return;
-      switch(viz.type){
-        case 'BAR_VERTICAL': renderBarVertical(viz,filteredRows,body); break;
-        case 'LINE': renderLine(viz,filteredRows,body); break;
-        case 'PIE': renderPie(viz,filteredRows,body); break;
-        case 'STACKED_DIVERGING_BAR': renderStackedDivergingBar(viz,filteredRows,body); break;
-        case 'WORD_CLOUD': renderWordCloud(viz,filteredRows,body); break;
-        case 'STAT_CARD': renderStatCard(body,viz,allRows,filteredRows); break;
-        case 'KPI_STAT': renderKpiStat(body,viz,filteredRows); break;
-        case 'DATA_TABLE': renderDataTable(body,viz,filteredRows); break;
-        case 'QUOTES_BOARD': renderQuotesBoard(body,viz,filteredRows); break;
-        case 'RICH_TEXT': renderRichText(body,viz,filteredRows); break;
-        case 'AI_ASSIST': renderAiAssist(body,viz); break;
-        default: body.innerHTML='<div style="padding:20px;color:#94a3b8;font-size:12px;text-align:center">'+esc(viz.type)+'</div>';
+    (display.config.rows||[]).forEach(function(row){
+      var n=getNumCols(row.layout);
+      var rowEl=document.createElement('div'); rowEl.className='dash-row';
+      var colsEl=document.createElement('div'); colsEl.className='dash-row-cols';
+      colsEl.style.gridTemplateColumns=splitToGridCols(row.split,n);
+      rowEl.appendChild(colsEl);
+      canvas.appendChild(rowEl);
+      for(var c=1;c<=n;c++){
+        (function(col){
+          var colEl=document.createElement('div'); colEl.className='dash-col';
+          colsEl.appendChild(colEl);
+          (display.placements||[]).forEach(function(placement){
+            if(placement.rowId!==row.id||(placement.column||1)!==col) return;
+            var viz=vizList.find(function(v){return v.id===placement.vizId;});
+            if(!viz||viz.type==='FILTER_WIDGET') return;
+            var filteredRows=getFilteredRows(viz);
+            var allRows=snaps[viz.snapshotName]||[];
+            var card=document.createElement('div'); card.className='dash-placement';
+            var pid='exp-pb-'+String(placement.id).replace(/[^a-zA-Z0-9_-]/g,'_');
+            card.innerHTML='<div class="dash-placement-header"><span class="dash-placement-title">'+esc(viz.label)+'</span></div><div class="dash-placement-body" id="'+pid+'"></div>';
+            colEl.appendChild(card);
+            var body=document.getElementById(pid);
+            if(!body) return;
+            switch(viz.type){
+              case 'BAR_VERTICAL': renderBarVertical(viz,filteredRows,body); break;
+              case 'LINE': renderLine(viz,filteredRows,body); break;
+              case 'PIE': renderPie(viz,filteredRows,body); break;
+              case 'STACKED_DIVERGING_BAR': renderStackedDivergingBar(viz,filteredRows,body); break;
+              case 'WORD_CLOUD': renderWordCloud(viz,filteredRows,body); break;
+              case 'STAT_CARD': renderStatCard(body,viz,allRows,filteredRows); break;
+              case 'KPI_STAT': renderKpiStat(body,viz,filteredRows); break;
+              case 'DATA_TABLE': renderDataTable(body,viz,filteredRows); break;
+              case 'QUOTES_BOARD': renderQuotesBoard(body,viz,filteredRows); break;
+              case 'RICH_TEXT': renderRichText(body,viz,filteredRows); break;
+              case 'AI_ASSIST': renderAiAssist(body,viz); break;
+              default: body.innerHTML='<div style="padding:20px;color:#94a3b8;font-size:12px;text-align:center">'+esc(viz.type)+'</div>';
+            }
+          });
+        })(c);
       }
     });
   }
 
   function init() {
-    var layout=(display.config||{}).layout||'2col';
-    var canvas=document.getElementById('dashboard-canvas');
-    if(canvas) canvas.className='dash-grid layout-'+layout;
+    migrateDisplayConfig();
     renderBanner();
     renderChips();
     renderPlacements();

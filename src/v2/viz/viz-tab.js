@@ -206,7 +206,7 @@ window.DWBVizTab = (function() {
         container.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--text-faint);text-align:center">AI Assist renders an interactive copy/paste panel in the Dashboard — preview not available here.</div>';
         break;
       case 'FILTER_WIDGET':
-        container.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--text-faint);text-align:center">Filter widgets appear in the Dashboard filter bar — preview not available here.</div>';
+        _vtRenderFilterWidgetPreview(container, viz, rows);
         break;
       case 'KPI_STAT':      _vtRenderKpi(viz, rows, container); break;
       case 'DATA_TABLE':    _vtRenderDataTable(viz, rows, container); break;
@@ -1530,7 +1530,6 @@ window.DWBVizTab = (function() {
         '<div class="form-row" id="vcfw-search-row" style="' + (style === 'chips' ? 'display:none' : '') + '"><label style="display:flex;align-items:center;gap:6px;font-weight:normal">' +
           '<input type="checkbox" id="vcfw-searchable"' + (cfg.searchable !== false ? ' checked' : '') + '> Searchable (dropdown panel)' +
         '</label></div>' +
-        '<div style="padding:10px 0 4px;font-size:11px;color:var(--text-faint)">Filter widgets appear in the Dashboard filter bar — preview not available here.</div>' +
       '</div>';
 
     var searchRow = el.querySelector('#vcfw-search-row');
@@ -1546,6 +1545,60 @@ window.DWBVizTab = (function() {
     });
 
     return el;
+  }
+
+  // ── FILTER_WIDGET live preview ────────────────────────────────────────────
+  function _vtRenderFilterWidgetPreview(container, viz, rows) {
+    var cfg = viz.config || {};
+    var style = cfg.style || 'chips';
+    var label = cfg.label || cfg.field || 'Field';
+    var field = cfg.field;
+
+    if (style === 'dropdown') {
+      container.innerHTML =
+        '<div class="vt-fw-preview">' +
+          '<button class="vt-fw-preview-btn" disabled>' + _vtEsc(label) + ' ▾</button>' +
+          '<p class="vt-fw-preview-note">Opens a multi-select panel in the Dashboard</p>' +
+        '</div>';
+      return;
+    }
+
+    // Chips style
+    var uniqueVals = null;
+    if (rows && rows.length && field) {
+      var seen = {};
+      uniqueVals = [];
+      rows.forEach(function(row) {
+        if (row[field] !== undefined) {
+          var v = String(row[field]);
+          if (!seen[v]) { seen[v] = true; uniqueVals.push(v); }
+        }
+      });
+    }
+
+    var MAX = 6;
+    var html = '<div class="vt-fw-preview"><span class="vt-fw-preview-label">' + _vtEsc(label) + ':</span>';
+
+    if (!uniqueVals) {
+      ['Value 1', 'Value 2', 'Value 3'].forEach(function(v) {
+        html += '<span class="vt-fw-preview-chip vt-fw-preview-chip-muted">' + _vtEsc(v) + '</span>';
+      });
+      html += '<span class="vt-fw-preview-more">Bind a snapshot to see real values</span>';
+    } else if (uniqueVals.length === 0) {
+      html += '<span class="vt-fw-preview-more">No values found for this field</span>';
+    } else {
+      var shown = uniqueVals.slice(0, MAX);
+      var remainder = uniqueVals.length - shown.length;
+      shown.forEach(function(v) {
+        html += '<span class="vt-fw-preview-chip">' + _vtEsc(v) + '</span>';
+      });
+      if (remainder > 0) {
+        html += '<span class="vt-fw-preview-more">+' + remainder + ' more</span>';
+      }
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
   }
 
   function _vtShowAddModal() {
