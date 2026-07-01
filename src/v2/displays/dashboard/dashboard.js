@@ -540,11 +540,12 @@ window.DWBDashboard = (function() {
               return '<button class="dash-layout-btn' + (layout === l.key ? ' active' : '') + '" data-layout="' + l.key + '">' + l.label + '</button>';
             }).join('')}
           </div>
-          <button class="tb-btn" style="font-size:11px;opacity:0.75" id="dash-add-filter-btn">+ Filter</button>
           <div class="flex-spacer"></div>
-          <button class="tb-btn" id="dash-add-viz-btn">＋ Add Viz</button>
-          <button class="tb-btn" id="dash-fullscreen-btn">⛶ Present</button>
-          <button class="tb-btn" id="dash-export-btn">Export HTML</button>
+          <button class="dash-tb-ghost" id="dash-add-viz-btn">＋ Add Viz</button>
+          <button class="dash-tb-ghost" id="dash-add-filter-btn">+ Filter</button>
+          <div class="dash-tb-sep"></div>
+          <button class="dash-tb-sec" id="dash-fullscreen-btn">⛶ Present</button>
+          <button class="dash-tb-sec" id="dash-export-btn">Export HTML</button>
         </div>
         <div class="dash-filter-bar hidden" id="dash-filter-bar"></div>
         <div class="dash-canvas" id="dash-canvas">
@@ -676,37 +677,28 @@ window.DWBDashboard = (function() {
 
   function _dShowAddFilterModal(container, display) {
     var state = window.DWBState;
-    var vizList = (state.flow && state.flow.visualizations) || [];
-    var snapshots = state.snapshots || {};
+    var allVizes = (state.flow && state.flow.visualizations) || [];
+    var placedIds = (display.placements || []).map(function(p) { return p.vizId; });
 
-    // Collect columns from placed viz snapshots
-    var colSet = {};
-    var cols = [];
-    (display.placements || []).forEach(function(p) {
-      var viz = vizList.find(function(v) { return v.id === p.vizId; });
-      if (!viz || !viz.snapshotName || viz.type === 'FILTER_WIDGET') return;
-      var sample = (snapshots[viz.snapshotName] || []);
-      if (sample.length > 0) {
-        Object.keys(sample[0]).forEach(function(c) {
-          if (!colSet[c]) { colSet[c] = true; cols.push(c); }
-        });
-      }
+    var available = allVizes.filter(function(v) {
+      return v.type === 'FILTER_WIDGET' && placedIds.indexOf(v.id) === -1;
     });
-    // Fall back to all snapshots if no placed vizes
-    if (!cols.length) {
-      Object.keys(snapshots).forEach(function(sn) {
-        var sample = snapshots[sn] || [];
-        if (sample.length > 0) {
-          Object.keys(sample[0]).forEach(function(c) {
-            if (!colSet[c]) { colSet[c] = true; cols.push(c); }
-          });
-        }
-      });
-    }
 
-    if (!cols.length) {
-      alert('No data available. Run the pipeline first to generate snapshots.');
-      return;
+    var listHTML = '';
+    if (!available.length) {
+      listHTML = '<div class="dash-fw-picker-empty">No filter widgets defined yet — create one in the Visualizations tab first.</div>';
+    } else {
+      listHTML = available.map(function(v) {
+        var cfg = v.config || {};
+        var field = cfg.field || '';
+        var styleName = cfg.style === 'chips' ? 'Chips' : 'Dropdown';
+        var showLabel = v.label && v.label !== field;
+        return '<button class="dash-fw-picker-card" data-viz-id="' + _dEsc(v.id) + '">' +
+          '<div class="dash-fw-picker-field">' + _dEsc(field) + '</div>' +
+          (showLabel ? '<div class="dash-fw-picker-sublabel">' + _dEsc(v.label) + '</div>' : '') +
+          '<span class="dash-fw-style-badge">' + _dEsc(styleName) + '</span>' +
+          '</button>';
+      }).join('');
     }
 
     var overlay = document.createElement('div');
@@ -715,72 +707,23 @@ window.DWBDashboard = (function() {
     overlay.innerHTML =
       '<div class="modal" style="width:400px">' +
         '<div class="modal-header"><span>Add Filter Widget</span><button class="modal-close" id="afw-close">✕</button></div>' +
-        '<div style="padding:16px">' +
-          '<div class="form-row"><label>Field</label>' +
-            '<select id="afw-field" style="width:100%">' +
-              cols.map(function(c) { return '<option value="' + _dEsc(c) + '">' + _dEsc(c) + '</option>'; }).join('') +
-            '</select>' +
-          '</div>' +
-          '<div class="form-row"><label>Style</label>' +
-            '<div style="display:flex;gap:12px">' +
-              '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="afw-style" value="dropdown" checked> Dropdown</label>' +
-              '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="afw-style" value="chips"> Chips</label>' +
-            '</div>' +
-          '</div>' +
-          '<div class="form-row"><label>Label <span style="color:var(--text-faint);font-weight:normal">(optional)</span></label>' +
-            '<input type="text" id="afw-label" placeholder="Defaults to field name" style="width:100%">' +
-          '</div>' +
-          '<div class="form-row" id="afw-search-row"><label style="display:flex;align-items:center;gap:6px;font-weight:normal">' +
-            '<input type="checkbox" id="afw-searchable" checked> Searchable (dropdown only)' +
-          '</label></div>' +
-          '<button class="btn-primary" id="afw-confirm" style="width:100%;padding:8px;margin-top:8px">Add</button>' +
-        '</div>' +
+        '<div style="padding:16px">' + listHTML + '</div>' +
       '</div>';
 
     document.body.appendChild(overlay);
     overlay.querySelector('#afw-close').addEventListener('click', function() { document.body.removeChild(overlay); });
     overlay.addEventListener('click', function(e) { if (e.target === overlay) document.body.removeChild(overlay); });
 
-    var searchRow = overlay.querySelector('#afw-search-row');
-    overlay.querySelectorAll('input[name="afw-style"]').forEach(function(r) {
-      r.addEventListener('change', function() {
-        searchRow.style.display = this.value === 'dropdown' ? '' : 'none';
+    overlay.querySelectorAll('.dash-fw-picker-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var vizId = card.dataset.vizId;
+        var placement = window.DWBSchema.createPlacement(vizId, 'DASHBOARD');
+        display.placements = display.placements || [];
+        display.placements.push(placement);
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        document.body.removeChild(overlay);
+        window.DWBDisplaysTab && window.DWBDisplaysTab.mount();
       });
-    });
-
-    overlay.querySelector('#afw-confirm').addEventListener('click', function() {
-      var field = overlay.querySelector('#afw-field').value;
-      var style = overlay.querySelector('input[name="afw-style"]:checked').value;
-      var label = overlay.querySelector('#afw-label').value.trim();
-      var searchable = overlay.querySelector('#afw-searchable').checked;
-      if (!field) return;
-
-      // Find a snapshot that contains this field
-      var snapshotName = '';
-      Object.keys(snapshots).forEach(function(sn) {
-        if (snapshotName) return;
-        var sample = snapshots[sn] || [];
-        if (sample.length > 0 && Object.prototype.hasOwnProperty.call(sample[0], field)) {
-          snapshotName = sn;
-        }
-      });
-
-      var flowState = window.DWBState;
-      if (!flowState.flow) return;
-
-      var viz = window.DWBSchema.createViz('FILTER_WIDGET', label || field);
-      viz.snapshotName = snapshotName;
-      viz.config = { field: field, style: style, label: label, searchable: searchable };
-      flowState.flow.visualizations = flowState.flow.visualizations || [];
-      flowState.flow.visualizations.push(viz);
-
-      var placement = window.DWBSchema.createPlacement(viz.id, 'DASHBOARD');
-      display.placements = display.placements || [];
-      display.placements.push(placement);
-
-      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
-      document.body.removeChild(overlay);
-      window.DWBDisplaysTab && window.DWBDisplaysTab.mount();
     });
   }
 
