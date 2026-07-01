@@ -250,6 +250,70 @@
 }
 .dash-table-search:focus { border-color: var(--accent); }
 
+/* Filter widget zones */
+.dash-fw-zone {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+}
+.dash-auto-chips-zone {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+}
+
+/* Filter widget wrapper */
+.dash-fw-wrap {
+  position: relative; display: flex; align-items: center; gap: 2px;
+}
+.dash-fw-gear-btn {
+  opacity: 0; transition: opacity 0.15s; background: none; border: none;
+  color: var(--text-faint); font-size: 11px; cursor: pointer; padding: 2px 4px;
+  line-height: 1; border-radius: 3px;
+}
+.dash-fw-wrap:hover .dash-fw-gear-btn { opacity: 1; }
+.dash-fw-gear-btn:hover { color: var(--text-main); background: var(--bg-raised); }
+
+/* Context menu */
+.dash-fw-context-menu {
+  position: fixed; z-index: 700; background: var(--bg-surface);
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  box-shadow: var(--shadow-menu); min-width: 140px; overflow: hidden;
+}
+.dash-fw-context-item {
+  display: block; width: 100%; padding: 8px 14px; background: none; border: none;
+  text-align: left; font-size: 12px; font-family: inherit; cursor: pointer;
+  color: var(--text-main);
+}
+.dash-fw-context-item:hover { background: var(--bg-raised); color: var(--danger); }
+
+/* Filter widget chips style */
+.dash-fw-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.dash-fw-label { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-muted); margin-right: 2px; }
+.dash-fw-chip { padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-raised); color: var(--text-muted); font-size: var(--text-sm); cursor: pointer; transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast); font-family: inherit; }
+.dash-fw-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: var(--weight-semibold); }
+.dash-fw-chip:hover:not(.active) { background: var(--bg-raised); border-color: var(--border-strong); }
+.dash-fw-clear { background: none; border: none; color: var(--text-faint); font-size: var(--text-xs); cursor: pointer; padding: 2px 6px; font-family: inherit; }
+.dash-fw-clear:hover { color: var(--danger); }
+
+/* Filter widget dropdown style */
+.dash-fw-dropdown-btn { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-raised); color: var(--text-muted); font-size: var(--text-sm); cursor: pointer; font-family: inherit; }
+.dash-fw-dropdown-btn.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.dash-fw-count { background: var(--accent); color: #fff; border-radius: 10px; padding: 0 6px; font-size: var(--text-xs); font-weight: var(--weight-bold); }
+
+/* Excel-style panel */
+.dash-fw-panel { position: fixed; background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: var(--shadow-modal); z-index: 600; width: 280px; display: flex; flex-direction: column; max-height: 400px; }
+.dash-fw-search { margin: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: var(--text-sm); background: var(--bg-surface); color: var(--text-main); font-family: inherit; outline: none; }
+.dash-fw-search:focus { border-color: var(--accent); }
+.dash-fw-panel-actions { display: flex; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--border); }
+.dash-fw-panel-actions button { background: none; border: none; color: var(--accent); font-size: var(--text-xs); cursor: pointer; padding: 4px 0; font-family: inherit; }
+.dash-fw-panel-actions button:hover { text-decoration: underline; }
+.dash-fw-list { overflow-y: auto; flex: 1; padding: 4px 0; }
+.dash-fw-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; font-size: var(--text-sm); color: var(--text-main); user-select: none; }
+.dash-fw-item:hover { background: var(--bg-raised); }
+.dash-fw-item.active { color: var(--accent); }
+.dash-fw-item input[type="checkbox"] { accent-color: var(--accent); flex-shrink: 0; }
+.dash-fw-count-badge { margin-left: auto; font-size: var(--text-xs); color: var(--text-faint); }
+.dash-fw-panel-footer { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); justify-content: flex-end; }
+.dash-fw-apply { padding: 5px 14px; font-size: var(--text-sm); }
+.dash-fw-cancel { padding: 5px 10px; font-size: var(--text-sm); }
+
 /* Filter chip interactivity */
 .dash-filter-chip { cursor: pointer; user-select: none; }
 .dash-filter-chip:hover { background: var(--accent-light); border-color: var(--accent); }

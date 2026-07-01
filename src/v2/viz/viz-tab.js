@@ -17,7 +17,8 @@ window.DWBVizTab = (function() {
     { type: 'AI_ASSIST',              icon: '🤖', name: 'AI Assist',         desc: 'Clipboard-based prompt builder for external AI tools' },
     { type: 'TIMELINE_HORIZONTAL',   icon: '⏩', name: 'Timeline (H)',      desc: 'Horizontal timeline events' },
     { type: 'TIMELINE_GANTT',         icon: '📅', name: 'Gantt Chart',       desc: 'Duration bars on a timeline' },
-    { type: 'TIMELINE_VERTICAL',      icon: '📌', name: 'Timeline (V)',      desc: 'Vertical event timeline' }
+    { type: 'TIMELINE_VERTICAL',      icon: '📌', name: 'Timeline (V)',      desc: 'Vertical event timeline' },
+    { type: 'FILTER_WIDGET',          icon: '🎛️', name: 'Filter Widget',    desc: 'Interactive filter control for the dashboard filter bar', category: 'Data' }
   ];
 
   function _vtLoadEcharts() {
@@ -203,6 +204,9 @@ window.DWBVizTab = (function() {
         break;
       case 'AI_ASSIST':
         container.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--text-faint);text-align:center">AI Assist renders an interactive copy/paste panel in the Dashboard — preview not available here.</div>';
+        break;
+      case 'FILTER_WIDGET':
+        container.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--text-faint);text-align:center">Filter widgets appear in the Dashboard filter bar — preview not available here.</div>';
         break;
       case 'KPI_STAT':      _vtRenderKpi(viz, rows, container); break;
       case 'DATA_TABLE':    _vtRenderDataTable(viz, rows, container); break;
@@ -419,6 +423,8 @@ window.DWBVizTab = (function() {
       configEl.appendChild(_vtBuildAiAssistConfig(viz, cols, onChange));
     } else if (viz.type === 'DATA_TABLE') {
       configEl.appendChild(_vtBuildDataTableConfig(viz, cols, onChange));
+    } else if (viz.type === 'FILTER_WIDGET') {
+      configEl.appendChild(_vtBuildFilterWidgetConfig(viz, cols, onChange));
     } else {
       const ph = document.createElement('div');
       ph.className = 'vt-config-section';
@@ -1497,6 +1503,48 @@ window.DWBVizTab = (function() {
     }
 
     rebuild();
+    return el;
+  }
+
+  // ── FILTER_WIDGET config builder ──────────────────────────────────────────────
+  function _vtBuildFilterWidgetConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    var cfg = viz.config;
+    var el = document.createElement('div');
+
+    function colSel(id, selected) {
+      return '<select id="' + id + '" style="width:100%"><option value="">-- select --</option>' +
+        cols.map(function(c) { return '<option value="' + _vtEsc(c) + '"' + (c === selected ? ' selected' : '') + '>' + _vtEsc(c) + '</option>'; }).join('') + '</select>';
+    }
+
+    var style = cfg.style || 'dropdown';
+    el.innerHTML =
+      '<div class="vt-config-section"><span class="vt-config-label">Filter</span>' +
+        '<div class="form-row"><label>Field</label>' + colSel('vcfw-field', cfg.field || '') + '</div>' +
+        '<div class="form-row"><label>Style</label><div style="display:flex;gap:12px">' +
+          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcfw-style" value="dropdown"' + (style !== 'chips' ? ' checked' : '') + '> Dropdown</label>' +
+          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcfw-style" value="chips"' + (style === 'chips' ? ' checked' : '') + '> Chips</label>' +
+        '</div></div>' +
+        '<div class="form-row"><label>Label <span style="color:var(--text-faint);font-weight:normal">(optional)</span></label>' +
+          '<input id="vcfw-label" type="text" value="' + _vtEsc(cfg.label || '') + '" placeholder="Defaults to field name" style="width:100%"></div>' +
+        '<div class="form-row" id="vcfw-search-row" style="' + (style === 'chips' ? 'display:none' : '') + '"><label style="display:flex;align-items:center;gap:6px;font-weight:normal">' +
+          '<input type="checkbox" id="vcfw-searchable"' + (cfg.searchable !== false ? ' checked' : '') + '> Searchable (dropdown panel)' +
+        '</label></div>' +
+        '<div style="padding:10px 0 4px;font-size:11px;color:var(--text-faint)">Filter widgets appear in the Dashboard filter bar — preview not available here.</div>' +
+      '</div>';
+
+    var searchRow = el.querySelector('#vcfw-search-row');
+    el.querySelector('#vcfw-field').addEventListener('change', function() { cfg.field = this.value; onChange(); });
+    el.querySelector('#vcfw-label').addEventListener('input', function() { cfg.label = this.value; onChange(); });
+    el.querySelector('#vcfw-searchable').addEventListener('change', function() { cfg.searchable = this.checked; onChange(); });
+    el.querySelectorAll('input[name="vcfw-style"]').forEach(function(r) {
+      r.addEventListener('change', function() {
+        cfg.style = this.value;
+        searchRow.style.display = this.value === 'chips' ? 'none' : '';
+        onChange();
+      });
+    });
+
     return el;
   }
 

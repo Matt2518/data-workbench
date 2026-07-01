@@ -43,109 +43,483 @@ window.DWBDashboard = (function() {
     return vals.sort();
   }
 
+  // Returns field names that have an explicit FILTER_WIDGET placement
+  function _dGetWidgetFields(display, visualizations) {
+    return (display.placements || []).reduce(function(acc, p) {
+      var viz = (visualizations || []).find(function(v) { return v.id === p.vizId; });
+      if (viz && viz.type === 'FILTER_WIDGET' && viz.config && viz.config.field) acc.push(viz.config.field);
+      return acc;
+    }, []);
+  }
+
+  function _dGetWidgetUniqueValues(field, viz, snapshots) {
+    var seen = {};
+    var vals = [];
+    (snapshots[viz.snapshotName] || []).forEach(function(row) {
+      if (row[field] !== undefined) {
+        var v = String(row[field]);
+        if (!seen[v]) { seen[v] = true; vals.push(v); }
+      }
+    });
+    return vals.sort();
+  }
+
+  function _dGetWidgetValueCounts(field, viz, snapshots) {
+    var counts = {};
+    (snapshots[viz.snapshotName] || []).forEach(function(row) {
+      if (row[field] !== undefined) {
+        var v = String(row[field]);
+        counts[v] = (counts[v] || 0) + 1;
+      }
+    });
+    return counts;
+  }
+
   function _dRenderFilterBar(filterBarEl, display, vizList, snapshots, onFilterChange) {
     if (!filterBarEl) return;
+
+    var widgetPlacements = (display.placements || []).filter(function(p) {
+      var viz = (vizList || []).find(function(v) { return v.id === p.vizId; });
+      return viz && viz.type === 'FILTER_WIDGET' && viz.config && viz.config.field;
+    });
+
+    var widgetFields = _dGetWidgetFields(display, vizList);
     var filterableFields = _dGetFilterableFields(display, vizList);
-    if (!filterableFields.length) {
+    var autoChipFields = filterableFields.filter(function(f) { return widgetFields.indexOf(f) === -1; });
+
+    var hasContent = widgetPlacements.length > 0 || autoChipFields.length > 0;
+    if (!hasContent) {
       filterBarEl.classList.add('hidden');
       filterBarEl.innerHTML = '';
       return;
     }
+
     filterBarEl.classList.remove('hidden');
     var activeFilters = _dActiveFilters(display);
     filterBarEl.innerHTML = '';
 
-    var label = document.createElement('span');
-    label.className = 'dash-filter-label';
-    label.textContent = 'Filters';
-    filterBarEl.appendChild(label);
+    // Left zone: filter widgets
+    var widgetsZone = document.createElement('div');
+    widgetsZone.className = 'dash-fw-zone';
+    filterBarEl.appendChild(widgetsZone);
 
-    filterableFields.forEach(function(field) {
-      var activeVal = activeFilters.hasOwnProperty(field) ? activeFilters[field] : null;
-      var wrapper = document.createElement('div');
-      wrapper.style.cssText = 'position:relative';
+    widgetPlacements.forEach(function(placement) {
+      var viz = (vizList || []).find(function(v) { return v.id === placement.vizId; });
+      if (!viz) return;
+      _dRenderFilterWidget(placement, viz, display, snapshots, widgetsZone, onFilterChange);
+    });
 
-      var chip = document.createElement('span');
-      chip.className = 'dash-filter-chip' + (activeVal !== null ? ' active' : '');
+    // Spacer
+    if (widgetPlacements.length > 0 && autoChipFields.length > 0) {
+      var spacer = document.createElement('div');
+      spacer.className = 'flex-spacer';
+      filterBarEl.appendChild(spacer);
+    }
 
-      var chipLabel = document.createElement('span');
-      chipLabel.textContent = field + ': ' + (activeVal !== null ? String(activeVal) : 'All');
-      chip.appendChild(chipLabel);
+    // Right zone: auto-derived chips for fields not covered by a widget
+    if (autoChipFields.length > 0) {
+      var autoZone = document.createElement('div');
+      autoZone.className = 'dash-auto-chips-zone';
+      filterBarEl.appendChild(autoZone);
 
-      if (activeVal !== null) {
-        var clrBtn = document.createElement('button');
-        clrBtn.className = 'dash-filter-chip-remove';
-        clrBtn.textContent = '✕';
-        clrBtn.addEventListener('click', (function(f) { return function(e) {
-          e.stopPropagation();
-          display.filterContext = display.filterContext || { activeFilters: {} };
-          display.filterContext.activeFilters = display.filterContext.activeFilters || {};
-          delete display.filterContext.activeFilters[f];
-          if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
-          if (onFilterChange) onFilterChange();
-        }; })(field));
-        chip.appendChild(clrBtn);
-      }
+      var label = document.createElement('span');
+      label.className = 'dash-filter-label';
+      label.textContent = 'Filters';
+      autoZone.appendChild(label);
 
-      chip.addEventListener('click', (function(f, av) { return function() {
-        var existing = wrapper.querySelector('.dash-filter-dropdown');
-        if (existing) { wrapper.removeChild(existing); return; }
-        document.querySelectorAll('.dash-filter-dropdown').forEach(function(d) {
-          if (d.parentElement) d.parentElement.removeChild(d);
-        });
-        var dd = document.createElement('div');
-        dd.className = 'dash-filter-dropdown';
+      autoChipFields.forEach(function(field) {
+        var activeVal = activeFilters.hasOwnProperty(field) ? activeFilters[field] : null;
+        var wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:relative';
 
-        var allBtn = document.createElement('button');
-        allBtn.className = 'dash-filter-dropdown-item' + (av === null ? ' active' : '');
-        allBtn.textContent = 'All';
-        allBtn.addEventListener('click', function() {
-          display.filterContext = display.filterContext || { activeFilters: {} };
-          display.filterContext.activeFilters = display.filterContext.activeFilters || {};
-          delete display.filterContext.activeFilters[f];
-          if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
-          if (onFilterChange) onFilterChange();
-        });
-        dd.appendChild(allBtn);
+        var chip = document.createElement('span');
+        chip.className = 'dash-filter-chip' + (activeVal !== null ? ' active' : '');
+        var chipLabel = document.createElement('span');
+        chipLabel.textContent = field + ': ' + (activeVal !== null ? String(activeVal) : 'All');
+        chip.appendChild(chipLabel);
 
-        _dGetUniqueValues(f, display, snapshots, vizList).forEach(function(val) {
-          var opt = document.createElement('button');
-          opt.className = 'dash-filter-dropdown-item' + (av !== null && String(av) === val ? ' active' : '');
-          opt.textContent = val;
-          opt.addEventListener('click', function() {
+        if (activeVal !== null) {
+          var clrBtn = document.createElement('button');
+          clrBtn.className = 'dash-filter-chip-remove';
+          clrBtn.textContent = '✕';
+          clrBtn.addEventListener('click', (function(f) { return function(e) {
+            e.stopPropagation();
             display.filterContext = display.filterContext || { activeFilters: {} };
             display.filterContext.activeFilters = display.filterContext.activeFilters || {};
-            display.filterContext.activeFilters[f] = val;
+            delete display.filterContext.activeFilters[f];
+            if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+            if (onFilterChange) onFilterChange();
+          }; })(field));
+          chip.appendChild(clrBtn);
+        }
+
+        chip.addEventListener('click', (function(f, av) { return function() {
+          var existing = wrapper.querySelector('.dash-filter-dropdown');
+          if (existing) { wrapper.removeChild(existing); return; }
+          document.querySelectorAll('.dash-filter-dropdown').forEach(function(d) {
+            if (d.parentElement) d.parentElement.removeChild(d);
+          });
+          var dd = document.createElement('div');
+          dd.className = 'dash-filter-dropdown';
+
+          var allBtn = document.createElement('button');
+          allBtn.className = 'dash-filter-dropdown-item' + (av === null ? ' active' : '');
+          allBtn.textContent = 'All';
+          allBtn.addEventListener('click', function() {
+            display.filterContext = display.filterContext || { activeFilters: {} };
+            display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+            delete display.filterContext.activeFilters[f];
             if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
             if (onFilterChange) onFilterChange();
           });
-          dd.appendChild(opt);
-        });
+          dd.appendChild(allBtn);
 
-        wrapper.appendChild(dd);
-        setTimeout(function() {
-          document.addEventListener('click', function _ddCloser(e) {
-            if (!wrapper.contains(e.target)) {
-              if (wrapper.contains(dd)) wrapper.removeChild(dd);
-              document.removeEventListener('click', _ddCloser);
-            }
+          _dGetUniqueValues(f, display, snapshots, vizList).forEach(function(val) {
+            var opt = document.createElement('button');
+            opt.className = 'dash-filter-dropdown-item' + (av !== null && String(av) === val ? ' active' : '');
+            opt.textContent = val;
+            opt.addEventListener('click', function() {
+              display.filterContext = display.filterContext || { activeFilters: {} };
+              display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+              display.filterContext.activeFilters[f] = val;
+              if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+              if (onFilterChange) onFilterChange();
+            });
+            dd.appendChild(opt);
           });
-        }, 10);
-      }; })(field, activeVal));
 
-      wrapper.appendChild(chip);
-      filterBarEl.appendChild(wrapper);
+          wrapper.appendChild(dd);
+          setTimeout(function() {
+            document.addEventListener('click', function _ddCloser(e) {
+              if (!wrapper.contains(e.target)) {
+                if (wrapper.contains(dd)) wrapper.removeChild(dd);
+                document.removeEventListener('click', _ddCloser);
+              }
+            });
+          }, 10);
+        }; })(field, activeVal));
+
+        wrapper.appendChild(chip);
+        autoZone.appendChild(wrapper);
+      });
+
+      var clearBtn = document.createElement('button');
+      clearBtn.className = 'dash-clear-filters';
+      clearBtn.textContent = 'Clear all';
+      clearBtn.addEventListener('click', function() {
+        display.filterContext = { activeFilters: {} };
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        if (onFilterChange) onFilterChange();
+      });
+      autoZone.appendChild(clearBtn);
+    }
+  }
+
+  // ── Filter widget rendering ───────────────────────────────────────────────────
+
+  function _dRenderFilterWidget(placement, viz, display, snapshots, container, onFilterChange) {
+    var cfg = viz.config || {};
+    var field = cfg.field || '';
+    if (!field) return;
+    var style = cfg.style || 'dropdown';
+
+    var wrapper = document.createElement('div');
+    wrapper.className = 'dash-fw-wrap';
+    wrapper.setAttribute('data-fw-placement', placement.id);
+
+    if (style === 'chips') {
+      _dRenderFwChips(placement, viz, cfg, display, snapshots, wrapper, onFilterChange);
+    } else {
+      _dRenderFwDropdown(placement, viz, cfg, display, snapshots, wrapper, onFilterChange);
+    }
+
+    // Gear button for context menu
+    var gearBtn = document.createElement('button');
+    gearBtn.className = 'dash-fw-gear-btn';
+    gearBtn.textContent = '⚙';
+    gearBtn.title = 'Widget options';
+    gearBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.querySelectorAll('.dash-fw-context-menu').forEach(function(m) { m.remove(); });
+      var menu = document.createElement('div');
+      menu.className = 'dash-fw-context-menu';
+      var removeItem = document.createElement('button');
+      removeItem.className = 'dash-fw-context-item';
+      removeItem.textContent = 'Remove widget';
+      removeItem.addEventListener('click', function() {
+        menu.remove();
+        display.placements = (display.placements || []).filter(function(p) { return p.id !== placement.id; });
+        var state = window.DWBState;
+        if (state && state.flow) {
+          state.flow.visualizations = state.flow.visualizations.filter(function(v) { return v.id !== placement.vizId; });
+        }
+        display.filterContext = display.filterContext || { activeFilters: {} };
+        display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+        delete display.filterContext.activeFilters[field];
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        if (onFilterChange) onFilterChange();
+      });
+      menu.appendChild(removeItem);
+      document.body.appendChild(menu);
+      var rect = gearBtn.getBoundingClientRect();
+      menu.style.top = (rect.bottom + 4) + 'px';
+      menu.style.left = rect.left + 'px';
+      setTimeout(function() {
+        document.addEventListener('click', function _menuCloser(ev) {
+          if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', _menuCloser); }
+        });
+      }, 10);
+    });
+    wrapper.appendChild(gearBtn);
+    container.appendChild(wrapper);
+  }
+
+  function _dRenderFwChips(placement, viz, cfg, display, snapshots, container, onFilterChange) {
+    var field = cfg.field;
+    var label = cfg.label || field;
+    var activeFilters = _dActiveFilters(display);
+    var activeVal = activeFilters.hasOwnProperty(field) ? activeFilters[field] : null;
+    var activeArr = Array.isArray(activeVal) ? activeVal : (activeVal !== null && activeVal !== undefined ? [String(activeVal)] : []);
+
+    var vals = _dGetWidgetUniqueValues(field, viz, snapshots);
+    var MAX_VISIBLE = 12;
+    var expanded = !!container._fwExpanded;
+    var visibleVals = (!expanded && vals.length > MAX_VISIBLE) ? vals.slice(0, MAX_VISIBLE) : vals;
+
+    var el = document.createElement('div');
+    el.className = 'dash-fw-chips';
+    el.setAttribute('data-field', field);
+
+    var labelEl = document.createElement('span');
+    labelEl.className = 'dash-fw-label';
+    labelEl.textContent = label + ':';
+    el.appendChild(labelEl);
+
+    visibleVals.forEach(function(val) {
+      var isActive = activeArr.indexOf(val) !== -1;
+      var btn = document.createElement('button');
+      btn.className = 'dash-fw-chip' + (isActive ? ' active' : '');
+      btn.setAttribute('data-value', val);
+      btn.textContent = val;
+      btn.addEventListener('click', function() {
+        display.filterContext = display.filterContext || { activeFilters: {} };
+        display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+        var curr = display.filterContext.activeFilters[field];
+        var currArr = Array.isArray(curr) ? curr.slice() : (curr !== undefined && curr !== null ? [String(curr)] : []);
+        var idx = currArr.indexOf(val);
+        if (idx !== -1) { currArr.splice(idx, 1); } else { currArr.push(val); }
+        display.filterContext.activeFilters[field] = currArr;
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        if (onFilterChange) onFilterChange();
+      });
+      el.appendChild(btn);
     });
 
-    var clearBtn = document.createElement('button');
-    clearBtn.className = 'dash-clear-filters';
-    clearBtn.textContent = 'Clear all';
-    clearBtn.addEventListener('click', function() {
-      display.filterContext = { activeFilters: {} };
+    if (!expanded && vals.length > MAX_VISIBLE) {
+      var moreBtn = document.createElement('button');
+      moreBtn.className = 'dash-fw-chip';
+      moreBtn.style.fontStyle = 'italic';
+      moreBtn.textContent = '+' + (vals.length - MAX_VISIBLE) + ' more';
+      moreBtn.addEventListener('click', function() {
+        container._fwExpanded = true;
+        container.innerHTML = '';
+        _dRenderFwChips(placement, viz, cfg, display, snapshots, container, onFilterChange);
+      });
+      el.appendChild(moreBtn);
+    } else if (expanded && vals.length > MAX_VISIBLE) {
+      var lessBtn = document.createElement('button');
+      lessBtn.className = 'dash-fw-chip';
+      lessBtn.style.fontStyle = 'italic';
+      lessBtn.textContent = 'Show less';
+      lessBtn.addEventListener('click', function() {
+        container._fwExpanded = false;
+        container.innerHTML = '';
+        _dRenderFwChips(placement, viz, cfg, display, snapshots, container, onFilterChange);
+      });
+      el.appendChild(lessBtn);
+    }
+
+    if (activeArr.length > 0) {
+      var clrBtn = document.createElement('button');
+      clrBtn.className = 'dash-fw-clear';
+      clrBtn.textContent = '✕ Clear';
+      clrBtn.addEventListener('click', function() {
+        display.filterContext = display.filterContext || { activeFilters: {} };
+        display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+        delete display.filterContext.activeFilters[field];
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        if (onFilterChange) onFilterChange();
+      });
+      el.appendChild(clrBtn);
+    }
+
+    container.appendChild(el);
+  }
+
+  function _dRenderFwDropdown(placement, viz, cfg, display, snapshots, container, onFilterChange) {
+    var field = cfg.field;
+    var label = cfg.label || field;
+    var activeFilters = _dActiveFilters(display);
+    var activeVal = activeFilters.hasOwnProperty(field) ? activeFilters[field] : null;
+    var activeArr = Array.isArray(activeVal) ? activeVal : (activeVal !== null && activeVal !== undefined ? [String(activeVal)] : []);
+    var hasActive = activeArr.length > 0;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'dash-fw-dropdown-wrap';
+    wrap.setAttribute('data-field', field);
+
+    var btn = document.createElement('button');
+    btn.className = 'dash-fw-dropdown-btn' + (hasActive ? ' active' : '');
+    btn.setAttribute('data-action', 'fw-open');
+
+    var btnLabel = document.createElement('span');
+    btnLabel.textContent = label;
+    btn.appendChild(btnLabel);
+
+    if (hasActive && activeArr.length > 1) {
+      var badge = document.createElement('span');
+      badge.className = 'dash-fw-count';
+      badge.textContent = String(activeArr.length);
+      btn.appendChild(badge);
+    }
+
+    btn.appendChild(document.createTextNode(' ▾'));
+
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      _dOpenFwPanel(btn, viz, cfg, display, snapshots, onFilterChange);
+    });
+
+    wrap.appendChild(btn);
+    container.appendChild(wrap);
+  }
+
+  function _dOpenFwPanel(btnEl, viz, cfg, display, snapshots, onFilterChange) {
+    document.querySelectorAll('.dash-fw-panel').forEach(function(p) { p.remove(); });
+
+    var field = cfg.field;
+    var searchable = cfg.searchable !== false;
+    var activeFilters = _dActiveFilters(display);
+    var activeVal = activeFilters.hasOwnProperty(field) ? activeFilters[field] : null;
+    var pendingArr = Array.isArray(activeVal) ? activeVal.slice() : (activeVal !== null && activeVal !== undefined ? [String(activeVal)] : []);
+
+    var vals = _dGetWidgetUniqueValues(field, viz, snapshots);
+    var counts = _dGetWidgetValueCounts(field, viz, snapshots);
+
+    var panel = document.createElement('div');
+    panel.className = 'dash-fw-panel';
+
+    var searchEl = null;
+    if (searchable) {
+      searchEl = document.createElement('input');
+      searchEl.className = 'dash-fw-search';
+      searchEl.type = 'text';
+      searchEl.placeholder = 'Search ' + field + '…';
+      panel.appendChild(searchEl);
+    }
+
+    var actions = document.createElement('div');
+    actions.className = 'dash-fw-panel-actions';
+    var selAllBtn = document.createElement('button');
+    selAllBtn.className = 'dash-fw-select-all';
+    selAllBtn.textContent = 'Select all';
+    var dot = document.createElement('span');
+    dot.textContent = '·';
+    var clrAllBtn = document.createElement('button');
+    clrAllBtn.className = 'dash-fw-clear-all';
+    clrAllBtn.textContent = 'Clear';
+    actions.appendChild(selAllBtn);
+    actions.appendChild(dot);
+    actions.appendChild(clrAllBtn);
+    panel.appendChild(actions);
+
+    var listEl = document.createElement('div');
+    listEl.className = 'dash-fw-list';
+    panel.appendChild(listEl);
+
+    function renderList(filterTerm) {
+      listEl.innerHTML = '';
+      var visible = filterTerm
+        ? vals.filter(function(v) { return v.toLowerCase().indexOf(filterTerm.toLowerCase()) !== -1; })
+        : vals;
+      visible.forEach(function(val) {
+        var isActive = pendingArr.indexOf(val) !== -1;
+        var lbl = document.createElement('label');
+        lbl.className = 'dash-fw-item' + (isActive ? ' active' : '');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = val;
+        cb.checked = isActive;
+        cb.addEventListener('change', function() {
+          var idx = pendingArr.indexOf(val);
+          if (this.checked) { if (idx === -1) pendingArr.push(val); lbl.classList.add('active'); }
+          else { if (idx !== -1) pendingArr.splice(idx, 1); lbl.classList.remove('active'); }
+        });
+        var nameSpan = document.createElement('span');
+        nameSpan.textContent = val;
+        var cntBadge = document.createElement('span');
+        cntBadge.className = 'dash-fw-count-badge';
+        cntBadge.textContent = String(counts[val] || 0);
+        lbl.appendChild(cb);
+        lbl.appendChild(nameSpan);
+        lbl.appendChild(cntBadge);
+        listEl.appendChild(lbl);
+      });
+    }
+
+    renderList('');
+
+    if (searchEl) {
+      searchEl.addEventListener('input', function() { renderList(this.value); });
+    }
+
+    selAllBtn.addEventListener('click', function() {
+      pendingArr = vals.slice();
+      renderList(searchEl ? searchEl.value : '');
+    });
+    clrAllBtn.addEventListener('click', function() {
+      pendingArr = [];
+      renderList(searchEl ? searchEl.value : '');
+    });
+
+    var footer = document.createElement('div');
+    footer.className = 'dash-fw-panel-footer';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'dash-fw-cancel tb-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function() { panel.remove(); });
+
+    var applyBtn = document.createElement('button');
+    applyBtn.className = 'dash-fw-apply btn-primary';
+    applyBtn.textContent = 'Apply';
+    applyBtn.addEventListener('click', function() {
+      display.filterContext = display.filterContext || { activeFilters: {} };
+      display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+      display.filterContext.activeFilters[field] = pendingArr.slice();
+      panel.remove();
       if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
       if (onFilterChange) onFilterChange();
     });
-    filterBarEl.appendChild(clearBtn);
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(applyBtn);
+    panel.appendChild(footer);
+
+    document.body.appendChild(panel);
+
+    var rect = btnEl.getBoundingClientRect();
+    panel.style.top = (rect.bottom + 4) + 'px';
+    panel.style.left = Math.min(rect.left, window.innerWidth - 290) + 'px';
+
+    setTimeout(function() {
+      document.addEventListener('click', function _panelCloser(ev) {
+        if (!panel.contains(ev.target) && ev.target !== btnEl) {
+          panel.remove();
+          document.removeEventListener('click', _panelCloser);
+        }
+      });
+    }, 10);
   }
 
   function mount(container, display) {
@@ -166,6 +540,7 @@ window.DWBDashboard = (function() {
               return '<button class="dash-layout-btn' + (layout === l.key ? ' active' : '') + '" data-layout="' + l.key + '">' + l.label + '</button>';
             }).join('')}
           </div>
+          <button class="tb-btn" style="font-size:11px;opacity:0.75" id="dash-add-filter-btn">+ Filter</button>
           <div class="flex-spacer"></div>
           <button class="tb-btn" id="dash-add-viz-btn">＋ Add Viz</button>
           <button class="tb-btn" id="dash-fullscreen-btn">⛶ Present</button>
@@ -184,6 +559,10 @@ window.DWBDashboard = (function() {
         if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
         mount(container, display);
       });
+    });
+
+    container.querySelector('#dash-add-filter-btn').addEventListener('click', function() {
+      _dShowAddFilterModal(container, display);
     });
 
     container.querySelector('#dash-add-viz-btn').addEventListener('click', function() {
@@ -230,6 +609,7 @@ window.DWBDashboard = (function() {
 
     placements.forEach(function(placement) {
       const viz = vizList.find(function(v) { return v.id === placement.vizId; });
+      if (viz && viz.type === 'FILTER_WIDGET') return; // rendered in filter bar, not canvas
       const card = document.createElement('div');
       card.className = 'dash-placement';
 
@@ -285,14 +665,130 @@ window.DWBDashboard = (function() {
     if (filterKeys.length === 0) return rows;
     return rows.filter(function(row) {
       return filterKeys.every(function(k) {
-        return String(row[k] !== undefined ? row[k] : '') === String(filters[k]);
+        var filterVal = filters[k];
+        if (Array.isArray(filterVal)) {
+          return filterVal.length === 0 || filterVal.indexOf(String(row[k] !== undefined ? row[k] : '')) !== -1;
+        }
+        return String(row[k] !== undefined ? row[k] : '') === String(filterVal);
       });
+    });
+  }
+
+  function _dShowAddFilterModal(container, display) {
+    var state = window.DWBState;
+    var vizList = (state.flow && state.flow.visualizations) || [];
+    var snapshots = state.snapshots || {};
+
+    // Collect columns from placed viz snapshots
+    var colSet = {};
+    var cols = [];
+    (display.placements || []).forEach(function(p) {
+      var viz = vizList.find(function(v) { return v.id === p.vizId; });
+      if (!viz || !viz.snapshotName || viz.type === 'FILTER_WIDGET') return;
+      var sample = (snapshots[viz.snapshotName] || []);
+      if (sample.length > 0) {
+        Object.keys(sample[0]).forEach(function(c) {
+          if (!colSet[c]) { colSet[c] = true; cols.push(c); }
+        });
+      }
+    });
+    // Fall back to all snapshots if no placed vizes
+    if (!cols.length) {
+      Object.keys(snapshots).forEach(function(sn) {
+        var sample = snapshots[sn] || [];
+        if (sample.length > 0) {
+          Object.keys(sample[0]).forEach(function(c) {
+            if (!colSet[c]) { colSet[c] = true; cols.push(c); }
+          });
+        }
+      });
+    }
+
+    if (!cols.length) {
+      alert('No data available. Run the pipeline first to generate snapshots.');
+      return;
+    }
+
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.style.zIndex = '700';
+    overlay.innerHTML =
+      '<div class="modal" style="width:400px">' +
+        '<div class="modal-header"><span>Add Filter Widget</span><button class="modal-close" id="afw-close">✕</button></div>' +
+        '<div style="padding:16px">' +
+          '<div class="form-row"><label>Field</label>' +
+            '<select id="afw-field" style="width:100%">' +
+              cols.map(function(c) { return '<option value="' + _dEsc(c) + '">' + _dEsc(c) + '</option>'; }).join('') +
+            '</select>' +
+          '</div>' +
+          '<div class="form-row"><label>Style</label>' +
+            '<div style="display:flex;gap:12px">' +
+              '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="afw-style" value="dropdown" checked> Dropdown</label>' +
+              '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="afw-style" value="chips"> Chips</label>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-row"><label>Label <span style="color:var(--text-faint);font-weight:normal">(optional)</span></label>' +
+            '<input type="text" id="afw-label" placeholder="Defaults to field name" style="width:100%">' +
+          '</div>' +
+          '<div class="form-row" id="afw-search-row"><label style="display:flex;align-items:center;gap:6px;font-weight:normal">' +
+            '<input type="checkbox" id="afw-searchable" checked> Searchable (dropdown only)' +
+          '</label></div>' +
+          '<button class="btn-primary" id="afw-confirm" style="width:100%;padding:8px;margin-top:8px">Add</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+    overlay.querySelector('#afw-close').addEventListener('click', function() { document.body.removeChild(overlay); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) document.body.removeChild(overlay); });
+
+    var searchRow = overlay.querySelector('#afw-search-row');
+    overlay.querySelectorAll('input[name="afw-style"]').forEach(function(r) {
+      r.addEventListener('change', function() {
+        searchRow.style.display = this.value === 'dropdown' ? '' : 'none';
+      });
+    });
+
+    overlay.querySelector('#afw-confirm').addEventListener('click', function() {
+      var field = overlay.querySelector('#afw-field').value;
+      var style = overlay.querySelector('input[name="afw-style"]:checked').value;
+      var label = overlay.querySelector('#afw-label').value.trim();
+      var searchable = overlay.querySelector('#afw-searchable').checked;
+      if (!field) return;
+
+      // Find a snapshot that contains this field
+      var snapshotName = '';
+      Object.keys(snapshots).forEach(function(sn) {
+        if (snapshotName) return;
+        var sample = snapshots[sn] || [];
+        if (sample.length > 0 && Object.prototype.hasOwnProperty.call(sample[0], field)) {
+          snapshotName = sn;
+        }
+      });
+
+      var flowState = window.DWBState;
+      if (!flowState.flow) return;
+
+      var viz = window.DWBSchema.createViz('FILTER_WIDGET', label || field);
+      viz.snapshotName = snapshotName;
+      viz.config = { field: field, style: style, label: label, searchable: searchable };
+      flowState.flow.visualizations = flowState.flow.visualizations || [];
+      flowState.flow.visualizations.push(viz);
+
+      var placement = window.DWBSchema.createPlacement(viz.id, 'DASHBOARD');
+      display.placements = display.placements || [];
+      display.placements.push(placement);
+
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+      document.body.removeChild(overlay);
+      window.DWBDisplaysTab && window.DWBDisplaysTab.mount();
     });
   }
 
   function _dShowAddPlacementModal(container, display) {
     const state = window.DWBState;
-    const vizList = (state.flow && state.flow.visualizations) || [];
+    const vizList = ((state.flow && state.flow.visualizations) || []).filter(function(v) {
+      return v.type !== 'FILTER_WIDGET';
+    });
 
     if (vizList.length === 0) {
       alert('No visualizations exist yet. Create some in the Viz tab first.');
@@ -365,7 +861,7 @@ window.DWBDashboard = (function() {
 
     (display.placements || []).forEach(function(placement) {
       const viz = vizList.find(function(v) { return v.id === placement.vizId; });
-      if (!viz) return;
+      if (!viz || viz.type === 'FILTER_WIDGET') return;
       const rows = snapshots[viz.snapshotName] || [];
       const card = document.createElement('div');
       card.className = 'dash-placement';
@@ -380,7 +876,7 @@ window.DWBDashboard = (function() {
     // Re-render placements into fullscreen
     (display.placements || []).forEach(function(placement) {
       const viz = vizList.find(function(v) { return v.id === placement.vizId; });
-      if (!viz) return;
+      if (!viz || viz.type === 'FILTER_WIDGET') return;
       const rows = snapshots[viz.snapshotName] || [];
       const body = overlay.querySelector('#fs-pb-' + placement.id);
       if (body) {
@@ -1200,7 +1696,9 @@ window.DWBDashboard = (function() {
     '.dwb-data-table th{background:#f1f5f9;border:1px solid #e2e8f0;padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap}',
     '.dwb-data-table td{border:1px solid #e2e8f0;padding:3px 8px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.dwb-data-table tbody tr:nth-child(even) td{background:#f1f5f9}',
-    '.dash-block-chart{width:100%}'
+    '.dash-block-chart{width:100%}',
+    /* export filter widget chip styles (multi-select capable) */
+    '.export-chip-option label{display:flex;align-items:center;gap:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}'
   ].join('');
 
   function _dGetEChartsSource() {
@@ -1245,15 +1743,38 @@ window.DWBDashboard = (function() {
     var keys = Object.keys(activeFilters);
     if (!keys.length) return rows;
     return rows.filter(function(row) {
-      return keys.every(function(k) { return String(row[k]!==undefined?row[k]:'')===String(activeFilters[k]); });
+      return keys.every(function(k) {
+        var fv = activeFilters[k];
+        if (Array.isArray(fv)) { return fv.length === 0 || fv.indexOf(String(row[k]!==undefined?row[k]:'')) !== -1; }
+        return String(row[k]!==undefined?row[k]:'')===String(fv);
+      });
+    });
+  }
+
+  function getWidgetFields() {
+    var fields = [];
+    (display.placements||[]).forEach(function(p) {
+      var viz=vizList.find(function(v){return v.id===p.vizId;});
+      if (viz && viz.type==='FILTER_WIDGET' && viz.config && viz.config.field) fields.push(viz.config.field);
+    });
+    return fields;
+  }
+
+  function getWidgetPlacements() {
+    return (display.placements||[]).filter(function(p) {
+      var viz=vizList.find(function(v){return v.id===p.vizId;});
+      return viz && viz.type==='FILTER_WIDGET' && viz.config && viz.config.field;
     });
   }
 
   function getFilterableFields() {
+    var wf = getWidgetFields();
     var fields = {}; var result = [];
     vizList.forEach(function(v) {
       if (v.linkToDisplayFilters && (v.filterableFields||[]).length) {
-        v.filterableFields.forEach(function(f) { if (!fields[f]) { fields[f]=true; result.push(f); } });
+        v.filterableFields.forEach(function(f) {
+          if (!fields[f] && wf.indexOf(f)===-1) { fields[f]=true; result.push(f); }
+        });
       }
     });
     return result;
@@ -1269,6 +1790,14 @@ window.DWBDashboard = (function() {
     return vals.sort();
   }
 
+  function getWidgetUniqueValues(field, viz) {
+    var seen = {}; var vals = [];
+    (snaps[viz.snapshotName]||[]).forEach(function(row) {
+      if (row[field]!==undefined) { var v=String(row[field]); if (!seen[v]) { seen[v]=true; vals.push(v); } }
+    });
+    return vals.sort();
+  }
+
   function renderBanner() {
     var banner = document.getElementById('filter-banner');
     var textEl = document.getElementById('filter-banner-text');
@@ -1280,13 +1809,92 @@ window.DWBDashboard = (function() {
     } else { banner.style.display = 'none'; }
   }
 
+  function renderWidgetChips() {
+    var container = document.getElementById('filter-chips');
+    if (!container) return;
+    var placements = getWidgetPlacements();
+    placements.forEach(function(p) {
+      var viz = vizList.find(function(v){return v.id===p.vizId;});
+      if (!viz) return;
+      var cfg = viz.config||{}; var field=cfg.field; var label=cfg.label||field;
+      var activeVal=activeFilters.hasOwnProperty(field)?activeFilters[field]:null;
+      var activeArr=Array.isArray(activeVal)?activeVal:(activeVal!==null&&activeVal!==undefined?[String(activeVal)]:[]);
+      var hasActive=activeArr.length>0;
+
+      var wrapper = document.createElement('div');
+      wrapper.className = 'export-chip-wrapper';
+
+      var chip = document.createElement('div');
+      chip.className = 'export-chip' + (hasActive ? ' active' : '');
+      var labelSpan = document.createElement('span');
+      labelSpan.textContent = label + (hasActive ? ': ' + (activeArr.length===1?activeArr[0]:activeArr.length+' selected') : ': All');
+      chip.appendChild(labelSpan);
+      if (hasActive) {
+        var clr = document.createElement('button');
+        clr.className = 'export-chip-clear'; clr.textContent = '\xD7';
+        clr.addEventListener('click', (function(f){return function(e){
+          e.stopPropagation(); delete activeFilters[f];
+          renderBanner(); renderChips(); renderPlacements();
+        };})(field));
+        chip.appendChild(clr);
+      }
+
+      chip.addEventListener('click', (function(f,arr){return function(){
+        var existing=wrapper.querySelector('.export-chip-dropdown');
+        if(existing){wrapper.removeChild(existing);return;}
+        document.querySelectorAll('.export-chip-dropdown').forEach(function(d){d.parentElement.removeChild(d);});
+        var pending=arr.slice();
+        var dd=document.createElement('div'); dd.className='export-chip-dropdown';
+        var allBtn=document.createElement('button');
+        allBtn.className='export-chip-option'+(arr.length===0?' selected':'');
+        allBtn.textContent='(All)';
+        allBtn.addEventListener('click',function(){delete activeFilters[f];renderBanner();renderChips();renderPlacements();});
+        dd.appendChild(allBtn);
+        getWidgetUniqueValues(f,viz).forEach(function(val){
+          var isChk=pending.indexOf(val)!==-1;
+          var lbl=document.createElement('label');
+          lbl.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;';
+          var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=isChk;
+          cb.addEventListener('change',function(){
+            var idx=pending.indexOf(val);
+            if(this.checked){if(idx===-1)pending.push(val);}else{if(idx!==-1)pending.splice(idx,1);}
+          });
+          lbl.appendChild(cb); lbl.appendChild(document.createTextNode(val));
+          dd.appendChild(lbl);
+        });
+        var applyBtn=document.createElement('button');
+        applyBtn.className='export-chip-option';
+        applyBtn.style.cssText='font-weight:600;color:#005EB8;border-top:1px solid #e2e8f0;';
+        applyBtn.textContent='Apply';
+        applyBtn.addEventListener('click',function(){
+          activeFilters[f]=pending.slice();
+          wrapper.removeChild(dd);
+          renderBanner();renderChips();renderPlacements();
+        });
+        dd.appendChild(applyBtn);
+        wrapper.appendChild(dd);
+        setTimeout(function(){
+          document.addEventListener('click',function closer(e){
+            if(!wrapper.contains(e.target)){if(wrapper.contains(dd))wrapper.removeChild(dd);document.removeEventListener('click',closer);}
+          });
+        },10);
+      };})(field,activeArr));
+
+      wrapper.appendChild(chip);
+      container.appendChild(wrapper);
+    });
+  }
+
   function renderChips() {
     var container = document.getElementById('filter-chips');
     if (!container) return;
     var fields = getFilterableFields();
-    if (!fields.length) { container.style.display = 'none'; return; }
+    var wp = getWidgetPlacements();
+    if (!fields.length && !wp.length) { container.style.display = 'none'; return; }
     container.style.display = 'flex';
     container.innerHTML = '';
+    renderWidgetChips();
+    if (!fields.length) return;
     fields.forEach(function(field) {
       var activeVal = activeFilters.hasOwnProperty(field) ? activeFilters[field] : null;
       var wrapper = document.createElement('div');
@@ -1599,7 +2207,7 @@ window.DWBDashboard = (function() {
     canvas.innerHTML='';
     (display.placements||[]).forEach(function(placement){
       var viz=vizList.find(function(v){return v.id===placement.vizId;});
-      if(!viz) return;
+      if(!viz || viz.type==='FILTER_WIDGET') return;
       var filteredRows=getFilteredRows(viz);
       var allRows=snaps[viz.snapshotName]||[];
       var card=document.createElement('div'); card.className='dash-placement';
