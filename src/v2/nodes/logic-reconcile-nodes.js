@@ -88,9 +88,17 @@ window.DWBNodes.IF_THEN_ELSE = {
         var cn = parseFloat(cell), vn = parseFloat(cmpVal);
         return (!isNaN(cn) && !isNaN(vn)) ? cn > vn : cell > cmpVal;
       }
+      if (op === 'greater_equal') {
+        var cn3 = parseFloat(cell), vn3 = parseFloat(cmpVal);
+        return (!isNaN(cn3) && !isNaN(vn3)) ? cn3 >= vn3 : cell >= cmpVal;
+      }
       if (op === 'less_than') {
         var cn2 = parseFloat(cell), vn2 = parseFloat(cmpVal);
         return (!isNaN(cn2) && !isNaN(vn2)) ? cn2 < vn2 : cell < cmpVal;
+      }
+      if (op === 'less_equal') {
+        var cn4 = parseFloat(cell), vn4 = parseFloat(cmpVal);
+        return (!isNaN(cn4) && !isNaN(vn4)) ? cn4 <= vn4 : cell <= cmpVal;
       }
       if (op === 'equals')     return cell === cmpVal;
       if (op === 'not_equals') return cell !== cmpVal;
@@ -119,7 +127,8 @@ window.DWBNodes.IF_THEN_ELSE = {
     var NO_VAL = { is_empty: 1, is_not_empty: 1 };
     var OPERATORS = [
       ['equals','equals'], ['not_equals','not equals'], ['contains','contains'],
-      ['greater_than','greater than'], ['less_than','less than'],
+      ['greater_than','greater than'], ['greater_equal','greater than or equal to'],
+      ['less_than','less than'], ['less_equal','less than or equal to'],
       ['is_empty','is empty'], ['is_not_empty','is not empty']
     ];
     var curOp = config.operator || 'equals';

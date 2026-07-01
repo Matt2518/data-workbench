@@ -7424,9 +7424,17 @@ window.DWBNodes.IF_THEN_ELSE = {
         var cn = parseFloat(cell), vn = parseFloat(cmpVal);
         return (!isNaN(cn) && !isNaN(vn)) ? cn > vn : cell > cmpVal;
       }
+      if (op === 'greater_equal') {
+        var cn3 = parseFloat(cell), vn3 = parseFloat(cmpVal);
+        return (!isNaN(cn3) && !isNaN(vn3)) ? cn3 >= vn3 : cell >= cmpVal;
+      }
       if (op === 'less_than') {
         var cn2 = parseFloat(cell), vn2 = parseFloat(cmpVal);
         return (!isNaN(cn2) && !isNaN(vn2)) ? cn2 < vn2 : cell < cmpVal;
+      }
+      if (op === 'less_equal') {
+        var cn4 = parseFloat(cell), vn4 = parseFloat(cmpVal);
+        return (!isNaN(cn4) && !isNaN(vn4)) ? cn4 <= vn4 : cell <= cmpVal;
       }
       if (op === 'equals')     return cell === cmpVal;
       if (op === 'not_equals') return cell !== cmpVal;
@@ -7455,7 +7463,8 @@ window.DWBNodes.IF_THEN_ELSE = {
     var NO_VAL = { is_empty: 1, is_not_empty: 1 };
     var OPERATORS = [
       ['equals','equals'], ['not_equals','not equals'], ['contains','contains'],
-      ['greater_than','greater than'], ['less_than','less than'],
+      ['greater_than','greater than'], ['greater_equal','greater than or equal to'],
+      ['less_than','less than'], ['less_equal','less than or equal to'],
       ['is_empty','is empty'], ['is_not_empty','is not empty']
     ];
     var curOp = config.operator || 'equals';
@@ -8764,44 +8773,115 @@ function _tfColumnSelect(label, key, config, currentRows, onChange) {
   return wrap;
 }
 
-function _tfFormatDate(date, fmt) {
-  if (isNaN(date.getTime())) return '';
-  var pad = function(n) { return String(n).padStart(2, '0'); };
-  return fmt
-    .replace('YYYY', date.getFullYear())
-    .replace('MM',   pad(date.getMonth() + 1))
-    .replace('DD',   pad(date.getDate()))
-    .replace('HH',   pad(date.getHours()))
-    .replace('mm',   pad(date.getMinutes()))
-    .replace('ss',   pad(date.getSeconds()));
+/* ── Date parsing/formatting helpers (v1.0-parity) ── */
+
+function _tfValidDate(y, m, d) {
+  if (m < 0 || m > 11 || d < 1 || d > 31) return null;
+  var dt = new Date(y, m, d);
+  return (dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d) ? dt : null;
 }
 
-function _tfParseDate(value, inputFormat) {
-  var s = String(value == null ? '' : value).trim();
-  if (!s) return null;
-  if (inputFormat) {
-    /* Try known explicit patterns first */
-    var m;
-    if (inputFormat === 'MM/DD/YYYY') {
-      m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (m) return new Date(+m[3], +m[1] - 1, +m[2]);
-    } else if (inputFormat === 'DD/MM/YYYY') {
-      m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
-    } else if (inputFormat === 'YYYY-MM-DD') {
-      m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
-    } else if (inputFormat === 'MM-DD-YYYY') {
-      m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-      if (m) return new Date(+m[3], +m[1] - 1, +m[2]);
-    } else if (inputFormat === 'DD-MM-YYYY') {
-      m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-      if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+var _tfMonthsShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var _tfMonthsLong  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var _tfDaysLong    = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var _tfDaysShort   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function _tfParseMonthName(v) {
+  var s = String(v).trim(), m, mo, i;
+  // DD Mon YYYY
+  m = s.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
+  if (m) {
+    mo = -1;
+    for (i = 0; i < _tfMonthsShort.length; i++) {
+      if (_tfMonthsShort[i].toLowerCase() === m[2].toLowerCase().slice(0, 3)) { mo = i; break; }
     }
+    if (mo >= 0) return _tfValidDate(+m[3], mo, +m[1]);
   }
-  /* Fallback: native Date parsing */
-  var d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
+  // Mon DD YYYY
+  m = s.match(/^([A-Za-z]{3,9})\s+(\d{1,2})\s+(\d{4})$/);
+  if (m) {
+    mo = -1;
+    for (i = 0; i < _tfMonthsShort.length; i++) {
+      if (_tfMonthsShort[i].toLowerCase() === m[1].toLowerCase().slice(0, 3)) { mo = i; break; }
+    }
+    if (mo >= 0) return _tfValidDate(+m[3], mo, +m[2]);
+  }
+  return null;
+}
+
+var _tfParseMap = {
+  'YYYY-MM-DD': function(v) {
+    var m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? _tfValidDate(+m[1], +m[2]-1, +m[3]) : null;
+  },
+  'MM/DD/YYYY': function(v) {
+    var m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    return m ? _tfValidDate(+m[3], +m[1]-1, +m[2]) : null;
+  },
+  'DD/MM/YYYY': function(v) {
+    var m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    return m ? _tfValidDate(+m[3], +m[2]-1, +m[1]) : null;
+  },
+  'MM-DD-YYYY': function(v) {
+    var m = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    return m ? _tfValidDate(+m[3], +m[1]-1, +m[2]) : null;
+  },
+  'DD-MM-YYYY': function(v) {
+    var m = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    return m ? _tfValidDate(+m[3], +m[2]-1, +m[1]) : null;
+  },
+  'MM/DD/YY': function(v) {
+    var m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    if (!m) return null;
+    var yr = +m[3];
+    return _tfValidDate(yr < 50 ? 2000+yr : 1900+yr, +m[1]-1, +m[2]);
+  },
+  'DD Mon YYYY': _tfParseMonthName,
+  'Mon DD YYYY': _tfParseMonthName,
+  'unix_s': function(v) {
+    var n = Number(v.trim());
+    return (!isNaN(n) && /^\d+(\.\d+)?$/.test(v.trim())) ? new Date(n * 1000) : null;
+  },
+  'unix_ms': function(v) {
+    var n = Number(v.trim());
+    return (!isNaN(n) && /^\d+(\.\d+)?$/.test(v.trim())) ? new Date(n) : null;
+  }
+};
+
+var _tfAutoOrder = ['YYYY-MM-DD','MM/DD/YYYY','DD/MM/YYYY','MM-DD-YYYY','DD-MM-YYYY','MM/DD/YY','DD Mon YYYY','Mon DD YYYY','unix_s','unix_ms'];
+
+function _tfDetectFormat(values) {
+  var nonEmpty = values.filter(function(v) { return v !== null && v !== undefined && String(v).trim() !== ''; });
+  if (!nonEmpty.length) return { fmt: null, pct: 0 };
+  for (var i = 0; i < _tfAutoOrder.length; i++) {
+    var key = _tfAutoOrder[i];
+    var fn = _tfParseMap[key];
+    var hits = nonEmpty.filter(function(v) { var d = fn(String(v)); return d && !isNaN(d.getTime()); }).length;
+    var pct = hits / nonEmpty.length;
+    if (pct >= 0.85) return { fmt: key, pct: pct };
+  }
+  return { fmt: null, pct: 0 };
+}
+
+/* Token replace order: MMMM→MMM→Day→Dy→YYYY→YY→MM→DD→HH→mm→ss
+   Longer tokens first prevents partial matches (e.g. YYYY consumed before YY can match). */
+function _tfFormatDate(date, fmt) {
+  if (!date || isNaN(date.getTime())) return '';
+  var pad = function(n) { return String(n).padStart(2, '0'); };
+  var Y = date.getFullYear(), Mo = date.getMonth(), D = date.getDate();
+  var h = date.getHours(), mi = date.getMinutes(), s = date.getSeconds();
+  return fmt
+    .replace(/MMMM/g, _tfMonthsLong[Mo])
+    .replace(/MMM/g,  _tfMonthsShort[Mo])
+    .replace(/Day/g,  _tfDaysLong[date.getDay()])
+    .replace(/Dy/g,   _tfDaysShort[date.getDay()])
+    .replace(/YYYY/g, String(Y))
+    .replace(/YY/g,   String(Y).slice(-2))
+    .replace(/MM/g,   pad(Mo + 1))
+    .replace(/DD/g,   pad(D))
+    .replace(/HH/g,   pad(h))
+    .replace(/mm/g,   pad(mi))
+    .replace(/ss/g,   pad(s));
 }
 
 function _tfSlugify(str) {
@@ -8945,27 +9025,60 @@ window.DWBNodes.SUBSTRING = {
   }
 };
 
+var _tfDatePresets = {
+  'YYYY-MM-DD':           'YYYY-MM-DD',
+  'MM/DD/YYYY':           'MM/DD/YYYY',
+  'DD/MM/YYYY':           'DD/MM/YYYY',
+  'MMM-DD-YYYY':          'MMM-DD-YYYY',
+  'MMM DD, YYYY':         'MMM DD, YYYY',
+  'MMM-DD-YYYY HH:mm:ss': 'MMM-DD-YYYY HH:mm:ss',
+  'DD MMM YYYY':          'DD MMM YYYY',
+  'YYYY':                 'YYYY',
+  'MM/YYYY':              'MM/YYYY',
+  'Day, MMM DD YYYY':     'Day, MMM DD YYYY',
+  'unix_s':               null
+};
+
 /* ── DATE_FORMAT ── */
 
 window.DWBNodes.DATE_FORMAT = {
   label: 'Date Format',
   icon: '📅',
   category: 'Transform',
-  defaultConfig: { column: '', inputFormat: '', outputFormat: 'YYYY-MM-DD', outputColumn: '' },
+  defaultConfig: { column: '', inputFormat: 'auto', outputFormat: 'YYYY-MM-DD', customPattern: '', outputColumn: '' },
 
   run: function(rows, config) {
     if (!config.column) return rows;
+    var outFmt = config.outputFormat || 'YYYY-MM-DD';
     var outCol = (config.outputColumn || '').trim() || config.column;
-    var outFmt = (config.outputFormat || 'YYYY-MM-DD');
-    var inFmt  = (config.inputFormat || '').trim();
+
+    // Detect input format once against the full column, not per row
+    var activeFmt;
+    if (config.inputFormat === 'auto') {
+      var colValues = rows.map(function(r) { return r[config.column]; });
+      var detected = _tfDetectFormat(colValues);
+      activeFmt = detected.fmt || 'YYYY-MM-DD';
+    } else {
+      activeFmt = config.inputFormat;
+    }
+    var parseFn = _tfParseMap[activeFmt];
+
     return rows.map(function(row) {
       var nr = Object.assign({}, row);
       try {
         var raw = row[config.column];
         var s = String(raw == null ? '' : raw).trim();
         if (!s) { nr[outCol] = ''; return nr; }
-        var date = _tfParseDate(s, inFmt || null);
-        nr[outCol] = date ? _tfFormatDate(date, outFmt) : '';
+        var date = parseFn ? parseFn(s) : null;
+        if (!date || isNaN(date.getTime())) { nr[outCol] = ''; return nr; }
+        if (outFmt === 'unix_s') {
+          nr[outCol] = String(Math.floor(date.getTime() / 1000));
+        } else if (outFmt === 'custom') {
+          nr[outCol] = _tfFormatDate(date, config.customPattern || '');
+        } else {
+          var pattern = _tfDatePresets[outFmt];
+          nr[outCol] = pattern ? _tfFormatDate(date, pattern) : '';
+        }
       } catch (e) {
         nr[outCol] = '';
       }
@@ -8975,40 +9088,118 @@ window.DWBNodes.DATE_FORMAT = {
 
   validate: function(config) {
     if (!config.column) return 'Select a column';
-    if (!(config.outputFormat || '').trim()) return 'Output format is required';
+    if (config.outputFormat === 'custom' && !(config.customPattern || '').trim()) return 'Enter a custom pattern';
     return null;
   },
 
   configUI: function(config, onChange, currentRows) {
     var div = document.createElement('div');
+
+    // SOURCE
     div.appendChild(_tfColumnSelect('Column', 'column', config, currentRows, onChange));
 
+    // INPUT FORMAT
     var inFmtRow = document.createElement('div');
     inFmtRow.className = 'form-row';
-    inFmtRow.innerHTML = '<label>Input format</label>' +
-      '<input type="text" id="tf-df-infmt" value="' + _tfEsc(config.inputFormat || '') +
-      '" placeholder="Optional parsing hint, e.g. MM/DD/YYYY" style="width:100%">';
-    inFmtRow.querySelector('#tf-df-infmt').addEventListener('input', function(e) {
-      onChange('inputFormat', e.target.value);
+    var inFmtLbl = document.createElement('label');
+    inFmtLbl.textContent = 'Input format';
+    inFmtRow.appendChild(inFmtLbl);
+    var inFmtOptions = [
+      ['auto',        'Auto-detect (default)'],
+      ['YYYY-MM-DD',  'YYYY-MM-DD'],
+      ['MM/DD/YYYY',  'MM/DD/YYYY (e.g. 01/15/2024)'],
+      ['DD/MM/YYYY',  'DD/MM/YYYY (e.g. 15/01/2024)'],
+      ['MM-DD-YYYY',  'MM-DD-YYYY'],
+      ['DD-MM-YYYY',  'DD-MM-YYYY'],
+      ['MM/DD/YY',    'MM/DD/YY (e.g. 01/15/24)'],
+      ['DD Mon YYYY', 'DD Mon YYYY (e.g. 15 Jan 2024)'],
+      ['Mon DD YYYY', 'Mon DD YYYY (e.g. Jan 15 2024)'],
+      ['unix_s',      'Unix timestamp (seconds)'],
+      ['unix_ms',     'Unix timestamp (milliseconds)']
+    ];
+    var selEl = document.createElement('select');
+    selEl.style.width = '100%';
+    inFmtOptions.forEach(function(pair) {
+      var opt = document.createElement('option');
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      if (config.inputFormat === pair[0]) opt.selected = true;
+      selEl.appendChild(opt);
     });
+    selEl.addEventListener('change', function(e) { onChange('inputFormat', e.target.value); });
+    inFmtRow.appendChild(selEl);
     div.appendChild(inFmtRow);
 
+    // Detection preview (when auto is selected and column data is available)
+    if (config.inputFormat === 'auto' && currentRows && currentRows.length && config.column) {
+      var colVals = currentRows.map(function(r) { return r[config.column]; });
+      var det = _tfDetectFormat(colVals);
+      var noteEl = document.createElement('div');
+      noteEl.style.cssText = 'font-size:10px;margin-top:2px;margin-bottom:4px';
+      if (det.fmt && det.pct >= 0.85) {
+        noteEl.style.color = 'var(--text-faint)';
+        noteEl.textContent = 'Detected: ' + det.fmt + ' (' + Math.round(det.pct * 100) + '% match)';
+      } else if (det.fmt) {
+        noteEl.style.color = 'var(--warning,#e6a817)';
+        noteEl.textContent = '⚠️ Low confidence (' + Math.round(det.pct * 100) + '%) — consider selecting the format manually';
+      } else {
+        noteEl.style.color = 'var(--warning,#e6a817)';
+        noteEl.textContent = '⚠️ Format not recognized — select the input format manually';
+      }
+      div.appendChild(noteEl);
+    }
+
+    // OUTPUT FORMAT
     var outFmtRow = document.createElement('div');
     outFmtRow.className = 'form-row';
-    outFmtRow.innerHTML = '<label>Output format</label>' +
-      '<input type="text" id="tf-df-outfmt" value="' + _tfEsc(config.outputFormat || 'YYYY-MM-DD') +
-      '" placeholder="YYYY-MM-DD" style="width:100%">' +
-      '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Tokens: YYYY MM DD HH mm ss</div>';
-    outFmtRow.querySelector('#tf-df-outfmt').addEventListener('input', function(e) {
-      onChange('outputFormat', e.target.value);
-    });
-    div.appendChild(outFmtRow);
+    var outFmtLbl = document.createElement('label');
+    outFmtLbl.textContent = 'Output format';
+    outFmtRow.appendChild(outFmtLbl);
+    var outPresets = [
+      { value: 'YYYY-MM-DD',           label: 'YYYY-MM-DD' },
+      { value: 'MM/DD/YYYY',           label: 'MM/DD/YYYY' },
+      { value: 'DD/MM/YYYY',           label: 'DD/MM/YYYY' },
+      { value: 'MMM-DD-YYYY',          label: 'MMM-DD-YYYY (e.g. Jan-15-2024)' },
+      { value: 'MMM DD, YYYY',         label: 'MMM DD, YYYY (e.g. Jan 15, 2024)' },
+      { value: 'MMM-DD-YYYY HH:mm:ss', label: 'MMM-DD-YYYY HH:mm:ss (e.g. Jan-15-2024 08:00:00)' },
+      { value: 'DD MMM YYYY',          label: 'DD MMM YYYY' },
+      { value: 'YYYY',                 label: 'YYYY' },
+      { value: 'MM/YYYY',              label: 'MM/YYYY' },
+      { value: 'Day, MMM DD YYYY',     label: 'Day, MMM DD YYYY (e.g. Monday, Jan 15 2024)' },
+      { value: 'unix_s',               label: 'Unix timestamp (seconds)' },
+      { value: 'custom',               label: 'Custom…' }
+    ];
 
+    // Custom pattern row — declared before radio group so the onChange closure can toggle it
+    var customPatRow = document.createElement('div');
+    customPatRow.className = 'form-row';
+    customPatRow.style.display = config.outputFormat === 'custom' ? '' : 'none';
+    customPatRow.innerHTML = '<label>Custom pattern</label>' +
+      '<input type="text" id="tf-df-custom" value="' + _tfEsc(config.customPattern || '') +
+      '" placeholder="MMM-DD-YYYY HH:mm:ss" style="width:100%">' +
+      '<div style="font-size:10px;color:var(--text-faint);margin-top:2px">' +
+      'Tokens: YYYY YY MM DD HH mm ss MMM MMMM Day Dy — any other characters are literal</div>';
+    customPatRow.querySelector('#tf-df-custom').addEventListener('input', function(e) {
+      onChange('customPattern', e.target.value);
+    });
+
+    outFmtRow.appendChild(_coreRadioGroup('tf-df-outfmt', outPresets,
+      config.outputFormat || 'YYYY-MM-DD',
+      function(val) {
+        onChange('outputFormat', val);
+        customPatRow.style.display = val === 'custom' ? '' : 'none';
+      },
+      'vertical'
+    ));
+    div.appendChild(outFmtRow);
+    div.appendChild(customPatRow);
+
+    // OUTPUT COLUMN
     var outColRow = document.createElement('div');
     outColRow.className = 'form-row';
     outColRow.innerHTML = '<label>Output column</label>' +
       '<input type="text" id="tf-df-out" value="' + _tfEsc(config.outputColumn || '') +
-      '" placeholder="Leave blank to overwrite" style="width:100%">';
+      '" placeholder="Leave blank to overwrite source column" style="width:100%">';
     outColRow.querySelector('#tf-df-out').addEventListener('input', function(e) {
       onChange('outputColumn', e.target.value);
     });
