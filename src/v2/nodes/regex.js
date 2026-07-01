@@ -39,12 +39,11 @@ window.DWBNodes.REGEX_VALIDATE = {
       <div class="form-row"><label>Pattern (regex)</label>
         <input type="text" id="rv-pat" value="${_rxEsc(config.pattern||'')}" placeholder="e.g. ^\\d{5}$" style="width:100%;font-family:monospace"></div>
       <div class="form-row"><label>Output column</label>
-        <input type="text" id="rv-out" value="${_rxEsc(config.outputColumn||'is_valid')}" style="width:100%"></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="rv-inv" ${config.invert ? 'checked' : ''}> Invert result</label></div>`;
+        <input type="text" id="rv-out" value="${_rxEsc(config.outputColumn||'is_valid')}" style="width:100%"></div>`;
     div.querySelector('#rv-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#rv-pat').addEventListener('input', function(e) { onChange('pattern', e.target.value); });
     div.querySelector('#rv-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
-    div.querySelector('#rv-inv').addEventListener('change', function(e) { onChange('invert', e.target.checked); });
+    div.appendChild(_coreCheckboxRow('Invert result', config.invert, function(v) { onChange('invert', v); }));
     return div;
   }
 };

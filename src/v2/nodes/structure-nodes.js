@@ -71,11 +71,17 @@ function _stFindChk(wrapEl, col) {
 
 /* ── SPLIT_COL ── */
 
+function _stCollapseDelimiter(str, delimiter) {
+  if (!delimiter) return str;
+  var escaped = delimiter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return str.replace(new RegExp('(' + escaped + ')+', 'g'), delimiter);
+}
+
 window.DWBNodes.SPLIT_COL = {
   label: 'Split Column',
   icon: '✂️',
   category: 'Structure',
-  defaultConfig: { column: '', delimiter: ',', outputColumns: ['part1', 'part2'], trimParts: true },
+  defaultConfig: { column: '', delimiter: ',', outputColumns: ['part1', 'part2'], trimParts: true, collapseDelimiters: true },
 
   run: function(rows, config) {
     if (!config.column) return rows;
@@ -83,10 +89,12 @@ window.DWBNodes.SPLIT_COL = {
     var outCols = (config.outputColumns || []).filter(function(c) { return (c || '').trim(); });
     if (!outCols.length) return rows;
     var trim = !!config.trimParts;
+    var collapse = config.collapseDelimiters !== false;
     return rows.map(function(row) {
       var nr = Object.assign({}, row);
       try {
         var s = String(row[config.column] == null ? '' : row[config.column]);
+        if (collapse && delim) s = _stCollapseDelimiter(s.trim(), delim);
         var parts = s.split(delim);
         outCols.forEach(function(outCol, i) {
           var part = parts[i] !== undefined ? parts[i] : '';
@@ -174,19 +182,8 @@ window.DWBNodes.SPLIT_COL = {
     outSection.appendChild(addColBtn);
     div.appendChild(outSection);
 
-    var trimRow = document.createElement('div');
-    trimRow.className = 'form-row';
-    var trimLbl = document.createElement('label');
-    trimLbl.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer';
-    var trimChk = document.createElement('input');
-    trimChk.type = 'checkbox';
-    trimChk.id = 'st-sp-trim';
-    trimChk.checked = !!config.trimParts;
-    trimChk.addEventListener('change', function() { onChange('trimParts', trimChk.checked); });
-    trimLbl.appendChild(trimChk);
-    trimLbl.appendChild(document.createTextNode('Trim whitespace'));
-    trimRow.appendChild(trimLbl);
-    div.appendChild(trimRow);
+    div.appendChild(_coreCheckboxRow('Trim whitespace from each part', !!config.trimParts, function(v) { onChange('trimParts', v); }));
+    div.appendChild(_coreCheckboxRow('Collapse repeated delimiters (e.g. multiple spaces treated as one)', config.collapseDelimiters !== false, function(v) { onChange('collapseDelimiters', v); }));
 
     return div;
   }
@@ -582,26 +579,20 @@ window.DWBNodes.PIVOT = {
     var aggLbl = document.createElement('label');
     aggLbl.textContent = 'Aggregation';
     aggRow.appendChild(aggLbl);
-    var aggInner = document.createElement('div');
-    aggInner.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:3px';
-    [['first', 'First'], ['sum', 'Sum'], ['count', 'Count'], ['average', 'Average']].forEach(function(pair) {
-      var optLbl = document.createElement('label');
-      optLbl.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer';
-      var radio = document.createElement('input');
-      radio.type = 'radio';
-      radio.name = 'st-pv-agg';
-      radio.value = pair[0];
-      radio.checked = (config.aggregation || 'first') === pair[0];
-      radio.addEventListener('change', function() { if (radio.checked) onChange('aggregation', radio.value); });
-      optLbl.appendChild(radio);
-      optLbl.appendChild(document.createTextNode(pair[1]));
-      aggInner.appendChild(optLbl);
-    });
+    aggRow.appendChild(_coreRadioGroup('st-pv-agg',
+      [
+        { value: 'first',   label: 'First' },
+        { value: 'sum',     label: 'Sum' },
+        { value: 'count',   label: 'Count' },
+        { value: 'average', label: 'Average' }
+      ],
+      config.aggregation || 'first',
+      function(val) { onChange('aggregation', val); }
+    ));
     var aggHint = document.createElement('div');
     aggHint.style.cssText = 'font-size:10px;color:var(--text-muted);margin-top:2px';
     aggHint.textContent = 'Used when multiple rows would map to the same cell.';
-    aggInner.appendChild(aggHint);
-    aggRow.appendChild(aggInner);
+    aggRow.appendChild(aggHint);
     div.appendChild(aggRow);
 
     return div;

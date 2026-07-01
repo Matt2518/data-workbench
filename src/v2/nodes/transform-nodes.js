@@ -110,16 +110,14 @@ window.DWBNodes.PAD_TEXT = {
 
     var sideRow = document.createElement('div');
     sideRow.className = 'form-row';
-    sideRow.innerHTML = '<label>Side</label>' +
-      '<div style="display:flex;gap:14px">' +
-      ['left', 'right'].map(function(s) {
-        return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">' +
-          '<input type="radio" name="tf-pad-side" value="' + s + '"' + (config.side === s ? ' checked' : '') + '> ' +
-          (s === 'left' ? 'Left' : 'Right') + '</label>';
-      }).join('') + '</div>';
-    sideRow.querySelectorAll('input[type=radio]').forEach(function(r) {
-      r.addEventListener('change', function() { if (r.checked) onChange('side', r.value); });
-    });
+    var sideLbl = document.createElement('label');
+    sideLbl.textContent = 'Side';
+    sideRow.appendChild(sideLbl);
+    sideRow.appendChild(_coreRadioGroup('tf-pad-side',
+      [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }],
+      config.side || 'left',
+      function(val) { onChange('side', val); }
+    ));
     div.appendChild(sideRow);
 
     var charRow = document.createElement('div');
@@ -290,57 +288,130 @@ window.DWBNodes.DATE_FORMAT = {
 
 /* ── FORMAT_PHONE ── */
 
-function _tfApplyPhoneFormat(digits, format) {
-  var di = 0;
-  return format.split('').map(function(ch) {
-    if (ch === 'X' && di < digits.length) { return digits[di++]; }
-    return ch;
-  }).join('');
+function _tfApplyCustomPhonePattern(pattern, digits) {
+  var i = 0;
+  return pattern.replace(/X/g, function() {
+    return i < digits.length ? digits[i++] : '';
+  });
+}
+
+function _tfApplyPhoneFormat(digits, format, countryCode, customPattern) {
+  var a = digits.slice(0, 3), b = digits.slice(3, 6), c = digits.slice(6, 10);
+  switch (format) {
+    case 'us_paren': return '(' + a + ') ' + b + '-' + c;
+    case 'us_dash':  return a + '-' + b + '-' + c;
+    case 'digits':   return digits;
+    case 'e164':     return '+1' + digits;
+    case 'intl':     return '+' + (countryCode || '1') + ' ' + a + ' ' + b + ' ' + c;
+    case 'custom':   return _tfApplyCustomPhonePattern(customPattern || '(XXX) XXX-XXXX', digits);
+    default:         return '(' + a + ') ' + b + '-' + c;
+  }
 }
 
 window.DWBNodes.FORMAT_PHONE = {
   label: 'Format Phone',
   icon: '📞',
   category: 'Transform',
-  defaultConfig: { column: '', format: '(XXX) XXX-XXXX', outputColumn: '' },
+  defaultConfig: { column: '', format: 'us_paren', countryCode: '1', customPattern: '(XXX) XXX-XXXX', onError: 'leave', outputColumn: '' },
 
   run: function(rows, config) {
     if (!config.column) return rows;
-    var fmt    = config.format || '(XXX) XXX-XXXX';
-    var outCol = (config.outputColumn || '').trim() || config.column;
+    var fmt       = config.format || 'us_paren';
+    var cc        = (config.countryCode || '1').replace(/\D/g, '') || '1';
+    var customPat = config.customPattern || '(XXX) XXX-XXXX';
+    var onError   = config.onError || 'leave';
+    var outCol    = (config.outputColumn || '').trim() || config.column;
     return rows.map(function(row) {
-      var nr = Object.assign({}, row);
-      try {
-        var raw    = String(row[config.column] == null ? '' : row[config.column]);
-        var digits = raw.replace(/\D/g, '');
-        if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
-        nr[outCol] = digits.length === 10 ? _tfApplyPhoneFormat(digits, fmt) : raw;
-      } catch (e) {
-        nr[outCol] = String(row[config.column] == null ? '' : row[config.column]);
+      var nr  = Object.assign({}, row);
+      var raw = String(row[config.column] == null ? '' : row[config.column]);
+      if (!raw.trim()) { nr[outCol] = raw; return nr; }
+      var digits = raw.replace(/\D/g, '');
+      if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
+      if (digits.length === 7) digits = '000' + digits;
+      if (digits.length === 10) {
+        nr[outCol] = _tfApplyPhoneFormat(digits, fmt, cc, customPat);
+      } else {
+        if (onError === 'clear')     nr[outCol] = '';
+        else if (onError === 'mark') nr[outCol] = 'ERR_PHONE';
+        else                         nr[outCol] = raw;
       }
       return nr;
     });
   },
 
   validate: function(config) {
-    if (!config.column) return 'Select a column';
-    return null;
+    return config.column ? null : 'Select a column';
   },
 
   configUI: function(config, onChange, currentRows) {
     var div = document.createElement('div');
     div.appendChild(_tfColumnSelect('Column', 'column', config, currentRows, onChange));
 
+    var currentFmt = config.format || 'us_paren';
+
+    // Conditional rows declared before the radio group so the onChange closure captures them
+    var ccRow = document.createElement('div');
+    ccRow.className = 'form-row';
+    ccRow.style.display = currentFmt === 'intl' ? '' : 'none';
+    ccRow.innerHTML = '<label>Country code</label>' +
+      '<input type="text" id="tf-ph-cc" value="' + _tfEsc(config.countryCode || '1') +
+      '" placeholder="1" style="width:3ch;min-width:42px">';
+    ccRow.querySelector('#tf-ph-cc').addEventListener('input', function(e) {
+      onChange('countryCode', e.target.value.replace(/\D/g, '') || '1');
+    });
+
+    var customRow = document.createElement('div');
+    customRow.className = 'form-row';
+    customRow.style.display = currentFmt === 'custom' ? '' : 'none';
+    customRow.innerHTML = '<label>Pattern</label>' +
+      '<input type="text" id="tf-ph-custom" value="' + _tfEsc(config.customPattern || '(XXX) XXX-XXXX') +
+      '" placeholder="(XXX) XXX-XXXX" style="width:100%">' +
+      '<div style="font-size:10px;color:var(--text-faint);margin-top:2px">Use X as a digit placeholder</div>';
+    customRow.querySelector('#tf-ph-custom').addEventListener('input', function(e) {
+      onChange('customPattern', e.target.value);
+    });
+
     var fmtRow = document.createElement('div');
     fmtRow.className = 'form-row';
-    fmtRow.innerHTML = '<label>Format</label>' +
-      '<input type="text" id="tf-ph-fmt" value="' + _tfEsc(config.format || '(XXX) XXX-XXXX') +
-      '" placeholder="(XXX) XXX-XXXX" style="width:100%">' +
-      '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">X = digit placeholder</div>';
-    fmtRow.querySelector('#tf-ph-fmt').addEventListener('input', function(e) {
-      onChange('format', e.target.value);
-    });
+    var fmtLbl = document.createElement('label');
+    fmtLbl.textContent = 'Format';
+    fmtRow.appendChild(fmtLbl);
+    fmtRow.appendChild(_coreRadioGroup('tf-ph-fmt',
+      [
+        { value: 'us_paren', label: '(xxx) xxx-xxxx' },
+        { value: 'us_dash',  label: 'xxx-xxx-xxxx' },
+        { value: 'digits',   label: 'xxxxxxxxxx (digits only)' },
+        { value: 'e164',     label: '+1xxxxxxxxxx (E.164)' },
+        { value: 'intl',     label: '+xx xx xxxx xxxx (international)' },
+        { value: 'custom',   label: 'Custom pattern…' }
+      ],
+      currentFmt,
+      function(val) {
+        onChange('format', val);
+        ccRow.style.display     = val === 'intl'   ? '' : 'none';
+        customRow.style.display = val === 'custom' ? '' : 'none';
+      },
+      'vertical'
+    ));
     div.appendChild(fmtRow);
+    div.appendChild(ccRow);
+    div.appendChild(customRow);
+
+    var errRow = document.createElement('div');
+    errRow.className = 'form-row';
+    var errLbl = document.createElement('label');
+    errLbl.textContent = 'On invalid';
+    errRow.appendChild(errLbl);
+    errRow.appendChild(_coreRadioGroup('tf-ph-err',
+      [
+        { value: 'leave', label: 'Leave unchanged' },
+        { value: 'clear', label: 'Clear value' },
+        { value: 'mark',  label: 'Mark as error' }
+      ],
+      config.onError || 'leave',
+      function(val) { onChange('onError', val); }
+    ));
+    div.appendChild(errRow);
 
     var outRow = document.createElement('div');
     outRow.className = 'form-row';
@@ -391,16 +462,14 @@ window.DWBNodes.URL_SAFE = {
 
     var modeRow = document.createElement('div');
     modeRow.className = 'form-row';
-    modeRow.innerHTML = '<label>Mode</label>' +
-      '<div style="display:flex;gap:14px">' +
-      [['slug', 'Slug'], ['encode', 'URL Encode']].map(function(pair) {
-        return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">' +
-          '<input type="radio" name="tf-us-mode" value="' + pair[0] + '"' +
-          (config.mode === pair[0] ? ' checked' : '') + '> ' + pair[1] + '</label>';
-      }).join('') + '</div>';
-    modeRow.querySelectorAll('input[type=radio]').forEach(function(r) {
-      r.addEventListener('change', function() { if (r.checked) onChange('mode', r.value); });
-    });
+    var modeRowLbl = document.createElement('label');
+    modeRowLbl.textContent = 'Mode';
+    modeRow.appendChild(modeRowLbl);
+    modeRow.appendChild(_coreRadioGroup('tf-us-mode',
+      [{ value: 'slug', label: 'Slug' }, { value: 'encode', label: 'URL Encode' }],
+      config.mode || 'slug',
+      function(val) { onChange('mode', val); }
+    ));
     div.appendChild(modeRow);
 
     var outRow = document.createElement('div');
@@ -469,26 +538,19 @@ window.DWBNodes.BASIC_MATH = {
 
     var opRow = document.createElement('div');
     opRow.className = 'form-row';
-    opRow.innerHTML = '<label>Operator</label>' +
-      '<div style="display:flex;gap:10px">' +
-      [['+', '+'], ['-', '−'], ['*', '×'], ['/', '÷']].map(function(pair) {
-        return '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">' +
-          '<input type="radio" name="tf-bm-op" value="' + pair[0] + '"' +
-          (config.operator === pair[0] ? ' checked' : '') + '> ' + pair[1] + '</label>';
-      }).join('') + '</div>';
-    opRow.querySelectorAll('input[type=radio]').forEach(function(r) {
-      r.addEventListener('change', function() { if (r.checked) onChange('operator', r.value); });
-    });
+    var opLbl = document.createElement('label');
+    opLbl.textContent = 'Operator';
+    opRow.appendChild(opLbl);
+    opRow.appendChild(_coreRadioGroup('tf-bm-op',
+      [{ value: '+', label: '+' }, { value: '-', label: '−' }, { value: '*', label: '×' }, { value: '/', label: '÷' }],
+      config.operator || '+',
+      function(val) { onChange('operator', val); }
+    ));
     div.appendChild(opRow);
 
     /* Toggle row */
-    var toggleRow = document.createElement('div');
-    toggleRow.className = 'form-row';
-    toggleRow.innerHTML = '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">' +
-      '<input type="checkbox" id="tf-bm-useconst"' + (config.useConstant ? ' checked' : '') + '> Use constant value</label>';
-    toggleRow.querySelector('#tf-bm-useconst').addEventListener('change', function(e) {
-      onChange('useConstant', e.target.checked);
-      /* Rebuild the operand row */
+    var toggleRow = _coreCheckboxRow('Use constant value', config.useConstant, function(v) {
+      onChange('useConstant', v);
       _tfBmRenderOperand(div, config, onChange, currentRows);
     });
     div.appendChild(toggleRow);

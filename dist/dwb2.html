@@ -6542,6 +6542,55 @@ window.DWBTimelines = (function() {
   return { render: render };
 })();
 
+/* --- src\v2\nodes\00-node-helpers.js --- */
+/* Shared UI helpers for node configUI functions.
+   Must load before all other node files — filename prefix guarantees sort order. */
+
+function _coreCheckboxRow(label, checked, onChange) {
+  var row = document.createElement('div');
+  row.className = 'form-row';
+  var lbl = document.createElement('label');
+  lbl.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;width:100%;box-sizing:border-box;';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = !!checked;
+  cb.style.cssText = 'flex-shrink:0;margin:0;width:14px;height:14px;padding:0;accent-color:var(--accent);';
+  cb.addEventListener('change', function() { onChange(cb.checked); });
+  var span = document.createElement('span');
+  span.style.cssText = 'font-size:13px;color:var(--text-main);text-align:left;';
+  span.textContent = label;
+  lbl.appendChild(cb);
+  lbl.appendChild(span);
+  row.appendChild(lbl);
+  return row;
+}
+
+function _coreRadioGroup(name, options, currentValue, onChange, direction) {
+  var wrap = document.createElement('div');
+  wrap.style.cssText = direction === 'vertical'
+    ? 'display:flex;flex-direction:column;gap:6px;padding:4px 0;'
+    : 'display:flex;flex-wrap:wrap;gap:8px 16px;padding:4px 0;';
+  options.forEach(function(opt) {
+    var lbl = document.createElement('label');
+    lbl.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text-main);white-space:nowrap;';
+    var radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = name;
+    radio.value = opt.value;
+    radio.checked = currentValue === opt.value;
+    radio.style.cssText = 'flex-shrink:0;margin:0;padding:0;width:14px;height:14px;accent-color:var(--accent);';
+    radio.addEventListener('change', function() {
+      if (radio.checked) onChange(opt.value);
+    });
+    var span = document.createElement('span');
+    span.textContent = opt.label;
+    lbl.appendChild(radio);
+    lbl.appendChild(span);
+    wrap.appendChild(lbl);
+  });
+  return wrap;
+}
+
 /* --- src\v2\nodes\advanced-output-nodes.js --- */
 /* === DWBNodes: Advanced + Output category (4 nodes) === */
 window.DWBNodes = window.DWBNodes || {};
@@ -6792,25 +6841,9 @@ window.DWBNodes.ARBITRARY_DATE = {
 
     div.appendChild(_aoColSelect('Date Column', 'column', config, currentRows, onChange));
 
-    // Mode radio group
     var mode = config.mode || 'add';
-    var modeRow = document.createElement('div');
-    modeRow.className = 'form-row';
-    var modes = [
-      ['add',              'Add to date'],
-      ['diff_from_today',  'Difference from today'],
-      ['diff_from_column', 'Compare to another column']
-    ];
-    modeRow.innerHTML = '<label>Mode</label>' +
-      '<div style="display:flex;flex-direction:column;gap:4px">' +
-      modes.map(function(m) {
-        return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">' +
-          '<input type="radio" name="ao-dt-mode" value="' + m[0] + '"' +
-          (mode === m[0] ? ' checked' : '') + '> ' + m[1] + '</label>';
-      }).join('') + '</div>';
-    div.appendChild(modeRow);
 
-    // Amount input (only for 'add')
+    // Amount input (only for 'add') — declared before modeRow so the onChange closure captures it
     var amtRow = document.createElement('div');
     amtRow.className = 'form-row';
     amtRow.style.display = mode === 'add' ? '' : 'none';
@@ -6819,6 +6852,31 @@ window.DWBNodes.ARBITRARY_DATE = {
     amtRow.querySelector('input').addEventListener('input', function(e) {
       onChange('amount', parseInt(e.target.value, 10) || 0);
     });
+
+    // Compare column (only for diff_from_column) — declared before modeRow for same reason
+    var cmpRow = _aoColSelect('Compare Column', 'compareColumn', config, currentRows, onChange);
+    cmpRow.style.display = mode === 'diff_from_column' ? '' : 'none';
+
+    // Mode radio group
+    var modeRow = document.createElement('div');
+    modeRow.className = 'form-row';
+    var modeRowLbl = document.createElement('label');
+    modeRowLbl.textContent = 'Mode';
+    modeRow.appendChild(modeRowLbl);
+    modeRow.appendChild(_coreRadioGroup('ao-dt-mode',
+      [
+        { value: 'add',              label: 'Add to date' },
+        { value: 'diff_from_today',  label: 'Days until today' },
+        { value: 'diff_from_column', label: 'Compare to column' }
+      ],
+      mode,
+      function(val) {
+        onChange('mode', val);
+        amtRow.style.display = val === 'add' ? '' : 'none';
+        cmpRow.style.display  = val === 'diff_from_column' ? '' : 'none';
+      }
+    ));
+    div.appendChild(modeRow);
     div.appendChild(amtRow);
 
     // Unit select
@@ -6834,9 +6892,6 @@ window.DWBNodes.ARBITRARY_DATE = {
     unitRow.querySelector('select').addEventListener('change', function(e) { onChange('unit', e.target.value); });
     div.appendChild(unitRow);
 
-    // Compare column (only for diff_from_column)
-    var cmpRow = _aoColSelect('Compare Column', 'compareColumn', config, currentRows, onChange);
-    cmpRow.style.display = mode === 'diff_from_column' ? '' : 'none';
     div.appendChild(cmpRow);
 
     // Output column
@@ -6846,17 +6901,6 @@ window.DWBNodes.ARBITRARY_DATE = {
       '<input type="text" style="width:100%" value="' + _aoEsc(config.outputColumn || '') + '" placeholder="(overwrite source column)">';
     outRow.querySelector('input').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
     div.appendChild(outRow);
-
-    // Wire mode radios to show/hide conditional rows
-    modeRow.querySelectorAll('input[type=radio]').forEach(function(r) {
-      r.addEventListener('change', function(e) {
-        if (!e.target.checked) return;
-        var m = e.target.value;
-        onChange('mode', m);
-        amtRow.style.display = m === 'add' ? '' : 'none';
-        cmpRow.style.display  = m === 'diff_from_column' ? '' : 'none';
-      });
-    });
 
     return div;
   }
@@ -7244,16 +7288,18 @@ window.DWBNodes.FUZZY_STANDARDIZE = {
       <div class="form-row"><label>Output column (blank = overwrite)</label>
         <input type="text" id="fs-out" value="${_fsEsc(config.outputColumn||'')}" style="width:100%"></div>
       <div class="form-row"><label>Match threshold (0–100)</label>
-        <input type="number" id="fs-thresh" value="${config.threshold !== undefined ? config.threshold : 80}" min="0" max="100" style="width:100%"></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="fs-score" ${config.addScoreColumn ? 'checked' : ''}> Add score column</label></div>
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin:8px 0 4px">Mappings</div>
-      <div id="fs-mappings"></div>
-      <button id="fs-add-mapping" style="padding:4px 10px;font-size:11px;background:var(--bg-raised);border:1px solid var(--border);border-radius:4px;color:var(--text-main);cursor:pointer">＋ Add Mapping</button>`;
+        <input type="number" id="fs-thresh" value="${config.threshold !== undefined ? config.threshold : 80}" min="0" max="100" style="width:100%"></div>`;
+    div.appendChild(_coreCheckboxRow('Add score column', config.addScoreColumn, function(v) { onChange('addScoreColumn', v); }));
+    var mappingsBottom = document.createElement('div');
+    mappingsBottom.innerHTML =
+      '<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin:8px 0 4px">Mappings</div>' +
+      '<div id="fs-mappings"></div>' +
+      '<button id="fs-add-mapping" style="padding:4px 10px;font-size:11px;background:var(--bg-raised);border:1px solid var(--border);border-radius:4px;color:var(--text-main);cursor:pointer">＋ Add Mapping</button>';
+    div.appendChild(mappingsBottom);
 
     div.querySelector('#fs-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#fs-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
     div.querySelector('#fs-thresh').addEventListener('input', function(e) { onChange('threshold', parseInt(e.target.value,10)||80); });
-    div.querySelector('#fs-score').addEventListener('change', function(e) { onChange('addScoreColumn', e.target.checked); });
     div.querySelector('#fs-add-mapping').addEventListener('click', function() {
       mappings.push({ canonical: '', variants: [] });
       onChange('mappings', mappings.slice());
@@ -8014,12 +8060,11 @@ window.DWBNodes.REGEX_VALIDATE = {
       <div class="form-row"><label>Pattern (regex)</label>
         <input type="text" id="rv-pat" value="${_rxEsc(config.pattern||'')}" placeholder="e.g. ^\\d{5}$" style="width:100%;font-family:monospace"></div>
       <div class="form-row"><label>Output column</label>
-        <input type="text" id="rv-out" value="${_rxEsc(config.outputColumn||'is_valid')}" style="width:100%"></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="rv-inv" ${config.invert ? 'checked' : ''}> Invert result</label></div>`;
+        <input type="text" id="rv-out" value="${_rxEsc(config.outputColumn||'is_valid')}" style="width:100%"></div>`;
     div.querySelector('#rv-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#rv-pat').addEventListener('input', function(e) { onChange('pattern', e.target.value); });
     div.querySelector('#rv-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
-    div.querySelector('#rv-inv').addEventListener('change', function(e) { onChange('invert', e.target.checked); });
+    div.appendChild(_coreCheckboxRow('Invert result', config.invert, function(v) { onChange('invert', v); }));
     return div;
   }
 };
@@ -8156,11 +8201,17 @@ function _stFindChk(wrapEl, col) {
 
 /* ── SPLIT_COL ── */
 
+function _stCollapseDelimiter(str, delimiter) {
+  if (!delimiter) return str;
+  var escaped = delimiter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return str.replace(new RegExp('(' + escaped + ')+', 'g'), delimiter);
+}
+
 window.DWBNodes.SPLIT_COL = {
   label: 'Split Column',
   icon: '✂️',
   category: 'Structure',
-  defaultConfig: { column: '', delimiter: ',', outputColumns: ['part1', 'part2'], trimParts: true },
+  defaultConfig: { column: '', delimiter: ',', outputColumns: ['part1', 'part2'], trimParts: true, collapseDelimiters: true },
 
   run: function(rows, config) {
     if (!config.column) return rows;
@@ -8168,10 +8219,12 @@ window.DWBNodes.SPLIT_COL = {
     var outCols = (config.outputColumns || []).filter(function(c) { return (c || '').trim(); });
     if (!outCols.length) return rows;
     var trim = !!config.trimParts;
+    var collapse = config.collapseDelimiters !== false;
     return rows.map(function(row) {
       var nr = Object.assign({}, row);
       try {
         var s = String(row[config.column] == null ? '' : row[config.column]);
+        if (collapse && delim) s = _stCollapseDelimiter(s.trim(), delim);
         var parts = s.split(delim);
         outCols.forEach(function(outCol, i) {
           var part = parts[i] !== undefined ? parts[i] : '';
@@ -8259,19 +8312,8 @@ window.DWBNodes.SPLIT_COL = {
     outSection.appendChild(addColBtn);
     div.appendChild(outSection);
 
-    var trimRow = document.createElement('div');
-    trimRow.className = 'form-row';
-    var trimLbl = document.createElement('label');
-    trimLbl.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer';
-    var trimChk = document.createElement('input');
-    trimChk.type = 'checkbox';
-    trimChk.id = 'st-sp-trim';
-    trimChk.checked = !!config.trimParts;
-    trimChk.addEventListener('change', function() { onChange('trimParts', trimChk.checked); });
-    trimLbl.appendChild(trimChk);
-    trimLbl.appendChild(document.createTextNode('Trim whitespace'));
-    trimRow.appendChild(trimLbl);
-    div.appendChild(trimRow);
+    div.appendChild(_coreCheckboxRow('Trim whitespace from each part', !!config.trimParts, function(v) { onChange('trimParts', v); }));
+    div.appendChild(_coreCheckboxRow('Collapse repeated delimiters (e.g. multiple spaces treated as one)', config.collapseDelimiters !== false, function(v) { onChange('collapseDelimiters', v); }));
 
     return div;
   }
@@ -8667,26 +8709,20 @@ window.DWBNodes.PIVOT = {
     var aggLbl = document.createElement('label');
     aggLbl.textContent = 'Aggregation';
     aggRow.appendChild(aggLbl);
-    var aggInner = document.createElement('div');
-    aggInner.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:3px';
-    [['first', 'First'], ['sum', 'Sum'], ['count', 'Count'], ['average', 'Average']].forEach(function(pair) {
-      var optLbl = document.createElement('label');
-      optLbl.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer';
-      var radio = document.createElement('input');
-      radio.type = 'radio';
-      radio.name = 'st-pv-agg';
-      radio.value = pair[0];
-      radio.checked = (config.aggregation || 'first') === pair[0];
-      radio.addEventListener('change', function() { if (radio.checked) onChange('aggregation', radio.value); });
-      optLbl.appendChild(radio);
-      optLbl.appendChild(document.createTextNode(pair[1]));
-      aggInner.appendChild(optLbl);
-    });
+    aggRow.appendChild(_coreRadioGroup('st-pv-agg',
+      [
+        { value: 'first',   label: 'First' },
+        { value: 'sum',     label: 'Sum' },
+        { value: 'count',   label: 'Count' },
+        { value: 'average', label: 'Average' }
+      ],
+      config.aggregation || 'first',
+      function(val) { onChange('aggregation', val); }
+    ));
     var aggHint = document.createElement('div');
     aggHint.style.cssText = 'font-size:10px;color:var(--text-muted);margin-top:2px';
     aggHint.textContent = 'Used when multiple rows would map to the same cell.';
-    aggInner.appendChild(aggHint);
-    aggRow.appendChild(aggInner);
+    aggRow.appendChild(aggHint);
     div.appendChild(aggRow);
 
     return div;
@@ -8806,16 +8842,14 @@ window.DWBNodes.PAD_TEXT = {
 
     var sideRow = document.createElement('div');
     sideRow.className = 'form-row';
-    sideRow.innerHTML = '<label>Side</label>' +
-      '<div style="display:flex;gap:14px">' +
-      ['left', 'right'].map(function(s) {
-        return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">' +
-          '<input type="radio" name="tf-pad-side" value="' + s + '"' + (config.side === s ? ' checked' : '') + '> ' +
-          (s === 'left' ? 'Left' : 'Right') + '</label>';
-      }).join('') + '</div>';
-    sideRow.querySelectorAll('input[type=radio]').forEach(function(r) {
-      r.addEventListener('change', function() { if (r.checked) onChange('side', r.value); });
-    });
+    var sideLbl = document.createElement('label');
+    sideLbl.textContent = 'Side';
+    sideRow.appendChild(sideLbl);
+    sideRow.appendChild(_coreRadioGroup('tf-pad-side',
+      [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }],
+      config.side || 'left',
+      function(val) { onChange('side', val); }
+    ));
     div.appendChild(sideRow);
 
     var charRow = document.createElement('div');
@@ -8986,57 +9020,130 @@ window.DWBNodes.DATE_FORMAT = {
 
 /* ── FORMAT_PHONE ── */
 
-function _tfApplyPhoneFormat(digits, format) {
-  var di = 0;
-  return format.split('').map(function(ch) {
-    if (ch === 'X' && di < digits.length) { return digits[di++]; }
-    return ch;
-  }).join('');
+function _tfApplyCustomPhonePattern(pattern, digits) {
+  var i = 0;
+  return pattern.replace(/X/g, function() {
+    return i < digits.length ? digits[i++] : '';
+  });
+}
+
+function _tfApplyPhoneFormat(digits, format, countryCode, customPattern) {
+  var a = digits.slice(0, 3), b = digits.slice(3, 6), c = digits.slice(6, 10);
+  switch (format) {
+    case 'us_paren': return '(' + a + ') ' + b + '-' + c;
+    case 'us_dash':  return a + '-' + b + '-' + c;
+    case 'digits':   return digits;
+    case 'e164':     return '+1' + digits;
+    case 'intl':     return '+' + (countryCode || '1') + ' ' + a + ' ' + b + ' ' + c;
+    case 'custom':   return _tfApplyCustomPhonePattern(customPattern || '(XXX) XXX-XXXX', digits);
+    default:         return '(' + a + ') ' + b + '-' + c;
+  }
 }
 
 window.DWBNodes.FORMAT_PHONE = {
   label: 'Format Phone',
   icon: '📞',
   category: 'Transform',
-  defaultConfig: { column: '', format: '(XXX) XXX-XXXX', outputColumn: '' },
+  defaultConfig: { column: '', format: 'us_paren', countryCode: '1', customPattern: '(XXX) XXX-XXXX', onError: 'leave', outputColumn: '' },
 
   run: function(rows, config) {
     if (!config.column) return rows;
-    var fmt    = config.format || '(XXX) XXX-XXXX';
-    var outCol = (config.outputColumn || '').trim() || config.column;
+    var fmt       = config.format || 'us_paren';
+    var cc        = (config.countryCode || '1').replace(/\D/g, '') || '1';
+    var customPat = config.customPattern || '(XXX) XXX-XXXX';
+    var onError   = config.onError || 'leave';
+    var outCol    = (config.outputColumn || '').trim() || config.column;
     return rows.map(function(row) {
-      var nr = Object.assign({}, row);
-      try {
-        var raw    = String(row[config.column] == null ? '' : row[config.column]);
-        var digits = raw.replace(/\D/g, '');
-        if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
-        nr[outCol] = digits.length === 10 ? _tfApplyPhoneFormat(digits, fmt) : raw;
-      } catch (e) {
-        nr[outCol] = String(row[config.column] == null ? '' : row[config.column]);
+      var nr  = Object.assign({}, row);
+      var raw = String(row[config.column] == null ? '' : row[config.column]);
+      if (!raw.trim()) { nr[outCol] = raw; return nr; }
+      var digits = raw.replace(/\D/g, '');
+      if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
+      if (digits.length === 7) digits = '000' + digits;
+      if (digits.length === 10) {
+        nr[outCol] = _tfApplyPhoneFormat(digits, fmt, cc, customPat);
+      } else {
+        if (onError === 'clear')     nr[outCol] = '';
+        else if (onError === 'mark') nr[outCol] = 'ERR_PHONE';
+        else                         nr[outCol] = raw;
       }
       return nr;
     });
   },
 
   validate: function(config) {
-    if (!config.column) return 'Select a column';
-    return null;
+    return config.column ? null : 'Select a column';
   },
 
   configUI: function(config, onChange, currentRows) {
     var div = document.createElement('div');
     div.appendChild(_tfColumnSelect('Column', 'column', config, currentRows, onChange));
 
+    var currentFmt = config.format || 'us_paren';
+
+    // Conditional rows declared before the radio group so the onChange closure captures them
+    var ccRow = document.createElement('div');
+    ccRow.className = 'form-row';
+    ccRow.style.display = currentFmt === 'intl' ? '' : 'none';
+    ccRow.innerHTML = '<label>Country code</label>' +
+      '<input type="text" id="tf-ph-cc" value="' + _tfEsc(config.countryCode || '1') +
+      '" placeholder="1" style="width:3ch;min-width:42px">';
+    ccRow.querySelector('#tf-ph-cc').addEventListener('input', function(e) {
+      onChange('countryCode', e.target.value.replace(/\D/g, '') || '1');
+    });
+
+    var customRow = document.createElement('div');
+    customRow.className = 'form-row';
+    customRow.style.display = currentFmt === 'custom' ? '' : 'none';
+    customRow.innerHTML = '<label>Pattern</label>' +
+      '<input type="text" id="tf-ph-custom" value="' + _tfEsc(config.customPattern || '(XXX) XXX-XXXX') +
+      '" placeholder="(XXX) XXX-XXXX" style="width:100%">' +
+      '<div style="font-size:10px;color:var(--text-faint);margin-top:2px">Use X as a digit placeholder</div>';
+    customRow.querySelector('#tf-ph-custom').addEventListener('input', function(e) {
+      onChange('customPattern', e.target.value);
+    });
+
     var fmtRow = document.createElement('div');
     fmtRow.className = 'form-row';
-    fmtRow.innerHTML = '<label>Format</label>' +
-      '<input type="text" id="tf-ph-fmt" value="' + _tfEsc(config.format || '(XXX) XXX-XXXX') +
-      '" placeholder="(XXX) XXX-XXXX" style="width:100%">' +
-      '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">X = digit placeholder</div>';
-    fmtRow.querySelector('#tf-ph-fmt').addEventListener('input', function(e) {
-      onChange('format', e.target.value);
-    });
+    var fmtLbl = document.createElement('label');
+    fmtLbl.textContent = 'Format';
+    fmtRow.appendChild(fmtLbl);
+    fmtRow.appendChild(_coreRadioGroup('tf-ph-fmt',
+      [
+        { value: 'us_paren', label: '(xxx) xxx-xxxx' },
+        { value: 'us_dash',  label: 'xxx-xxx-xxxx' },
+        { value: 'digits',   label: 'xxxxxxxxxx (digits only)' },
+        { value: 'e164',     label: '+1xxxxxxxxxx (E.164)' },
+        { value: 'intl',     label: '+xx xx xxxx xxxx (international)' },
+        { value: 'custom',   label: 'Custom pattern…' }
+      ],
+      currentFmt,
+      function(val) {
+        onChange('format', val);
+        ccRow.style.display     = val === 'intl'   ? '' : 'none';
+        customRow.style.display = val === 'custom' ? '' : 'none';
+      },
+      'vertical'
+    ));
     div.appendChild(fmtRow);
+    div.appendChild(ccRow);
+    div.appendChild(customRow);
+
+    var errRow = document.createElement('div');
+    errRow.className = 'form-row';
+    var errLbl = document.createElement('label');
+    errLbl.textContent = 'On invalid';
+    errRow.appendChild(errLbl);
+    errRow.appendChild(_coreRadioGroup('tf-ph-err',
+      [
+        { value: 'leave', label: 'Leave unchanged' },
+        { value: 'clear', label: 'Clear value' },
+        { value: 'mark',  label: 'Mark as error' }
+      ],
+      config.onError || 'leave',
+      function(val) { onChange('onError', val); }
+    ));
+    div.appendChild(errRow);
 
     var outRow = document.createElement('div');
     outRow.className = 'form-row';
@@ -9087,16 +9194,14 @@ window.DWBNodes.URL_SAFE = {
 
     var modeRow = document.createElement('div');
     modeRow.className = 'form-row';
-    modeRow.innerHTML = '<label>Mode</label>' +
-      '<div style="display:flex;gap:14px">' +
-      [['slug', 'Slug'], ['encode', 'URL Encode']].map(function(pair) {
-        return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">' +
-          '<input type="radio" name="tf-us-mode" value="' + pair[0] + '"' +
-          (config.mode === pair[0] ? ' checked' : '') + '> ' + pair[1] + '</label>';
-      }).join('') + '</div>';
-    modeRow.querySelectorAll('input[type=radio]').forEach(function(r) {
-      r.addEventListener('change', function() { if (r.checked) onChange('mode', r.value); });
-    });
+    var modeRowLbl = document.createElement('label');
+    modeRowLbl.textContent = 'Mode';
+    modeRow.appendChild(modeRowLbl);
+    modeRow.appendChild(_coreRadioGroup('tf-us-mode',
+      [{ value: 'slug', label: 'Slug' }, { value: 'encode', label: 'URL Encode' }],
+      config.mode || 'slug',
+      function(val) { onChange('mode', val); }
+    ));
     div.appendChild(modeRow);
 
     var outRow = document.createElement('div');
@@ -9165,26 +9270,19 @@ window.DWBNodes.BASIC_MATH = {
 
     var opRow = document.createElement('div');
     opRow.className = 'form-row';
-    opRow.innerHTML = '<label>Operator</label>' +
-      '<div style="display:flex;gap:10px">' +
-      [['+', '+'], ['-', '−'], ['*', '×'], ['/', '÷']].map(function(pair) {
-        return '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">' +
-          '<input type="radio" name="tf-bm-op" value="' + pair[0] + '"' +
-          (config.operator === pair[0] ? ' checked' : '') + '> ' + pair[1] + '</label>';
-      }).join('') + '</div>';
-    opRow.querySelectorAll('input[type=radio]').forEach(function(r) {
-      r.addEventListener('change', function() { if (r.checked) onChange('operator', r.value); });
-    });
+    var opLbl = document.createElement('label');
+    opLbl.textContent = 'Operator';
+    opRow.appendChild(opLbl);
+    opRow.appendChild(_coreRadioGroup('tf-bm-op',
+      [{ value: '+', label: '+' }, { value: '-', label: '−' }, { value: '*', label: '×' }, { value: '/', label: '÷' }],
+      config.operator || '+',
+      function(val) { onChange('operator', val); }
+    ));
     div.appendChild(opRow);
 
     /* Toggle row */
-    var toggleRow = document.createElement('div');
-    toggleRow.className = 'form-row';
-    toggleRow.innerHTML = '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">' +
-      '<input type="checkbox" id="tf-bm-useconst"' + (config.useConstant ? ' checked' : '') + '> Use constant value</label>';
-    toggleRow.querySelector('#tf-bm-useconst').addEventListener('change', function(e) {
-      onChange('useConstant', e.target.checked);
-      /* Rebuild the operand row */
+    var toggleRow = _coreCheckboxRow('Use constant value', config.useConstant, function(v) {
+      onChange('useConstant', v);
       _tfBmRenderOperand(div, config, onChange, currentRows);
     });
     div.appendChild(toggleRow);
@@ -9374,23 +9472,49 @@ window.DWBNodes.PUSH_TO_VIZ = {
   validate: function(config) { return null; } // name lives on node.promotedAs, not in config
 };
 
+function _coreNormalizeWhitespace(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[\s ]+/g, ' ').trim();
+}
+
 window.DWBNodes.TRIM_WHITESPACE = {
   label: 'Trim Whitespace',
   icon: '✂',
   category: 'Text Cleaning',
-  defaultConfig: { columns: [] },
+  defaultConfig: { columns: [], normalizeInternal: false },
   run: function(rows, config) {
     const cols = config.columns && config.columns.length > 0 ? config.columns : null;
+    const normalize = !!config.normalizeInternal;
     return rows.map(function(row) {
       const nr = Object.assign({}, row);
       Object.keys(nr).forEach(function(k) {
-        if (!cols || cols.includes(k)) nr[k] = typeof nr[k] === 'string' ? nr[k].trim() : nr[k];
+        if (!cols || cols.includes(k)) {
+          if (typeof nr[k] === 'string') {
+            nr[k] = normalize ? _coreNormalizeWhitespace(nr[k]) : nr[k].trim();
+          }
+        }
       });
       return nr;
     });
   },
   validate: function() { return null; },
-  configUI: _coreColumnsUI('trim', 'Columns to trim (leave empty for all)')
+  configUI: function(config, onChange, currentRows) {
+    var div = document.createElement('div');
+    var cols = _getColumns(currentRows);
+    div.appendChild(_coreChecklist('Columns (empty = all)', cols, (config.columns || []).slice(), function(newSel) {
+      onChange('columns', newSel);
+    }));
+    div.appendChild(_coreCheckboxRow(
+      'Also collapse internal whitespace (tabs, line breaks, repeated spaces → single space)',
+      config.normalizeInternal,
+      function(v) { onChange('normalizeInternal', v); }
+    ));
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:11px;color:var(--text-faint);margin-top:2px;padding:0 2px';
+    hint.textContent = 'Useful for messy text with tabs, non-breaking spaces, or double spaces';
+    div.appendChild(hint);
+    return div;
+  }
 };
 
 window.DWBNodes.FILTER = {
@@ -9437,49 +9561,84 @@ window.DWBNodes.FILTER = {
           ${[['equals','Equals'],['not_equals','Not equals'],['contains','Contains'],['not_contains','Does not contain'],['starts_with','Starts with'],['ends_with','Ends with'],['is_empty','Is empty'],['is_not_empty','Is not empty'],['gt','Greater than'],['lt','Less than']].map(function(o) { return '<option value="' + o[0] + '"' + (config.operator === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('')}
         </select></div>
       <div class="form-row"><label>Value</label>
-        <input type="text" id="f-val" value="${_esc(config.value||'')}" style="width:100%"></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="f-cs" ${config.caseSensitive ? 'checked' : ''}> Case sensitive</label></div>`;
+        <input type="text" id="f-val" value="${_esc(config.value||'')}" style="width:100%"></div>`;
     div.querySelector('#f-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#f-op').addEventListener('change', function(e) { onChange('operator', e.target.value); });
     div.querySelector('#f-val').addEventListener('input', function(e) { onChange('value', e.target.value); });
-    div.querySelector('#f-cs').addEventListener('change', function(e) { onChange('caseSensitive', e.target.checked); });
+    div.appendChild(_coreCheckboxRow('Case sensitive', config.caseSensitive, function(v) { onChange('caseSensitive', v); }));
     return div;
   }
 };
+
+function _cnToNameCase(str) {
+  var s = str.replace(/\w\S*/g, function(w) { return w.charAt(0).toUpperCase() + w.substr(1).toLowerCase(); });
+  s = s.replace(/\bMc(\w)/g, function(m, c) { return 'Mc' + c.toUpperCase(); });
+  s = s.replace(/\bMac(\w)/g, function(m, c) { return 'Mac' + c.toUpperCase(); });
+  s = s.replace(/\bO'(\w)/g, function(m, c) { return "O'" + c.toUpperCase(); });
+  s = s.replace(/\bSt\.?\s*(\w)/g, function(m, c) { return 'St. ' + c.toUpperCase(); });
+  s = s.replace(/-(\w)/g, function(m, c) { return '-' + c.toUpperCase(); });
+  return s;
+}
+function _cnToSentenceCase(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
 
 window.DWBNodes.CASE_NORMALIZE = {
   label: 'Case Normalize',
   icon: 'Aa',
   category: 'Text Cleaning',
-  defaultConfig: { column: '', caseType: 'lower' },
+  defaultConfig: { columns: [], mode: 'lower' },
   run: function(rows, config) {
-    if (!config.column) return rows;
+    var targetCols;
+    if (Array.isArray(config.columns) && config.columns.length > 0) {
+      targetCols = config.columns;
+    } else if (!config.columns && config.column) {
+      targetCols = [config.column];
+    } else {
+      targetCols = null;
+    }
+    var mode = config.mode || config.caseType || 'lower';
     return rows.map(function(row) {
-      const nr = Object.assign({}, row);
-      const v = String(nr[config.column] || '');
-      if (config.caseType === 'lower')  nr[config.column] = v.toLowerCase();
-      else if (config.caseType === 'upper') nr[config.column] = v.toUpperCase();
-      else if (config.caseType === 'title') nr[config.column] = v.replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-      else if (config.caseType === 'sentence') nr[config.column] = v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+      var nr = Object.assign({}, row);
+      Object.keys(nr).forEach(function(key) {
+        if (targetCols && targetCols.indexOf(key) === -1) return;
+        var v = String(nr[key] == null ? '' : nr[key]);
+        if (mode === 'upper')         { nr[key] = v.toUpperCase(); }
+        else if (mode === 'title')    { nr[key] = v.replace(/\b\w/g, function(c) { return c.toUpperCase(); }); }
+        else if (mode === 'name')     { nr[key] = _cnToNameCase(v); }
+        else if (mode === 'sentence') { nr[key] = _cnToSentenceCase(v); }
+        else                          { nr[key] = v.toLowerCase(); }
+      });
       return nr;
     });
   },
-  validate: function(config) { return config.column ? null : 'Select a column'; },
+  validate: function() { return null; },
   configUI: function(config, onChange, currentRows) {
-    const div = document.createElement('div');
-    const cols = _getColumns(currentRows);
-    div.innerHTML = `
-      <div class="form-row"><label>Column</label>
-        <select id="cn-col" style="width:100%"><option value="">-- select --</option>${cols.map(function(c) { return '<option value="' + _esc(c) + '"' + (config.column === c ? ' selected' : '') + '>' + _esc(c) + '</option>'; }).join('')}</select></div>
-      <div class="form-row"><label>Case Type</label>
-        <select id="cn-type" style="width:100%">
-          <option value="lower" ${config.caseType === 'lower' ? 'selected' : ''}>lowercase</option>
-          <option value="upper" ${config.caseType === 'upper' ? 'selected' : ''}>UPPERCASE</option>
-          <option value="title" ${config.caseType === 'title' ? 'selected' : ''}>Title Case</option>
-          <option value="sentence" ${config.caseType === 'sentence' ? 'selected' : ''}>Sentence case</option>
-        </select></div>`;
-    div.querySelector('#cn-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
-    div.querySelector('#cn-type').addEventListener('change', function(e) { onChange('caseType', e.target.value); });
+    var div = document.createElement('div');
+    var cols = _getColumns(currentRows);
+    var initSelected = Array.isArray(config.columns) ? config.columns.slice() : (config.column ? [config.column] : []);
+    div.appendChild(_coreChecklist('Columns (empty = all)', cols, initSelected, function(newSel) {
+      onChange('columns', newSel);
+    }));
+    var modeRow = document.createElement('div');
+    modeRow.className = 'form-row';
+    var modeLbl = document.createElement('label');
+    modeLbl.textContent = 'Mode';
+    modeRow.appendChild(modeLbl);
+    var currentMode = config.mode || config.caseType || 'lower';
+    modeRow.appendChild(_coreRadioGroup('cn-mode',
+      [
+        { value: 'upper',    label: 'UPPERCASE' },
+        { value: 'lower',    label: 'lowercase' },
+        { value: 'title',    label: 'Title Case' },
+        { value: 'name',     label: 'Name Case' },
+        { value: 'sentence', label: 'Sentence case' }
+      ],
+      currentMode,
+      function(val) { onChange('mode', val); }
+    ));
+    div.appendChild(modeRow);
     return div;
   }
 };
@@ -9515,14 +9674,12 @@ window.DWBNodes.FIND_REPLACE = {
       <div class="form-row"><label>Column</label>
         <select id="fr-col" style="width:100%"><option value="">-- select --</option>${cols.map(function(c) { return '<option value="' + _esc(c) + '"' + (config.column === c ? ' selected' : '') + '>' + _esc(c) + '</option>'; }).join('')}</select></div>
       <div class="form-row"><label>Find</label><input type="text" id="fr-find" value="${_esc(config.find||'')}" style="width:100%"></div>
-      <div class="form-row"><label>Replace with</label><input type="text" id="fr-rep" value="${_esc(config.replace||'')}" style="width:100%"></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="fr-rx" ${config.useRegex ? 'checked' : ''}> Use regex</label></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="fr-cs" ${config.caseSensitive ? 'checked' : ''}> Case sensitive</label></div>`;
+      <div class="form-row"><label>Replace with</label><input type="text" id="fr-rep" value="${_esc(config.replace||'')}" style="width:100%"></div>`;
     div.querySelector('#fr-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#fr-find').addEventListener('input', function(e) { onChange('find', e.target.value); });
     div.querySelector('#fr-rep').addEventListener('input', function(e) { onChange('replace', e.target.value); });
-    div.querySelector('#fr-rx').addEventListener('change', function(e) { onChange('useRegex', e.target.checked); });
-    div.querySelector('#fr-cs').addEventListener('change', function(e) { onChange('caseSensitive', e.target.checked); });
+    div.appendChild(_coreCheckboxRow('Use regex', config.useRegex, function(v) { onChange('useRegex', v); }));
+    div.appendChild(_coreCheckboxRow('Case sensitive', config.caseSensitive, function(v) { onChange('caseSensitive', v); }));
     return div;
   }
 };
@@ -9557,10 +9714,10 @@ window.DWBNodes.SORT = {
           <option value="asc" ${config.direction === 'asc' ? 'selected' : ''}>Ascending A→Z</option>
           <option value="desc" ${config.direction === 'desc' ? 'selected' : ''}>Descending Z→A</option>
         </select></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="sort-num" ${config.numeric ? 'checked' : ''}> Numeric sort</label></div>`;
+`;
     div.querySelector('#sort-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#sort-dir').addEventListener('change', function(e) { onChange('direction', e.target.value); });
-    div.querySelector('#sort-num').addEventListener('change', function(e) { onChange('numeric', e.target.checked); });
+    div.appendChild(_coreCheckboxRow('Numeric sort', config.numeric, function(v) { onChange('numeric', v); }));
     return div;
   }
 };
@@ -9739,13 +9896,13 @@ function _coreChecklist(label, cols, selected, onChange) {
       cb.checked = checked;
       cb.style.cssText = 'flex-shrink:0;margin:0;padding:0;width:14px;height:14px;';
       cb.addEventListener('change', function() {
-        if (cb.checked) {
-          if (selected.indexOf(item) === -1) selected = selected.concat([item]);
+        if (this.checked) {
+          if (selected.indexOf(item) === -1) selected.push(item);
         } else {
           selected = selected.filter(function(s) { return s !== item; });
         }
+        row.className = 'pt-checklist-row' + (this.checked ? ' checked' : '');
         onChange(selected.slice());
-        render();
       });
       row.appendChild(cb);
       var span = document.createElement('span');
@@ -9760,14 +9917,18 @@ function _coreChecklist(label, cols, selected, onChange) {
   box.appendChild(list);
 
   hdr.querySelector('.pt-checklist-all').addEventListener('click', function() {
+    var scrollTop = list.scrollTop;
     selected = cols.slice();
     onChange(selected.slice());
     render();
+    list.scrollTop = scrollTop;
   });
   hdr.querySelector('.pt-checklist-clear').addEventListener('click', function() {
+    var scrollTop = list.scrollTop;
     selected = [];
     onChange([]);
     render();
+    list.scrollTop = scrollTop;
   });
 
   wrap.appendChild(box);
@@ -9837,8 +9998,8 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
         e.stopPropagation();
         if (cb.checked) { checkedSet[item] = true; }
         else { delete checkedSet[item]; }
+        row.className = 'pt-checklist-row' + (cb.checked ? ' checked' : '');
         onChange(getResult());
-        render();
       });
       row.appendChild(cb);
 
@@ -9865,11 +10026,13 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
       row.addEventListener('drop', function(e) {
         e.preventDefault();
         if (dragSrcIdx === null || dragSrcIdx === i) return;
+        var scrollTop = list.scrollTop;
         var moved = displayOrder.splice(dragSrcIdx, 1)[0];
         displayOrder.splice(i, 0, moved);
         dragSrcIdx = null;
         onChange(getResult());
         render();
+        list.scrollTop = scrollTop;
       });
 
       list.appendChild(row);
@@ -9880,14 +10043,18 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
   box.appendChild(list);
 
   hdr.querySelector('.pt-checklist-all').addEventListener('click', function() {
+    var scrollTop = list.scrollTop;
     allCols.forEach(function(c) { checkedSet[c] = true; });
     onChange(getResult());
     render();
+    list.scrollTop = scrollTop;
   });
   hdr.querySelector('.pt-checklist-clear').addEventListener('click', function() {
+    var scrollTop = list.scrollTop;
     checkedSet = {};
     onChange([]);
     render();
+    list.scrollTop = scrollTop;
   });
 
   wrap.appendChild(box);
@@ -10155,6 +10322,7 @@ window.DWBPipeline = (function() {
 window.DWBPipelineTab = (function() {
   let _ptCurrentRows = [];
   let _ptPreviewRows = null; // null = show final output
+  let _ptRefreshTimer = null;
 
   // Node categories for the picker
   const _ptNodeCats = [
@@ -10358,6 +10526,17 @@ window.DWBPipelineTab = (function() {
     });
   }
 
+  function _ptDebouncedRefresh(nodeId) {
+    if (_ptRefreshTimer) clearTimeout(_ptRefreshTimer);
+    _ptRefreshTimer = setTimeout(function() {
+      window.DWBPipeline.runToNode(nodeId).then(function(result) {
+        _ptPreviewRows = result ? result.rows : [];
+        _ptRenderInspector(_ptPreviewRows);
+        window.DWBShell.markDirty();
+      });
+    }, 400);
+  }
+
   function _ptBuildConfigUI(configBody, node, nodeImpl, currentRows) {
     configBody.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px">${_esc(node.label || node.type)}</div>`;
 
@@ -10380,8 +10559,7 @@ window.DWBPipelineTab = (function() {
           function(key, val) {
             node.config = node.config || {};
             node.config[key] = val;
-            window.DWBShell.markDirty();
-            window.DWBPipelineTab.refresh();
+            _ptDebouncedRefresh(node.id);
           },
           currentRows,
           node

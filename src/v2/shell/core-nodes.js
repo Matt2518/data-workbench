@@ -80,23 +80,49 @@ window.DWBNodes.PUSH_TO_VIZ = {
   validate: function(config) { return null; } // name lives on node.promotedAs, not in config
 };
 
+function _coreNormalizeWhitespace(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[\s ]+/g, ' ').trim();
+}
+
 window.DWBNodes.TRIM_WHITESPACE = {
   label: 'Trim Whitespace',
   icon: '✂',
   category: 'Text Cleaning',
-  defaultConfig: { columns: [] },
+  defaultConfig: { columns: [], normalizeInternal: false },
   run: function(rows, config) {
     const cols = config.columns && config.columns.length > 0 ? config.columns : null;
+    const normalize = !!config.normalizeInternal;
     return rows.map(function(row) {
       const nr = Object.assign({}, row);
       Object.keys(nr).forEach(function(k) {
-        if (!cols || cols.includes(k)) nr[k] = typeof nr[k] === 'string' ? nr[k].trim() : nr[k];
+        if (!cols || cols.includes(k)) {
+          if (typeof nr[k] === 'string') {
+            nr[k] = normalize ? _coreNormalizeWhitespace(nr[k]) : nr[k].trim();
+          }
+        }
       });
       return nr;
     });
   },
   validate: function() { return null; },
-  configUI: _coreColumnsUI('trim', 'Columns to trim (leave empty for all)')
+  configUI: function(config, onChange, currentRows) {
+    var div = document.createElement('div');
+    var cols = _getColumns(currentRows);
+    div.appendChild(_coreChecklist('Columns (empty = all)', cols, (config.columns || []).slice(), function(newSel) {
+      onChange('columns', newSel);
+    }));
+    div.appendChild(_coreCheckboxRow(
+      'Also collapse internal whitespace (tabs, line breaks, repeated spaces → single space)',
+      config.normalizeInternal,
+      function(v) { onChange('normalizeInternal', v); }
+    ));
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:11px;color:var(--text-faint);margin-top:2px;padding:0 2px';
+    hint.textContent = 'Useful for messy text with tabs, non-breaking spaces, or double spaces';
+    div.appendChild(hint);
+    return div;
+  }
 };
 
 window.DWBNodes.FILTER = {
@@ -143,49 +169,84 @@ window.DWBNodes.FILTER = {
           ${[['equals','Equals'],['not_equals','Not equals'],['contains','Contains'],['not_contains','Does not contain'],['starts_with','Starts with'],['ends_with','Ends with'],['is_empty','Is empty'],['is_not_empty','Is not empty'],['gt','Greater than'],['lt','Less than']].map(function(o) { return '<option value="' + o[0] + '"' + (config.operator === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('')}
         </select></div>
       <div class="form-row"><label>Value</label>
-        <input type="text" id="f-val" value="${_esc(config.value||'')}" style="width:100%"></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="f-cs" ${config.caseSensitive ? 'checked' : ''}> Case sensitive</label></div>`;
+        <input type="text" id="f-val" value="${_esc(config.value||'')}" style="width:100%"></div>`;
     div.querySelector('#f-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#f-op').addEventListener('change', function(e) { onChange('operator', e.target.value); });
     div.querySelector('#f-val').addEventListener('input', function(e) { onChange('value', e.target.value); });
-    div.querySelector('#f-cs').addEventListener('change', function(e) { onChange('caseSensitive', e.target.checked); });
+    div.appendChild(_coreCheckboxRow('Case sensitive', config.caseSensitive, function(v) { onChange('caseSensitive', v); }));
     return div;
   }
 };
+
+function _cnToNameCase(str) {
+  var s = str.replace(/\w\S*/g, function(w) { return w.charAt(0).toUpperCase() + w.substr(1).toLowerCase(); });
+  s = s.replace(/\bMc(\w)/g, function(m, c) { return 'Mc' + c.toUpperCase(); });
+  s = s.replace(/\bMac(\w)/g, function(m, c) { return 'Mac' + c.toUpperCase(); });
+  s = s.replace(/\bO'(\w)/g, function(m, c) { return "O'" + c.toUpperCase(); });
+  s = s.replace(/\bSt\.?\s*(\w)/g, function(m, c) { return 'St. ' + c.toUpperCase(); });
+  s = s.replace(/-(\w)/g, function(m, c) { return '-' + c.toUpperCase(); });
+  return s;
+}
+function _cnToSentenceCase(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
 
 window.DWBNodes.CASE_NORMALIZE = {
   label: 'Case Normalize',
   icon: 'Aa',
   category: 'Text Cleaning',
-  defaultConfig: { column: '', caseType: 'lower' },
+  defaultConfig: { columns: [], mode: 'lower' },
   run: function(rows, config) {
-    if (!config.column) return rows;
+    var targetCols;
+    if (Array.isArray(config.columns) && config.columns.length > 0) {
+      targetCols = config.columns;
+    } else if (!config.columns && config.column) {
+      targetCols = [config.column];
+    } else {
+      targetCols = null;
+    }
+    var mode = config.mode || config.caseType || 'lower';
     return rows.map(function(row) {
-      const nr = Object.assign({}, row);
-      const v = String(nr[config.column] || '');
-      if (config.caseType === 'lower')  nr[config.column] = v.toLowerCase();
-      else if (config.caseType === 'upper') nr[config.column] = v.toUpperCase();
-      else if (config.caseType === 'title') nr[config.column] = v.replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-      else if (config.caseType === 'sentence') nr[config.column] = v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+      var nr = Object.assign({}, row);
+      Object.keys(nr).forEach(function(key) {
+        if (targetCols && targetCols.indexOf(key) === -1) return;
+        var v = String(nr[key] == null ? '' : nr[key]);
+        if (mode === 'upper')         { nr[key] = v.toUpperCase(); }
+        else if (mode === 'title')    { nr[key] = v.replace(/\b\w/g, function(c) { return c.toUpperCase(); }); }
+        else if (mode === 'name')     { nr[key] = _cnToNameCase(v); }
+        else if (mode === 'sentence') { nr[key] = _cnToSentenceCase(v); }
+        else                          { nr[key] = v.toLowerCase(); }
+      });
       return nr;
     });
   },
-  validate: function(config) { return config.column ? null : 'Select a column'; },
+  validate: function() { return null; },
   configUI: function(config, onChange, currentRows) {
-    const div = document.createElement('div');
-    const cols = _getColumns(currentRows);
-    div.innerHTML = `
-      <div class="form-row"><label>Column</label>
-        <select id="cn-col" style="width:100%"><option value="">-- select --</option>${cols.map(function(c) { return '<option value="' + _esc(c) + '"' + (config.column === c ? ' selected' : '') + '>' + _esc(c) + '</option>'; }).join('')}</select></div>
-      <div class="form-row"><label>Case Type</label>
-        <select id="cn-type" style="width:100%">
-          <option value="lower" ${config.caseType === 'lower' ? 'selected' : ''}>lowercase</option>
-          <option value="upper" ${config.caseType === 'upper' ? 'selected' : ''}>UPPERCASE</option>
-          <option value="title" ${config.caseType === 'title' ? 'selected' : ''}>Title Case</option>
-          <option value="sentence" ${config.caseType === 'sentence' ? 'selected' : ''}>Sentence case</option>
-        </select></div>`;
-    div.querySelector('#cn-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
-    div.querySelector('#cn-type').addEventListener('change', function(e) { onChange('caseType', e.target.value); });
+    var div = document.createElement('div');
+    var cols = _getColumns(currentRows);
+    var initSelected = Array.isArray(config.columns) ? config.columns.slice() : (config.column ? [config.column] : []);
+    div.appendChild(_coreChecklist('Columns (empty = all)', cols, initSelected, function(newSel) {
+      onChange('columns', newSel);
+    }));
+    var modeRow = document.createElement('div');
+    modeRow.className = 'form-row';
+    var modeLbl = document.createElement('label');
+    modeLbl.textContent = 'Mode';
+    modeRow.appendChild(modeLbl);
+    var currentMode = config.mode || config.caseType || 'lower';
+    modeRow.appendChild(_coreRadioGroup('cn-mode',
+      [
+        { value: 'upper',    label: 'UPPERCASE' },
+        { value: 'lower',    label: 'lowercase' },
+        { value: 'title',    label: 'Title Case' },
+        { value: 'name',     label: 'Name Case' },
+        { value: 'sentence', label: 'Sentence case' }
+      ],
+      currentMode,
+      function(val) { onChange('mode', val); }
+    ));
+    div.appendChild(modeRow);
     return div;
   }
 };
@@ -221,14 +282,12 @@ window.DWBNodes.FIND_REPLACE = {
       <div class="form-row"><label>Column</label>
         <select id="fr-col" style="width:100%"><option value="">-- select --</option>${cols.map(function(c) { return '<option value="' + _esc(c) + '"' + (config.column === c ? ' selected' : '') + '>' + _esc(c) + '</option>'; }).join('')}</select></div>
       <div class="form-row"><label>Find</label><input type="text" id="fr-find" value="${_esc(config.find||'')}" style="width:100%"></div>
-      <div class="form-row"><label>Replace with</label><input type="text" id="fr-rep" value="${_esc(config.replace||'')}" style="width:100%"></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="fr-rx" ${config.useRegex ? 'checked' : ''}> Use regex</label></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="fr-cs" ${config.caseSensitive ? 'checked' : ''}> Case sensitive</label></div>`;
+      <div class="form-row"><label>Replace with</label><input type="text" id="fr-rep" value="${_esc(config.replace||'')}" style="width:100%"></div>`;
     div.querySelector('#fr-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#fr-find').addEventListener('input', function(e) { onChange('find', e.target.value); });
     div.querySelector('#fr-rep').addEventListener('input', function(e) { onChange('replace', e.target.value); });
-    div.querySelector('#fr-rx').addEventListener('change', function(e) { onChange('useRegex', e.target.checked); });
-    div.querySelector('#fr-cs').addEventListener('change', function(e) { onChange('caseSensitive', e.target.checked); });
+    div.appendChild(_coreCheckboxRow('Use regex', config.useRegex, function(v) { onChange('useRegex', v); }));
+    div.appendChild(_coreCheckboxRow('Case sensitive', config.caseSensitive, function(v) { onChange('caseSensitive', v); }));
     return div;
   }
 };
@@ -263,10 +322,10 @@ window.DWBNodes.SORT = {
           <option value="asc" ${config.direction === 'asc' ? 'selected' : ''}>Ascending A→Z</option>
           <option value="desc" ${config.direction === 'desc' ? 'selected' : ''}>Descending Z→A</option>
         </select></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="sort-num" ${config.numeric ? 'checked' : ''}> Numeric sort</label></div>`;
+`;
     div.querySelector('#sort-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#sort-dir').addEventListener('change', function(e) { onChange('direction', e.target.value); });
-    div.querySelector('#sort-num').addEventListener('change', function(e) { onChange('numeric', e.target.checked); });
+    div.appendChild(_coreCheckboxRow('Numeric sort', config.numeric, function(v) { onChange('numeric', v); }));
     return div;
   }
 };
@@ -445,13 +504,13 @@ function _coreChecklist(label, cols, selected, onChange) {
       cb.checked = checked;
       cb.style.cssText = 'flex-shrink:0;margin:0;padding:0;width:14px;height:14px;';
       cb.addEventListener('change', function() {
-        if (cb.checked) {
-          if (selected.indexOf(item) === -1) selected = selected.concat([item]);
+        if (this.checked) {
+          if (selected.indexOf(item) === -1) selected.push(item);
         } else {
           selected = selected.filter(function(s) { return s !== item; });
         }
+        row.className = 'pt-checklist-row' + (this.checked ? ' checked' : '');
         onChange(selected.slice());
-        render();
       });
       row.appendChild(cb);
       var span = document.createElement('span');
@@ -466,14 +525,18 @@ function _coreChecklist(label, cols, selected, onChange) {
   box.appendChild(list);
 
   hdr.querySelector('.pt-checklist-all').addEventListener('click', function() {
+    var scrollTop = list.scrollTop;
     selected = cols.slice();
     onChange(selected.slice());
     render();
+    list.scrollTop = scrollTop;
   });
   hdr.querySelector('.pt-checklist-clear').addEventListener('click', function() {
+    var scrollTop = list.scrollTop;
     selected = [];
     onChange([]);
     render();
+    list.scrollTop = scrollTop;
   });
 
   wrap.appendChild(box);
@@ -543,8 +606,8 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
         e.stopPropagation();
         if (cb.checked) { checkedSet[item] = true; }
         else { delete checkedSet[item]; }
+        row.className = 'pt-checklist-row' + (cb.checked ? ' checked' : '');
         onChange(getResult());
-        render();
       });
       row.appendChild(cb);
 
@@ -571,11 +634,13 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
       row.addEventListener('drop', function(e) {
         e.preventDefault();
         if (dragSrcIdx === null || dragSrcIdx === i) return;
+        var scrollTop = list.scrollTop;
         var moved = displayOrder.splice(dragSrcIdx, 1)[0];
         displayOrder.splice(i, 0, moved);
         dragSrcIdx = null;
         onChange(getResult());
         render();
+        list.scrollTop = scrollTop;
       });
 
       list.appendChild(row);
@@ -586,14 +651,18 @@ function _coreDragChecklist(label, allCols, selected, onChange) {
   box.appendChild(list);
 
   hdr.querySelector('.pt-checklist-all').addEventListener('click', function() {
+    var scrollTop = list.scrollTop;
     allCols.forEach(function(c) { checkedSet[c] = true; });
     onChange(getResult());
     render();
+    list.scrollTop = scrollTop;
   });
   hdr.querySelector('.pt-checklist-clear').addEventListener('click', function() {
+    var scrollTop = list.scrollTop;
     checkedSet = {};
     onChange([]);
     render();
+    list.scrollTop = scrollTop;
   });
 
   wrap.appendChild(box);

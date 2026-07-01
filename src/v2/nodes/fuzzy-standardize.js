@@ -100,16 +100,18 @@ window.DWBNodes.FUZZY_STANDARDIZE = {
       <div class="form-row"><label>Output column (blank = overwrite)</label>
         <input type="text" id="fs-out" value="${_fsEsc(config.outputColumn||'')}" style="width:100%"></div>
       <div class="form-row"><label>Match threshold (0–100)</label>
-        <input type="number" id="fs-thresh" value="${config.threshold !== undefined ? config.threshold : 80}" min="0" max="100" style="width:100%"></div>
-      <div class="form-row-inline form-row"><label><input type="checkbox" id="fs-score" ${config.addScoreColumn ? 'checked' : ''}> Add score column</label></div>
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin:8px 0 4px">Mappings</div>
-      <div id="fs-mappings"></div>
-      <button id="fs-add-mapping" style="padding:4px 10px;font-size:11px;background:var(--bg-raised);border:1px solid var(--border);border-radius:4px;color:var(--text-main);cursor:pointer">＋ Add Mapping</button>`;
+        <input type="number" id="fs-thresh" value="${config.threshold !== undefined ? config.threshold : 80}" min="0" max="100" style="width:100%"></div>`;
+    div.appendChild(_coreCheckboxRow('Add score column', config.addScoreColumn, function(v) { onChange('addScoreColumn', v); }));
+    var mappingsBottom = document.createElement('div');
+    mappingsBottom.innerHTML =
+      '<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin:8px 0 4px">Mappings</div>' +
+      '<div id="fs-mappings"></div>' +
+      '<button id="fs-add-mapping" style="padding:4px 10px;font-size:11px;background:var(--bg-raised);border:1px solid var(--border);border-radius:4px;color:var(--text-main);cursor:pointer">＋ Add Mapping</button>';
+    div.appendChild(mappingsBottom);
 
     div.querySelector('#fs-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#fs-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
     div.querySelector('#fs-thresh').addEventListener('input', function(e) { onChange('threshold', parseInt(e.target.value,10)||80); });
-    div.querySelector('#fs-score').addEventListener('change', function(e) { onChange('addScoreColumn', e.target.checked); });
     div.querySelector('#fs-add-mapping').addEventListener('click', function() {
       mappings.push({ canonical: '', variants: [] });
       onChange('mappings', mappings.slice());

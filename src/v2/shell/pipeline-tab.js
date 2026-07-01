@@ -3,6 +3,7 @@
 window.DWBPipelineTab = (function() {
   let _ptCurrentRows = [];
   let _ptPreviewRows = null; // null = show final output
+  let _ptRefreshTimer = null;
 
   // Node categories for the picker
   const _ptNodeCats = [
@@ -206,6 +207,17 @@ window.DWBPipelineTab = (function() {
     });
   }
 
+  function _ptDebouncedRefresh(nodeId) {
+    if (_ptRefreshTimer) clearTimeout(_ptRefreshTimer);
+    _ptRefreshTimer = setTimeout(function() {
+      window.DWBPipeline.runToNode(nodeId).then(function(result) {
+        _ptPreviewRows = result ? result.rows : [];
+        _ptRenderInspector(_ptPreviewRows);
+        window.DWBShell.markDirty();
+      });
+    }, 400);
+  }
+
   function _ptBuildConfigUI(configBody, node, nodeImpl, currentRows) {
     configBody.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px">${_esc(node.label || node.type)}</div>`;
 
@@ -228,8 +240,7 @@ window.DWBPipelineTab = (function() {
           function(key, val) {
             node.config = node.config || {};
             node.config[key] = val;
-            window.DWBShell.markDirty();
-            window.DWBPipelineTab.refresh();
+            _ptDebouncedRefresh(node.id);
           },
           currentRows,
           node

@@ -247,25 +247,9 @@ window.DWBNodes.ARBITRARY_DATE = {
 
     div.appendChild(_aoColSelect('Date Column', 'column', config, currentRows, onChange));
 
-    // Mode radio group
     var mode = config.mode || 'add';
-    var modeRow = document.createElement('div');
-    modeRow.className = 'form-row';
-    var modes = [
-      ['add',              'Add to date'],
-      ['diff_from_today',  'Difference from today'],
-      ['diff_from_column', 'Compare to another column']
-    ];
-    modeRow.innerHTML = '<label>Mode</label>' +
-      '<div style="display:flex;flex-direction:column;gap:4px">' +
-      modes.map(function(m) {
-        return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">' +
-          '<input type="radio" name="ao-dt-mode" value="' + m[0] + '"' +
-          (mode === m[0] ? ' checked' : '') + '> ' + m[1] + '</label>';
-      }).join('') + '</div>';
-    div.appendChild(modeRow);
 
-    // Amount input (only for 'add')
+    // Amount input (only for 'add') — declared before modeRow so the onChange closure captures it
     var amtRow = document.createElement('div');
     amtRow.className = 'form-row';
     amtRow.style.display = mode === 'add' ? '' : 'none';
@@ -274,6 +258,31 @@ window.DWBNodes.ARBITRARY_DATE = {
     amtRow.querySelector('input').addEventListener('input', function(e) {
       onChange('amount', parseInt(e.target.value, 10) || 0);
     });
+
+    // Compare column (only for diff_from_column) — declared before modeRow for same reason
+    var cmpRow = _aoColSelect('Compare Column', 'compareColumn', config, currentRows, onChange);
+    cmpRow.style.display = mode === 'diff_from_column' ? '' : 'none';
+
+    // Mode radio group
+    var modeRow = document.createElement('div');
+    modeRow.className = 'form-row';
+    var modeRowLbl = document.createElement('label');
+    modeRowLbl.textContent = 'Mode';
+    modeRow.appendChild(modeRowLbl);
+    modeRow.appendChild(_coreRadioGroup('ao-dt-mode',
+      [
+        { value: 'add',              label: 'Add to date' },
+        { value: 'diff_from_today',  label: 'Days until today' },
+        { value: 'diff_from_column', label: 'Compare to column' }
+      ],
+      mode,
+      function(val) {
+        onChange('mode', val);
+        amtRow.style.display = val === 'add' ? '' : 'none';
+        cmpRow.style.display  = val === 'diff_from_column' ? '' : 'none';
+      }
+    ));
+    div.appendChild(modeRow);
     div.appendChild(amtRow);
 
     // Unit select
@@ -289,9 +298,6 @@ window.DWBNodes.ARBITRARY_DATE = {
     unitRow.querySelector('select').addEventListener('change', function(e) { onChange('unit', e.target.value); });
     div.appendChild(unitRow);
 
-    // Compare column (only for diff_from_column)
-    var cmpRow = _aoColSelect('Compare Column', 'compareColumn', config, currentRows, onChange);
-    cmpRow.style.display = mode === 'diff_from_column' ? '' : 'none';
     div.appendChild(cmpRow);
 
     // Output column
@@ -301,17 +307,6 @@ window.DWBNodes.ARBITRARY_DATE = {
       '<input type="text" style="width:100%" value="' + _aoEsc(config.outputColumn || '') + '" placeholder="(overwrite source column)">';
     outRow.querySelector('input').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
     div.appendChild(outRow);
-
-    // Wire mode radios to show/hide conditional rows
-    modeRow.querySelectorAll('input[type=radio]').forEach(function(r) {
-      r.addEventListener('change', function(e) {
-        if (!e.target.checked) return;
-        var m = e.target.value;
-        onChange('mode', m);
-        amtRow.style.display = m === 'add' ? '' : 'none';
-        cmpRow.style.display  = m === 'diff_from_column' ? '' : 'none';
-      });
-    });
 
     return div;
   }
