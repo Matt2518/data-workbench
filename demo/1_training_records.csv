@@ -1,0 +1,51 @@
+employee_id,full_name,department,region,hire_date,course_name,score,passed,completion_date,cost_usd,feedback,phone,url_slug,pay_grade,satisfaction
+1001,Smith  John,Engineering,East,03/15/2019,Data Fundamentals,92,Yes,2024-01-15,450,Great course very helpful for my work,555.234.5678,Data Fundamentals,G5,5
+1002,garcia maria,Operations,West,11/02/2021,Excel Advanced,78,Yes,2024-01-18,320,It was okay nothing special,( 555) 876-5432,Excel Advanced,G3,3
+1003,JOHNSON JAMES,Logistics,East,07/30/2018,Data Fundamentals,45,No,2024-01-20,450,Terrible waste of time,5552109876,data fundamentals,G2,1
+1004,Williams Sarah K,Medical,South,04/12/2022,Leadership 101,88,Yes,2024-01-22,580,Really enjoyed the leadership module,555.432.1098,Leadership 101,G4,4
+1005,brown michael,Engineering,North,09/05/2020,Excel Advanced,55,No,2024-01-25,320,Instructor was hard to follow,5558765432,Excel Advanced,G3,2
+1006,Davis  Patricia,Intelligence,West,12/18/2017,Python Basics,96,Yes,2024-01-28,620,Absolutely fantastic instructor and content,555-321-0987,Python Basics,G6,5
+1007,miller robert,Operations,East,06/22/2023,Leadership 101,72,Yes,2024-02-01,580,Good content could be shorter,5554321098,leadership 101,G2,4
+1008,Wilson Linda,Logistics,South,02/14/2019,Python Basics,61,Yes,2024-02-03,620,Decent but a bit slow paced,555.567.8901,Python Basics,G3,3
+1009,moore david,Medical,North,08/08/2021,Data Fundamentals,83,Yes,2024-02-05,450,Very practical examples used throughout,(555)2109876,Data Fundamentals,G4,4
+1010,Taylor Jennifer,Engineering,East,05/17/2020,Excel Advanced,91,Yes,2024-02-08,320,Best Excel course I have taken,555.876.5432,Excel Advanced,G5,5
+1011,Anderson Chris,Operations,West,10/31/2022,Python Basics,77,Yes,2024-02-10,620,Challenging but rewarding overall,5553210987,Python Basics,G3,4
+1012,thomas amanda,Intelligence,South,03/03/2018,Leadership 101,89,Yes,2024-02-12,580,Excellent facilitator great discussions,555.432.1098,Leadership 101,G5,5
+1013,Jackson William,Logistics,North,07/19/2021,Data Fundamentals,38,No,2024-02-14,450,Did not meet my expectations at all,5558901234,data fundamentals,G2,1
+1014,Harris Elizabeth,Medical,East,01/25,2020,Excel Advanced,74,Yes,2024-02-16,320,Solid fundamentals well structured,(555) 567-8901,Excel Advanced,G4,3
+1015,martin kevin,Engineering,West,06/06,2019,Python Basics,99,Yes,2024-02-18,620,Outstanding course exceeded all expectations,555.210.9876,Python Basics,G6,5
+1016,Thompson Nicole,Operations,South,11/14/2023,Leadership 101,66,Yes,2024-02-20,580,Some good insights but too long,5554321098,Leadership 101,G2,3
+1017,garcia carlos,Intelligence,North,04/28/2020,Data Fundamentals,81,Yes,2024-02-22,450,Good refresher on the basics,555-890-1234,Data Fundamentals,G4,4
+1018,Martinez Rachel,Logistics,East,09/09/2022,Excel Advanced,57,No,2024-02-24,320,Too advanced for my current role,(555)3210987,excel advanced,G2,2
+1019,robinson daniel,Medical,West,02/20/2018,Python Basics,93,Yes,2024-02-26,620,Loved every module highly recommend,555.432.1098,Python Basics,G5,5
+1020,Clark Michelle,Engineering,North,07/07/2021,Leadership 101,70,Yes,2024-03-01,580,Decent course good for new managers,5567890123,Leadership 101,G3,3
+1021,Lewis Brandon,Operations,East,12/12,2022,Data Fundamentals,85,Yes,2024-03-03,450,Really clarified some confusing concepts,555.210.9876,Data Fundamentals,G4,4
+1022,Lee Angela,Intelligence,South,05/05/2019,Excel Advanced,48,No,2024-03-05,320,Not enough hands on practice time,5558901234,Excel Advanced,G2,2
+1023,walker scott,Logistics,West,10/10/2020,Python Basics,76,Yes,2024-03-07,620,Good course solid pace throughout,(555) 432-1098,python basics,G3,4
+1024,Hall Megan,Medical,North,03/21,2023,Leadership 101,91,Yes,2024-03-09,580,Transformative experience for my team,555.321.0987,Leadership 101,G5,5
+1025,Allen Joseph,Engineering,East,08/15/2017,Data Fundamentals,62,Yes,2024-03-11,450,Some sections were overly technical,5554321098,Data Fundamentals,G3,3
+1026,Young Karen,Operations,West,01/18/2021,Excel Advanced,87,Yes,2024-03-13,320,Very useful immediately applied at work,(555)2109876,Excel Advanced,G4,4
+1027,Hernandez Luis,Intelligence,South,06/30,2022,Python Basics,54,No,2024-03-15,620,Too fast paced for beginners,555.890.1234,Python Basics,G2,2
+1028,King Diana,Logistics,North,11/22/2018,Leadership 101,79,Yes,2024-03-17,580,Good content practical takeaways,5553210987,leadership 101,G3,4
+1029,wright paul,Medical,East,04/04/2020,Data Fundamentals,95,Yes,2024-03-19,450,Exceptional quality throughout the course,(555) 432-1098,Data Fundamentals,G6,5
+1030,Lopez Sandra,Engineering,West,09/16,2023,Excel Advanced,68,Yes,2024-03-21,320,Helpful but could use more examples,555.210.9876,Excel Advanced,G3,3
+1031,Hill Raymond,Operations,South,02/02/2019,Python Basics,82,Yes,2024-03-23,620,Challenging and engaging well worth it,5554321098,Python Basics,G4,4
+1032,scott deborah,Intelligence,North,07/14/2021,Leadership 101,43,No,2024-03-25,580,Very disappointing not what I expected,555.890.1234,leadership 101,G2,1
+1033,Green Timothy,Logistics,East,12/26/2020,Data Fundamentals,77,Yes,2024-03-27,450,Covered all the essentials nicely,5553210987,Data Fundamentals,G3,3
+1034,adams betty,Medical,West,05/08,2022,Excel Advanced,90,Yes,2024-03-29,320,Fantastic course will recommend to colleagues,(555) 210-9876,Excel Advanced,G5,5
+1035,Baker Frank,Engineering,North,10/20/2017,Python Basics,65,Yes,2024-04-01,620,Good intro could go deeper on topics,555.432.1098,Python Basics,G3,3
+1036,Gonzalez Carmen,Operations,East,03/11/2023,Leadership 101,88,Yes,2024-04-03,580,Inspiring content great facilitator,5558901234,Leadership 101,G4,4
+1037,nelson gary,Intelligence,South,08/23/2019,Data Fundamentals,71,Yes,2024-04-05,450,Useful overview good starting point,(555)3210987,data fundamentals,G3,3
+1038,Carter Lisa,Logistics,West,01/05,2021,Excel Advanced,59,No,2024-04-07,320,Felt rushed and disorganized overall,555.210.9876,Excel Advanced,G2,2
+1039,Mitchell Eric,Medical,North,06/17,2022,Python Basics,97,Yes,2024-04-09,620,Best technical course I have ever attended,5554321098,Python Basics,G6,5
+1040,Perez Gloria,Engineering,East,11/29/2018,Leadership 101,74,Yes,2024-04-11,580,Good framework for leadership development,555.890.1234,Leadership 101,G4,4
+1041,roberts henry,Operations,West,04/10,2020,Data Fundamentals,86,Yes,2024-04-13,450,Clear explanations practical exercises,5553210987,Data Fundamentals,G4,4
+1042,Turner Joyce,Intelligence,South,09/22/2023,Excel Advanced,52,No,2024-04-15,320,Not suitable for my skill level,555.210.9876,excel advanced,G2,2
+1043,Phillips Aaron,Logistics,North,02/13/2018,Python Basics,80,Yes,2024-04-17,620,Solid course good balance of theory,(555) 432-1098,Python Basics,G4,4
+1044,campbell ruth,Medical,East,07/25,2021,Leadership 101,93,Yes,2024-04-19,580,Outstanding leadership insights practical value,5558901234,Leadership 101,G5,5
+1045,Evans Sean,Engineering,West,12/07/2019,Data Fundamentals,67,Yes,2024-04-21,450,Good but some content felt outdated,555.321.0987,Data Fundamentals,G3,3
+1046,Edwards Tina,Operations,South,05/19,2022,Excel Advanced,84,Yes,2024-04-23,320,Very practical immediately useful at work,5554321098,Excel Advanced,G4,4
+1047,collins wayne,Intelligence,North,10/01,2020,Python Basics,73,Yes,2024-04-25,620,Enjoyable and well structured pace,555.890.1234,python basics,G3,4
+1048,Stewart Alice,Logistics,East,03/13/2023,Leadership 101,41,No,2024-04-27,580,Did not engage with the content at all,5553210987,Leadership 101,G2,1
+1049,Sanchez Victor,Medical,West,08/25,2018,Data Fundamentals,88,Yes,2024-04-29,450,Very comprehensive well worth the time,(555) 210-9876,Data Fundamentals,G5,4
+1050,Morris Brenda,Engineering,North,01/16,2021,Excel Advanced,79,Yes,2024-05-01,320,Good course solid value for money,555.432.1098,Excel Advanced,G4,4

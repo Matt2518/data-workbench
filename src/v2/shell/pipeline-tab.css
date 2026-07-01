@@ -243,3 +243,17 @@
   text-align: right; padding: 3px 6px;
   user-select: none; width: 40px;
 }
+
+/* ── Checklist widget (used by node configUI functions) ── */
+.pt-checklist { border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised); overflow: hidden; margin-top: 3px; }
+.pt-checklist-hdr { display: flex; gap: 8px; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--border); background: var(--bg-surface); }
+.pt-checklist-hdr a { font-size: var(--text-xs); color: var(--accent); cursor: pointer; }
+.pt-checklist-hdr a:hover { text-decoration: underline; }
+.pt-checklist-list { max-height: 200px; overflow-y: auto; }
+.pt-checklist-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; font-size: var(--text-sm); color: var(--text-main); cursor: pointer; user-select: none; }
+.pt-checklist-row:hover { background: var(--bg-surface); }
+.pt-checklist-row.checked { color: var(--accent); }
+.pt-checklist-row.drag-over { background: var(--bg-surface); outline: 1px dashed var(--accent); outline-offset: -1px; }
+.pt-checklist-row input[type="checkbox"] { accent-color: var(--accent); flex-shrink: 0; }
+.pt-checklist-drag { color: var(--text-faint); cursor: grab; font-size: var(--text-base); padding: 0 4px; }
+.pt-checklist-drag:active { cursor: grabbing; }

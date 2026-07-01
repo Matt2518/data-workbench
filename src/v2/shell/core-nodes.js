@@ -309,19 +309,11 @@ window.DWBNodes.REARRANGE_COLS = {
   },
   validate: function() { return null; },
   configUI: function(config, onChange, currentRows) {
-    const div = document.createElement('div');
-    const cols = _getColumns(currentRows);
-    const order = (config.order && config.order.length) ? config.order : cols;
-    div.innerHTML = '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Drag to reorder (simplified):</div>' +
-      '<div id="rc-list">' + order.map(function(c, i) {
-        return '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--bg-raised);border-radius:3px;margin-bottom:3px;font-size:12px">' +
-          '<span>☰</span><span>' + _esc(c) + '</span></div>';
-      }).join('') + '</div>' +
-      '<button id="rc-apply" style="margin-top:8px;padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px">Use current order</button>';
-    div.querySelector('#rc-apply').addEventListener('click', function() {
-      onChange('order', cols.slice());
+    var cols = _getColumns(currentRows);
+    var order = (config.order && config.order.length) ? config.order : cols.slice();
+    return _coreDragChecklist('Column order', cols, order, function(newOrder) {
+      onChange('order', newOrder);
     });
-    return div;
   }
 };
 
@@ -342,22 +334,26 @@ window.DWBNodes.CONCAT_COLS = {
   },
   validate: function(config) { return (config.columns && config.columns.length >= 2) ? null : 'Select at least 2 columns'; },
   configUI: function(config, onChange, currentRows) {
-    const div = document.createElement('div');
-    const cols = _getColumns(currentRows);
-    div.innerHTML = `
-      <div class="form-row"><label>Columns to join (ctrl+click)</label>
-        <select id="cc-cols" multiple style="width:100%;height:120px">
-          ${cols.map(function(c) { return '<option value="' + _esc(c) + '"' + ((config.columns||[]).includes(c) ? ' selected' : '') + '>' + _esc(c) + '</option>'; }).join('')}
-        </select></div>
-      <div class="form-row"><label>Separator</label>
-        <input type="text" id="cc-sep" value="${_esc(config.separator !== undefined ? config.separator : ' ')}" style="width:100%"></div>
-      <div class="form-row"><label>Output column name</label>
-        <input type="text" id="cc-out" value="${_esc(config.outputColumn||'concat_result')}" style="width:100%"></div>`;
-    div.querySelector('#cc-cols').addEventListener('change', function(e) {
-      onChange('columns', Array.from(e.target.selectedOptions).map(function(o) { return o.value; }));
-    });
-    div.querySelector('#cc-sep').addEventListener('input', function(e) { onChange('separator', e.target.value); });
-    div.querySelector('#cc-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
+    var div = document.createElement('div');
+    var cols = _getColumns(currentRows);
+    div.appendChild(_coreDragChecklist('Columns to join (drag to reorder)', cols, config.columns || [], function(newCols) {
+      onChange('columns', newCols);
+    }));
+
+    var sepRow = document.createElement('div');
+    sepRow.className = 'form-row';
+    sepRow.innerHTML = '<label>Separator</label>' +
+      '<input type="text" id="cc-sep" value="' + _esc(config.separator !== undefined ? config.separator : ' ') + '" style="width:100%">';
+    sepRow.querySelector('#cc-sep').addEventListener('input', function(e) { onChange('separator', e.target.value); });
+    div.appendChild(sepRow);
+
+    var outRow = document.createElement('div');
+    outRow.className = 'form-row';
+    outRow.innerHTML = '<label>Output column name</label>' +
+      '<input type="text" id="cc-out" value="' + _esc(config.outputColumn || 'concat_result') + '" style="width:100%">';
+    outRow.querySelector('#cc-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
+    div.appendChild(outRow);
+
     return div;
   }
 };
@@ -404,17 +400,191 @@ function _esc(s) {
 
 function _coreColumnsUI(prefix, hint) {
   return function(config, onChange, currentRows) {
-    const div = document.createElement('div');
-    const cols = _getColumns(currentRows);
-    div.innerHTML = `
-      <div class="form-row"><label>${hint}</label>
-        <select id="${prefix}-cols" multiple style="width:100%;height:120px">
-          ${cols.map(function(c) { return '<option value="' + _esc(c) + '"' + ((config.columns||[]).includes(c) ? ' selected' : '') + '>' + _esc(c) + '</option>'; }).join('')}
-        </select></div>
-      <div style="font-size:11px;color:var(--text-muted)">Hold Ctrl/Cmd to select multiple columns.</div>`;
-    div.querySelector('#' + prefix + '-cols').addEventListener('change', function(e) {
-      onChange('columns', Array.from(e.target.selectedOptions).map(function(o) { return o.value; }));
+    var cols = _getColumns(currentRows);
+    var selected = (config.columns || []).slice();
+    return _coreChecklist(hint, cols, selected, function(newSel) {
+      onChange('columns', newSel);
     });
-    return div;
   };
+}
+
+/* Checkbox-only checklist. onChange(newSelectedArray) fires on every change. */
+function _coreChecklist(label, cols, selected, onChange) {
+  var wrap = document.createElement('div');
+  wrap.className = 'form-row';
+  var lbl = document.createElement('label');
+  lbl.textContent = label;
+  wrap.appendChild(lbl);
+
+  var box = document.createElement('div');
+  box.className = 'pt-checklist';
+
+  var hdr = document.createElement('div');
+  hdr.className = 'pt-checklist-hdr';
+  hdr.innerHTML = '<a class="pt-checklist-all">Select all</a><a class="pt-checklist-clear">Clear all</a>';
+  box.appendChild(hdr);
+
+  var list = document.createElement('div');
+  list.className = 'pt-checklist-list';
+
+  function render() {
+    list.innerHTML = '';
+    if (!cols.length) {
+      list.innerHTML = '<div style="padding:8px;font-size:11px;color:var(--text-faint)">Run pipeline to see columns</div>';
+      return;
+    }
+    cols.forEach(function(item) {
+      var checked = selected.indexOf(item) !== -1;
+      var row = document.createElement('label');
+      row.className = 'pt-checklist-row' + (checked ? ' checked' : '');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = checked;
+      cb.addEventListener('change', function() {
+        if (cb.checked) {
+          if (selected.indexOf(item) === -1) selected = selected.concat([item]);
+        } else {
+          selected = selected.filter(function(s) { return s !== item; });
+        }
+        onChange(selected.slice());
+        render();
+      });
+      row.appendChild(cb);
+      var span = document.createElement('span');
+      span.textContent = item;
+      row.appendChild(span);
+      list.appendChild(row);
+    });
+  }
+
+  render();
+  box.appendChild(list);
+
+  hdr.querySelector('.pt-checklist-all').addEventListener('click', function() {
+    selected = cols.slice();
+    onChange(selected.slice());
+    render();
+  });
+  hdr.querySelector('.pt-checklist-clear').addEventListener('click', function() {
+    selected = [];
+    onChange([]);
+    render();
+  });
+
+  wrap.appendChild(box);
+  return wrap;
+}
+
+/* Draggable checklist (order matters). onChange(newOrderedSelectedArray) fires on every change. */
+function _coreDragChecklist(label, allCols, selected, onChange) {
+  var wrap = document.createElement('div');
+  wrap.className = 'form-row';
+  var lbl = document.createElement('label');
+  lbl.textContent = label;
+  wrap.appendChild(lbl);
+
+  var box = document.createElement('div');
+  box.className = 'pt-checklist';
+
+  var hdr = document.createElement('div');
+  hdr.className = 'pt-checklist-hdr';
+  hdr.innerHTML = '<a class="pt-checklist-all">Select all</a><a class="pt-checklist-clear">Clear all</a>';
+  box.appendChild(hdr);
+
+  var list = document.createElement('div');
+  list.className = 'pt-checklist-list';
+
+  // Build display order: selected cols first (in their order), then remaining cols
+  var selSet = {};
+  selected.forEach(function(c) { selSet[c] = true; });
+  var remaining = allCols.filter(function(c) { return !selSet[c]; });
+  var displayOrder = selected.filter(function(c) { return allCols.indexOf(c) !== -1; }).concat(remaining);
+  var checkedSet = {};
+  selected.forEach(function(c) { if (allCols.indexOf(c) !== -1) checkedSet[c] = true; });
+
+  var dragSrcIdx = null;
+
+  function getResult() {
+    return displayOrder.filter(function(c) { return checkedSet[c]; });
+  }
+
+  function render() {
+    list.innerHTML = '';
+    if (!allCols.length) {
+      list.innerHTML = '<div style="padding:8px;font-size:11px;color:var(--text-faint)">Run pipeline to see columns</div>';
+      return;
+    }
+    displayOrder.forEach(function(item, i) {
+      var checked = !!checkedSet[item];
+      var row = document.createElement('label');
+      row.className = 'pt-checklist-row' + (checked ? ' checked' : '');
+      row.draggable = true;
+      row.dataset.idx = i;
+
+      var handle = document.createElement('span');
+      handle.className = 'pt-checklist-drag';
+      handle.textContent = '⠿';
+      row.appendChild(handle);
+
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = checked;
+      cb.addEventListener('change', function(e) {
+        e.stopPropagation();
+        if (cb.checked) { checkedSet[item] = true; }
+        else { delete checkedSet[item]; }
+        onChange(getResult());
+        render();
+      });
+      row.appendChild(cb);
+
+      var span = document.createElement('span');
+      span.textContent = item;
+      row.appendChild(span);
+
+      row.addEventListener('dragstart', function(e) {
+        dragSrcIdx = i;
+        e.dataTransfer.effectAllowed = 'move';
+        row.style.opacity = '0.4';
+      });
+      row.addEventListener('dragend', function() {
+        row.style.opacity = '';
+        list.querySelectorAll('.pt-checklist-row').forEach(function(r) { r.classList.remove('drag-over'); });
+      });
+      row.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        list.querySelectorAll('.pt-checklist-row').forEach(function(r) { r.classList.remove('drag-over'); });
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('drop', function(e) {
+        e.preventDefault();
+        if (dragSrcIdx === null || dragSrcIdx === i) return;
+        var moved = displayOrder.splice(dragSrcIdx, 1)[0];
+        displayOrder.splice(i, 0, moved);
+        dragSrcIdx = null;
+        onChange(getResult());
+        render();
+      });
+
+      list.appendChild(row);
+    });
+  }
+
+  render();
+  box.appendChild(list);
+
+  hdr.querySelector('.pt-checklist-all').addEventListener('click', function() {
+    allCols.forEach(function(c) { checkedSet[c] = true; });
+    onChange(getResult());
+    render();
+  });
+  hdr.querySelector('.pt-checklist-clear').addEventListener('click', function() {
+    checkedSet = {};
+    onChange([]);
+    render();
+  });
+
+  wrap.appendChild(box);
+  return wrap;
 }

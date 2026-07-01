@@ -133,7 +133,7 @@ window.DWBPipelineTab = (function() {
       _ptRenderStashes();
       // Re-select currently selected node config
       if (window.DWBState.selectedNodeId) {
-        _ptSelectNode(window.DWBState.selectedNodeId, true);
+        _ptSelectNode(window.DWBState.selectedNodeId, false);
       }
     });
   }
@@ -193,8 +193,8 @@ window.DWBPipelineTab = (function() {
 
     const nodeImpl = window.DWBNodes && window.DWBNodes[node.type];
 
-    if (skipRun) {
-      _ptBuildConfigUI(configBody, node, nodeImpl, []);
+    if (skipRun && _ptPreviewRows && _ptPreviewRows.length > 0) {
+      _ptBuildConfigUI(configBody, node, nodeImpl, _ptPreviewRows);
       return;
     }
 
@@ -229,6 +229,7 @@ window.DWBPipelineTab = (function() {
             node.config = node.config || {};
             node.config[key] = val;
             window.DWBShell.markDirty();
+            window.DWBPipelineTab.refresh();
           },
           currentRows,
           node

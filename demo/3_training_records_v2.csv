@@ -1,0 +1,9 @@
+employee_id,full_name,department,region,hire_date,course_name,score,passed,completion_date,cost_usd,feedback,phone,url_slug,pay_grade,satisfaction
+1001,Smith John,Engineering,East,03/15/2019,Data Fundamentals,95,Yes,2024-01-15,450,Great course very helpful for my work,555.234.5678,Data Fundamentals,G5,5
+1003,Johnson James,Logistics,East,07/30/2018,Data Fundamentals,72,Yes,2024-01-20,450,Much better second attempt,5552109876,data fundamentals,G2,3
+1013,Jackson William,Logistics,North,07/19/2021,Data Fundamentals,61,Yes,2024-02-14,450,Improved after retake,5558901234,data fundamentals,G2,3
+1022,Lee Angela,Intelligence,South,05/05/2019,Excel Advanced,71,Yes,2024-03-05,320,Retook and passed this time,5558901234,Excel Advanced,G2,3
+1032,Scott Deborah,Intelligence,North,07/14/2021,Leadership 101,68,Yes,2024-03-25,580,Second attempt much better,555.890.1234,leadership 101,G2,3
+1051,Nguyen Peter,Engineering,West,04/01/2023,Python Basics,88,Yes,2024-05-03,620,Excellent first course very engaging,5551234567,Python Basics,G3,5
+1052,Okonkwo Amara,Medical,South,07/15/2022,Leadership 101,91,Yes,2024-05-05,580,Brilliant facilitator loved every minute,5559876543,Leadership 101,G4,5
+1053,Petrov Ivan,Operations,North,02/28/2021,Data Fundamentals,76,Yes,2024-05-07,450,Good solid introduction to the material,5554567890,Data Fundamentals,G3,4
