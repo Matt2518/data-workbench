@@ -249,3 +249,37 @@
   transition: border-color var(--transition-fast);
 }
 .dash-table-search:focus { border-color: var(--accent); }
+
+/* Filter chip interactivity */
+.dash-filter-chip { cursor: pointer; user-select: none; }
+.dash-filter-chip:hover { background: var(--accent-light); border-color: var(--accent); }
+.dash-filter-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+/* Filter chip dropdown */
+.dash-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-menu);
+  z-index: 600;
+  min-width: 160px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.dash-filter-dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 14px;
+  font-size: var(--text-sm);
+  font-family: inherit;
+  background: none;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.dash-filter-dropdown-item:hover { background: var(--bg-raised); }
+.dash-filter-dropdown-item.active { color: var(--accent); font-weight: var(--weight-semibold); background: var(--accent-light); }

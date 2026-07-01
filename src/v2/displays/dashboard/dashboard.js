@@ -13,13 +13,149 @@ window.DWBDashboard = (function() {
     return (display.filterContext && display.filterContext.activeFilters) || {};
   }
 
+  function _dGetFilterableFields(display, vizList) {
+    var fields = {};
+    var result = [];
+    (display.placements || []).forEach(function(p) {
+      var viz = (vizList || []).find(function(v) { return v.id === p.vizId; });
+      if (!viz || !viz.linkToDisplayFilters) return;
+      (viz.filterableFields || []).forEach(function(f) {
+        if (!fields[f]) { fields[f] = true; result.push(f); }
+      });
+    });
+    return result;
+  }
+
+  function _dGetUniqueValues(field, display, snapshots, vizList) {
+    var seen = {};
+    var vals = [];
+    (display.placements || []).forEach(function(p) {
+      var viz = (vizList || []).find(function(v) { return v.id === p.vizId; });
+      if (!viz || !viz.linkToDisplayFilters) return;
+      if ((viz.filterableFields || []).indexOf(field) === -1) return;
+      (snapshots[viz.snapshotName] || []).forEach(function(row) {
+        if (row[field] !== undefined) {
+          var v = String(row[field]);
+          if (!seen[v]) { seen[v] = true; vals.push(v); }
+        }
+      });
+    });
+    return vals.sort();
+  }
+
+  function _dRenderFilterBar(filterBarEl, display, vizList, snapshots, onFilterChange) {
+    if (!filterBarEl) return;
+    var filterableFields = _dGetFilterableFields(display, vizList);
+    if (!filterableFields.length) {
+      filterBarEl.classList.add('hidden');
+      filterBarEl.innerHTML = '';
+      return;
+    }
+    filterBarEl.classList.remove('hidden');
+    var activeFilters = _dActiveFilters(display);
+    filterBarEl.innerHTML = '';
+
+    var label = document.createElement('span');
+    label.className = 'dash-filter-label';
+    label.textContent = 'Filters';
+    filterBarEl.appendChild(label);
+
+    filterableFields.forEach(function(field) {
+      var activeVal = activeFilters.hasOwnProperty(field) ? activeFilters[field] : null;
+      var wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:relative';
+
+      var chip = document.createElement('span');
+      chip.className = 'dash-filter-chip' + (activeVal !== null ? ' active' : '');
+
+      var chipLabel = document.createElement('span');
+      chipLabel.textContent = field + ': ' + (activeVal !== null ? String(activeVal) : 'All');
+      chip.appendChild(chipLabel);
+
+      if (activeVal !== null) {
+        var clrBtn = document.createElement('button');
+        clrBtn.className = 'dash-filter-chip-remove';
+        clrBtn.textContent = '✕';
+        clrBtn.addEventListener('click', (function(f) { return function(e) {
+          e.stopPropagation();
+          display.filterContext = display.filterContext || { activeFilters: {} };
+          display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+          delete display.filterContext.activeFilters[f];
+          if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+          if (onFilterChange) onFilterChange();
+        }; })(field));
+        chip.appendChild(clrBtn);
+      }
+
+      chip.addEventListener('click', (function(f, av) { return function() {
+        var existing = wrapper.querySelector('.dash-filter-dropdown');
+        if (existing) { wrapper.removeChild(existing); return; }
+        document.querySelectorAll('.dash-filter-dropdown').forEach(function(d) {
+          if (d.parentElement) d.parentElement.removeChild(d);
+        });
+        var dd = document.createElement('div');
+        dd.className = 'dash-filter-dropdown';
+
+        var allBtn = document.createElement('button');
+        allBtn.className = 'dash-filter-dropdown-item' + (av === null ? ' active' : '');
+        allBtn.textContent = 'All';
+        allBtn.addEventListener('click', function() {
+          display.filterContext = display.filterContext || { activeFilters: {} };
+          display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+          delete display.filterContext.activeFilters[f];
+          if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+          if (onFilterChange) onFilterChange();
+        });
+        dd.appendChild(allBtn);
+
+        _dGetUniqueValues(f, display, snapshots, vizList).forEach(function(val) {
+          var opt = document.createElement('button');
+          opt.className = 'dash-filter-dropdown-item' + (av !== null && String(av) === val ? ' active' : '');
+          opt.textContent = val;
+          opt.addEventListener('click', function() {
+            display.filterContext = display.filterContext || { activeFilters: {} };
+            display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+            display.filterContext.activeFilters[f] = val;
+            if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+            if (onFilterChange) onFilterChange();
+          });
+          dd.appendChild(opt);
+        });
+
+        wrapper.appendChild(dd);
+        setTimeout(function() {
+          document.addEventListener('click', function _ddCloser(e) {
+            if (!wrapper.contains(e.target)) {
+              if (wrapper.contains(dd)) wrapper.removeChild(dd);
+              document.removeEventListener('click', _ddCloser);
+            }
+          });
+        }, 10);
+      }; })(field, activeVal));
+
+      wrapper.appendChild(chip);
+      filterBarEl.appendChild(wrapper);
+    });
+
+    var clearBtn = document.createElement('button');
+    clearBtn.className = 'dash-clear-filters';
+    clearBtn.textContent = 'Clear all';
+    clearBtn.addEventListener('click', function() {
+      display.filterContext = { activeFilters: {} };
+      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+      if (onFilterChange) onFilterChange();
+    });
+    filterBarEl.appendChild(clearBtn);
+  }
+
   function mount(container, display) {
     if (!container || !display) return;
 
     const cfg = display.config || {};
     const layout = cfg.layout || '2col';
-    const filters = _dActiveFilters(display);
-    const filterKeys = Object.keys(filters);
+    const state = window.DWBState;
+    const snapshots = state.snapshots || {};
+    const vizList = (state.flow && state.flow.visualizations) || [];
 
     container.innerHTML = `
       <div class="dash-root">
@@ -35,19 +171,12 @@ window.DWBDashboard = (function() {
           <button class="tb-btn" id="dash-fullscreen-btn">⛶ Present</button>
           <button class="tb-btn" id="dash-export-btn">Export HTML</button>
         </div>
-        <div class="dash-filter-bar${filterKeys.length ? '' : ' hidden'}" id="dash-filter-bar">
-          <span class="dash-filter-label">Filters</span>
-          ${filterKeys.map(function(k) {
-            return '<span class="dash-filter-chip">' + _dEsc(k) + ': ' + _dEsc(String(filters[k])) + '<button class="dash-filter-chip-remove" data-filter-key="' + _dEsc(k) + '">✕</button></span>';
-          }).join('')}
-          <button class="dash-clear-filters">Clear all</button>
-        </div>
+        <div class="dash-filter-bar hidden" id="dash-filter-bar"></div>
         <div class="dash-canvas" id="dash-canvas">
           <div class="dash-grid layout-${layout}" id="dash-grid"></div>
         </div>
       </div>`;
 
-    // Wire layout buttons
     container.querySelectorAll('.dash-layout-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         display.config = display.config || {};
@@ -57,40 +186,33 @@ window.DWBDashboard = (function() {
       });
     });
 
-    // Wire add viz
     container.querySelector('#dash-add-viz-btn').addEventListener('click', function() {
       _dShowAddPlacementModal(container, display);
     });
 
-    // Wire fullscreen
     container.querySelector('#dash-fullscreen-btn').addEventListener('click', function() {
       _dEnterFullscreen(display);
     });
 
-    // Wire export html
     container.querySelector('#dash-export-btn').addEventListener('click', function() {
       _dExportHtml(display, container.querySelector('#dash-export-btn'));
     });
 
-    // Wire filter chip removes
-    container.querySelectorAll('.dash-filter-chip-remove').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        if (display.filterContext) delete display.filterContext.activeFilters[btn.dataset.filterKey];
-        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
-        mount(container, display);
-      });
-    });
-    const clearBtn = container.querySelector('.dash-clear-filters');
-    if (clearBtn) clearBtn.addEventListener('click', function() {
-      display.filterContext = { activeFilters: {} };
-      if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
-      mount(container, display);
-    });
+    var filterBarEl = container.querySelector('#dash-filter-bar');
+    var gridEl = container.querySelector('#dash-grid');
 
-    _dRenderPlacements(display, container.querySelector('#dash-grid'), filters);
+    function _doFilterUpdate() {
+      _dRenderFilterBar(filterBarEl, display, vizList, snapshots, _doFilterUpdate);
+      _dDisposeDomCharts(gridEl);
+      gridEl.innerHTML = '';
+      _dRenderPlacements(display, gridEl, _dActiveFilters(display), _doFilterUpdate);
+    }
+
+    _dRenderFilterBar(filterBarEl, display, vizList, snapshots, _doFilterUpdate);
+    _dRenderPlacements(display, gridEl, _dActiveFilters(display), _doFilterUpdate);
   }
 
-  function _dRenderPlacements(display, grid, filters) {
+  function _dRenderPlacements(display, grid, filters, onFilterChange) {
     if (!grid) return;
     const placements = (display.placements || []);
     const state = window.DWBState;
@@ -129,22 +251,29 @@ window.DWBDashboard = (function() {
       card.querySelector('.dash-fullscreen-btn').addEventListener('click', function() {
         display.placements = display.placements.filter(function(p) { return p.id !== placement.id; });
         if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
-        const gridEl = grid;
-        _dRenderPlacements(display, gridEl, filters);
+        _dDisposeDomCharts(grid);
+        grid.innerHTML = '';
+        _dRenderPlacements(display, grid, _dActiveFilters(display), onFilterChange);
       });
 
       grid.appendChild(card);
 
-      // Render viz into placement body
       const body = card.querySelector('#dash-pb-' + placement.id);
-      if (body) {
-        if (viz.type === 'AI_ASSIST') {
-          _dRenderAiAssist(body, viz, rows);
-        } else if (viz.type === 'DATA_TABLE') {
-          _dRenderDataTable(body, viz, rows);
-        } else if (window.DWBVizTab) {
-          window.DWBVizTab.renderViz(viz, rows, body, allRows);
-        }
+      if (!body) return;
+
+      switch (viz.type) {
+        case 'BAR_VERTICAL':          _dRenderBarVertical(viz, rows, body, display, onFilterChange); break;
+        case 'LINE':                  _dRenderLine(viz, rows, body, display, onFilterChange); break;
+        case 'PIE':                   _dRenderPie(viz, rows, body, display, onFilterChange); break;
+        case 'STACKED_DIVERGING_BAR': _dRenderStackedDivergingBar(viz, rows, body, display, onFilterChange); break;
+        case 'WORD_CLOUD':            _dRenderWordCloud(viz, rows, body, display, onFilterChange); break;
+        case 'STAT_CARD':             _dRenderStatCard(body, viz, allRows, rows); break;
+        case 'DATA_TABLE':            _dRenderDataTable(body, viz, rows); break;
+        case 'AI_ASSIST':             _dRenderAiAssist(body, viz, rows); break;
+        case 'QUOTES_BOARD':          _dRenderQuotesBoard(body, viz, rows); break;
+        case 'RICH_TEXT':             _dRenderRichText(body, viz, rows); break;
+        default:
+          if (window.DWBVizTab) window.DWBVizTab.renderViz(viz, rows, body, allRows);
       }
     });
   }
@@ -316,7 +445,7 @@ window.DWBDashboard = (function() {
   }
 
   // ── BAR_VERTICAL renderer (uses _dAggregateRows) ─────────────────────────────
-  function _dRenderBarVertical(viz, rows, container) {
+  function _dRenderBarVertical(viz, rows, container, display, onFilterChange) {
     var cfg = viz.config || {};
     var catField = cfg.categoryField || '';
     var valField = cfg.valueField || '';
@@ -335,6 +464,15 @@ window.DWBDashboard = (function() {
     container.innerHTML = '';
     container.appendChild(el);
 
+    var activeFilters = (display && display.filterContext && display.filterContext.activeFilters) || {};
+    var activeVal = activeFilters.hasOwnProperty(catField) ? String(activeFilters[catField]) : null;
+    var barData = data.map(function(d) {
+      var color = (activeVal !== null)
+        ? (String(d.category) === activeVal ? '#005EB8' : 'rgba(0,94,184,0.3)')
+        : '#005EB8';
+      return { value: d.value, itemStyle: { color: color } };
+    });
+
     window.DWBVizTab.loadEcharts().then(function(ec) {
       var existing = ec.getInstanceByDom(el);
       if (existing) existing.dispose();
@@ -343,15 +481,31 @@ window.DWBDashboard = (function() {
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'category', data: data.map(function(d) { return d.category; }), axisLabel: { rotate: 30, fontSize: 11 } },
         yAxis: { type: 'value' },
-        series: [{ type: 'bar', data: data.map(function(d) { return d.value; }), itemStyle: { color: '#005EB8' } }],
+        series: [{ type: 'bar', data: barData }],
         grid: { left: 50, right: 20, bottom: 60, top: 20 }
       });
       setTimeout(function() { chart.resize(); }, 50);
+      chart.on('click', function(params) {
+        if (!display || !onFilterChange) return;
+        if (!viz.linkToDisplayFilters || !(viz.filterableFields || []).length) return;
+        if (!catField) return;
+        var value = params.name || (params.data && params.data.name) || '';
+        if (!value) return;
+        display.filterContext = display.filterContext || { activeFilters: {} };
+        display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+        if (display.filterContext.activeFilters[catField] === value) {
+          delete display.filterContext.activeFilters[catField];
+        } else {
+          display.filterContext.activeFilters[catField] = value;
+        }
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        onFilterChange();
+      });
     }).catch(function() { _dMissingConfig(container, 'BAR_VERTICAL (ECharts unavailable)'); });
   }
 
   // ── LINE renderer ─────────────────────────────────────────────────────────────
-  function _dRenderLine(viz, rows, container) {
+  function _dRenderLine(viz, rows, container, display, onFilterChange) {
     var cfg = viz.config || {};
     var xField = cfg.xField || '';
     var series = cfg.series || [];
@@ -415,11 +569,27 @@ window.DWBDashboard = (function() {
         grid: { top: 40, bottom: 40, left: 60, right: cfg.dualYAxis ? 60 : 20 }
       });
       setTimeout(function() { chart.resize(); }, 50);
+      chart.on('click', function(params) {
+        if (!display || !onFilterChange) return;
+        if (!viz.linkToDisplayFilters || !(viz.filterableFields || []).length) return;
+        if (!xField) return;
+        var value = params.name || '';
+        if (!value) return;
+        display.filterContext = display.filterContext || { activeFilters: {} };
+        display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+        if (display.filterContext.activeFilters[xField] === value) {
+          delete display.filterContext.activeFilters[xField];
+        } else {
+          display.filterContext.activeFilters[xField] = value;
+        }
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        onFilterChange();
+      });
     }).catch(function() { _dMissingConfig(container, 'LINE (ECharts unavailable)'); });
   }
 
   // ── PIE renderer ──────────────────────────────────────────────────────────────
-  function _dRenderPie(viz, rows, container) {
+  function _dRenderPie(viz, rows, container, display, onFilterChange) {
     var cfg = viz.config || {};
     var catField = cfg.categoryField || '';
     var agg = cfg.aggregation || 'sum';
@@ -444,6 +614,14 @@ window.DWBDashboard = (function() {
     var showLabels = cfg.showLabels !== false;
     var showLegend = cfg.showLegend !== false;
 
+    var activeFilters = (display && display.filterContext && display.filterContext.activeFilters) || {};
+    var activeVal = activeFilters.hasOwnProperty(catField) ? String(activeFilters[catField]) : null;
+    if (activeVal !== null) {
+      data = data.map(function(d) {
+        return { name: d.name, value: d.value, selected: d.name === activeVal };
+      });
+    }
+
     _dDisposeDomCharts(container);
     var el = document.createElement('div');
     el.className = 'dash-block-chart';
@@ -462,17 +640,35 @@ window.DWBDashboard = (function() {
         series: [{
           type: 'pie',
           radius: cfg.donut ? ['40%','70%'] : '70%',
+          selectedMode: 'single',
+          selectedOffset: 10,
           data: data,
           label: { show: showLabels, formatter: '{b}: {d}%' },
           emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } }
         }]
       });
       setTimeout(function() { chart.resize(); }, 50);
+      chart.on('click', function(params) {
+        if (!display || !onFilterChange) return;
+        if (!viz.linkToDisplayFilters || !(viz.filterableFields || []).length) return;
+        if (!catField) return;
+        var value = params.name || '';
+        if (!value) return;
+        display.filterContext = display.filterContext || { activeFilters: {} };
+        display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+        if (display.filterContext.activeFilters[catField] === value) {
+          delete display.filterContext.activeFilters[catField];
+        } else {
+          display.filterContext.activeFilters[catField] = value;
+        }
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        onFilterChange();
+      });
     }).catch(function() { _dMissingConfig(container, 'PIE (ECharts unavailable)'); });
   }
 
   // ── STACKED_DIVERGING_BAR (Likert) renderer ───────────────────────────────────
-  function _dRenderStackedDivergingBar(viz, rows, container) {
+  function _dRenderStackedDivergingBar(viz, rows, container, display, onFilterChange) {
     var cfg = viz.config || {};
     var questionField = cfg.questionField || '';
     var responseField = cfg.responseField || '';
@@ -613,11 +809,28 @@ window.DWBDashboard = (function() {
         series: series
       });
       setTimeout(function() { chart.resize(); }, 50);
+      chart.on('click', function(params) {
+        if (!display || !onFilterChange) return;
+        if (!viz.linkToDisplayFilters || !(viz.filterableFields || []).length) return;
+        var field = (viz.config || {}).questionField || '';
+        if (!field) return;
+        var value = params.name || '';
+        if (!value || value.indexOf('__') === 0) return;
+        display.filterContext = display.filterContext || { activeFilters: {} };
+        display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+        if (display.filterContext.activeFilters[field] === value) {
+          delete display.filterContext.activeFilters[field];
+        } else {
+          display.filterContext.activeFilters[field] = value;
+        }
+        if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+        onFilterChange();
+      });
     }).catch(function() { _dMissingConfig(container, 'STACKED_DIVERGING_BAR (ECharts unavailable)'); });
   }
 
   // ── WORD_CLOUD renderer ───────────────────────────────────────────────────────
-  function _dRenderWordCloud(viz, rows, container) {
+  function _dRenderWordCloud(viz, rows, container, display, onFilterChange) {
     var cfg = viz.config || {};
     var wordField = cfg.wordField || '';
 
@@ -685,6 +898,23 @@ window.DWBDashboard = (function() {
           }]
         });
         setTimeout(function() { chart.resize(); }, 50);
+        chart.on('click', function(params) {
+          if (!display || !onFilterChange) return;
+          if (!viz.linkToDisplayFilters || !(viz.filterableFields || []).length) return;
+          var field = (viz.config || {}).categoryField || (viz.config || {}).xField || '';
+          if (!field) return;
+          var value = params.name || (params.data && params.data.name) || '';
+          if (!value) return;
+          display.filterContext = display.filterContext || { activeFilters: {} };
+          display.filterContext.activeFilters = display.filterContext.activeFilters || {};
+          if (display.filterContext.activeFilters[field] === value) {
+            delete display.filterContext.activeFilters[field];
+          } else {
+            display.filterContext.activeFilters[field] = value;
+          }
+          if (window.DWBShell && window.DWBShell.markDirty) window.DWBShell.markDirty();
+          onFilterChange();
+        });
       }).catch(function() {
         container.innerHTML = '<div style="padding:20px;color:var(--danger);font-size:12px">⚠️ Word cloud library unavailable.</div>';
       });
