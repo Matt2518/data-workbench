@@ -662,6 +662,23 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-main);
 }
 
+/* DATA_TABLE search input */
+.dash-table-search {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+.dash-table-search:focus { border-color: var(--accent); }
+
 /* --- src\v2\displays\displays-tab.css --- */
 /* === Displays Tab === */
 #panel-displays {
@@ -1383,6 +1400,178 @@ input:focus, select:focus, textarea:focus {
   user-select: none; width: 40px;
 }
 
+/* --- src\v2\shell\splash.css --- */
+/* === DWBSplash: splash screen and live tour styles === */
+:root {
+  --shadow-splash: 0 32px 96px rgba(0,0,0,0.6);
+  --shadow-focus:  0 0 0 6px rgba(197,178,48,0.3);
+}
+
+/* Splash overlay */
+#sp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+#sp-card {
+  width: 640px;
+  background: var(--bg-surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-splash);
+  padding: 48px 48px 40px;
+  text-align: center;
+  animation: slideUp 0.35s ease;
+}
+
+.sp-anchor {
+  font-size: 42px;
+  color: var(--navy-gold);
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.sp-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sp-title-dwb {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+.sp-title-ver {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.sp-tagline {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 16px;
+}
+
+.sp-rule {
+  width: 80px;
+  height: 2px;
+  background: var(--navy-gold);
+  margin: 24px auto;
+}
+
+.sp-pills {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sp-pill {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  padding: 8px 14px;
+  color: var(--text-main);
+}
+
+.sp-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.sp-btn-lg {
+  padding: 9px 24px;
+  font-size: 13px;
+}
+
+/* Tour dim overlay */
+#sp-tour-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 900;
+  pointer-events: all;
+}
+
+/* Tour highlight ring (above overlay, around target element) */
+#sp-tour-ring {
+  position: fixed;
+  border: 4px solid var(--navy-gold);
+  box-shadow: var(--shadow-focus);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 901;
+  transition: top 0.15s ease, left 0.15s ease, width 0.15s ease, height 0.15s ease;
+}
+
+/* Tour tooltip card */
+#sp-tour-tooltip {
+  position: fixed;
+  width: 280px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-modal);
+  padding: 16px;
+  z-index: 902;
+  animation: fadeIn 0.15s ease;
+}
+
+.sp-tip-step {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+
+.sp-tip-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.sp-tip-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.sp-tip-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sp-tip-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.sp-tip-skip {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.sp-tip-skip:hover { color: var(--text-main); }
+
 /* --- src\v2\shell\topbar.css --- */
 /* topbar styles are in design-tokens.css — this file intentionally minimal */
 #topbar .tb-btn + .tb-btn { margin-left: 2px; }
@@ -1586,6 +1775,116 @@ input:focus, select:focus, textarea:focus {
   flex: 1; gap: 12px; color: var(--text-faint);
   font-size: 13px; text-align: center; padding: 40px;
 }
+
+/* ── Display Filters section ────────────────────────────────────────────── */
+.vt-filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+  min-height: 24px;
+}
+
+.vt-filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 11px;
+  padding: 3px 8px;
+  color: var(--text-main);
+}
+
+.vt-filter-tag-remove {
+  background: none;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+.vt-filter-tag-remove:hover { color: var(--danger); }
+
+.vt-filter-add-btn {
+  background: none;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 10px;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.vt-filter-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.vt-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  min-width: 160px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.vt-filter-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text-main);
+}
+.vt-filter-dropdown-item:hover { background: var(--bg-raised); }
+
+/* ── Toggle switch ──────────────────────────────────────────────────────── */
+.vt-toggle {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.vt-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.vt-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border-strong);
+  border-radius: 20px;
+  transition: background var(--transition-fast);
+}
+.vt-toggle-track::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  top: 3px;
+  left: 3px;
+  transition: transform var(--transition-fast);
+}
+.vt-toggle input:checked + .vt-toggle-track { background: var(--accent); }
+.vt-toggle input:checked + .vt-toggle-track::before { transform: translateX(14px); }
 
 /* --- src\v2\wizard\wizard.css --- */
 /* === Wizard Mode === */
@@ -2023,6 +2322,8 @@ window.DWBDashboard = (function() {
       if (body) {
         if (viz.type === 'AI_ASSIST') {
           _dRenderAiAssist(body, viz, rows);
+        } else if (viz.type === 'DATA_TABLE') {
+          _dRenderDataTable(body, viz, rows);
         } else if (window.DWBVizTab) {
           window.DWBVizTab.renderViz(viz, rows, body, allRows);
         }
@@ -2722,6 +3023,78 @@ window.DWBDashboard = (function() {
     });
   }
 
+  // ── DATA_TABLE renderer ────────────────────────────────────────────────────────
+  function _dRenderDataTable(body, viz, rows) {
+    var cfg = viz.config || {};
+    var selectedCols = (cfg.selectedColumns && cfg.selectedColumns.length) ? cfg.selectedColumns : null;
+    var maxRows = cfg.maxRows || 200;
+    var showRowNums = cfg.showRowNumbers === true;
+    var enableSearch = cfg.enableSearch === true;
+
+    if (!rows.length) {
+      body.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">No data available.</div>';
+      return;
+    }
+
+    var allCols = Object.keys(rows[0]);
+    var cols = selectedCols ? selectedCols.filter(function(c) { return allCols.indexOf(c) !== -1; }) : allCols;
+    var allIndices = rows.map(function(_, i) { return i; });
+
+    var wrap = document.createElement('div');
+    var searchInput = null;
+
+    if (enableSearch) {
+      searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.className = 'dash-table-search';
+      searchInput.placeholder = 'Search…';
+      wrap.appendChild(searchInput);
+    }
+
+    var tableWrap = document.createElement('div');
+    tableWrap.style.cssText = 'overflow:auto;max-height:360px';
+    wrap.appendChild(tableWrap);
+
+    function renderTable(indices) {
+      var limit = Math.min(indices.length, maxRows);
+      var html = '<table class="dwb-data-table"><thead><tr>';
+      if (showRowNums) html += '<th style="color:var(--text-faint);font-weight:normal;width:40px">#</th>';
+      html += cols.map(function(c) { return '<th>' + _dEsc(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+      for (var i = 0; i < limit; i++) {
+        var ri = indices[i];
+        html += '<tr>';
+        if (showRowNums) html += '<td class="row-num-cell">' + (ri + 1) + '</td>';
+        html += cols.map(function(c) {
+          var v = String(rows[ri][c] !== undefined ? rows[ri][c] : '');
+          return '<td>' + _dEsc(v.length > 60 ? v.slice(0, 60) + '…' : v) + '</td>';
+        }).join('') + '</tr>';
+      }
+      html += '</tbody></table>';
+      if (indices.length > limit) {
+        html += '<div style="padding:6px 8px;font-size:11px;color:var(--text-muted)">Showing ' + limit + ' of ' + indices.length + ' rows</div>';
+      }
+      tableWrap.innerHTML = html;
+    }
+
+    renderTable(allIndices);
+
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        var term = this.value.toLowerCase();
+        if (!term) { renderTable(allIndices); return; }
+        var filtered = allIndices.filter(function(ri) {
+          return cols.some(function(c) {
+            return String(rows[ri][c] !== undefined ? rows[ri][c] : '').toLowerCase().indexOf(term) !== -1;
+          });
+        });
+        renderTable(filtered);
+      });
+    }
+
+    body.innerHTML = '';
+    body.appendChild(wrap);
+  }
+
   // ── Export HTML ───────────────────────────────────────────────────────────────
 
   var _dExportCSS = [
@@ -3081,11 +3454,23 @@ window.DWBDashboard = (function() {
     container.innerHTML='<div class="vt-kpi"><div class="vt-kpi-value">'+esc(formatted)+'</div><div class="vt-kpi-label">'+esc(cfg.label||viz.label)+'</div><div class="vt-kpi-sub">'+rows.length.toLocaleString()+' rows</div></div>';
   }
 
-  function renderDataTable(container, rows) {
+  function renderDataTable(container, viz, rows) {
+    var cfg=viz.config||{};
+    var selCols=(cfg.selectedColumns&&cfg.selectedColumns.length)?cfg.selectedColumns:null;
+    var maxR=cfg.maxRows||200;
+    var showNums=cfg.showRowNumbers===true;
     if(!rows.length){container.innerHTML='<div style="padding:20px;color:#64748b;font-size:12px">No data available.</div>';return;}
-    var cols=Object.keys(rows[0]); var limit=Math.min(rows.length,100);
-    var html='<div style="overflow:auto;max-height:360px"><table class="dwb-data-table"><thead><tr>'+cols.map(function(c){return'<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
-    for(var i=0;i<limit;i++){html+='<tr>'+cols.map(function(c){var v=String(rows[i][c]!==undefined?rows[i][c]:'');return'<td>'+esc(v.length>60?v.slice(0,60)+'…':v)+'</td>';}).join('')+'</tr>';}
+    var allCols=Object.keys(rows[0]);
+    var cols=selCols?selCols.filter(function(c){return allCols.indexOf(c)!==-1;}):allCols;
+    var limit=Math.min(rows.length,maxR);
+    var html='<div style="overflow:auto;max-height:360px"><table class="dwb-data-table"><thead><tr>';
+    if(showNums) html+='<th style="color:#94a3b8;font-weight:normal;width:40px">#</th>';
+    html+=cols.map(function(c){return'<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
+    for(var i=0;i<limit;i++){
+      html+='<tr>';
+      if(showNums) html+='<td style="color:#94a3b8;font-size:10px;text-align:right;padding:3px 6px;user-select:none;width:40px">'+(i+1)+'</td>';
+      html+=cols.map(function(c){var v=String(rows[i][c]!==undefined?rows[i][c]:'');return'<td>'+esc(v.length>60?v.slice(0,60)+'…':v)+'</td>';}).join('')+'</tr>';
+    }
     html+='</tbody></table></div>';
     if(rows.length>limit) html+='<div style="padding:6px 8px;font-size:11px;color:#64748b">Showing '+limit+' of '+rows.length+' rows</div>';
     container.innerHTML=html;
@@ -3148,7 +3533,7 @@ window.DWBDashboard = (function() {
         case 'WORD_CLOUD': renderWordCloud(viz,filteredRows,body); break;
         case 'STAT_CARD': renderStatCard(body,viz,allRows,filteredRows); break;
         case 'KPI_STAT': renderKpiStat(body,viz,filteredRows); break;
-        case 'DATA_TABLE': renderDataTable(body,filteredRows); break;
+        case 'DATA_TABLE': renderDataTable(body,viz,filteredRows); break;
         case 'QUOTES_BOARD': renderQuotesBoard(body,viz,filteredRows); break;
         case 'RICH_TEXT': renderRichText(body,viz,filteredRows); break;
         case 'AI_ASSIST': renderAiAssist(body,viz); break;
@@ -8583,6 +8968,270 @@ window.DWBPipelineTab = (function() {
   return { mount: mount, refresh: refresh, appendLog: appendLog, renderNodeList: renderNodeList };
 })();
 
+/* --- src\v2\shell\splash.js --- */
+/* === DWBSplash: splash screen and live tour === */
+
+(function() {
+
+var _spCurrentStep = 0;
+var _spResizeHandler = null;
+
+var _spTourSteps = [
+  {
+    target: '#topbar',
+    title: 'Welcome to DWB 2.0',
+    desc: 'Your data workbench — pipeline-based transformation and visualization, fully offline.'
+  },
+  {
+    target: '[data-tab="pipeline"]',
+    title: 'Pipeline tab',
+    desc: 'Build your data transformation pipeline here. Each node processes your data in sequence.'
+  },
+  {
+    target: '#pt-node-list',
+    title: 'Node list',
+    desc: 'Nodes live on the right. Add, configure, and chain them to shape your data.'
+  },
+  {
+    target: '.pt-add-node-btn',
+    title: 'Adding nodes',
+    desc: 'Click here to add a node — choose from Transform, Structure, Logic, and more.'
+  },
+  {
+    target: '#pt-inspector',
+    title: 'Data inspector',
+    desc: 'See your data at every step. The inspector shows the output of the selected node in real time.'
+  },
+  {
+    target: '[data-tab="viz"]',
+    title: 'Visualizations tab',
+    desc: 'Create named visualization assets — charts, tables, stat cards — bound to your pipeline snapshots.'
+  },
+  {
+    target: '[data-tab="displays"]',
+    title: 'Displays tab',
+    desc: 'Arrange visualizations into Dashboards, Reports, Presentations, or certificate Merges.'
+  },
+  {
+    target: '[data-tab="wizard"]',
+    title: 'Designer & User mode',
+    desc: 'Build flows in Designer mode, then share them with non-technical users via the guided User mode wizard.'
+  }
+];
+
+function _spShowSplash() {
+  _spHideSplash();
+  var el = document.createElement('div');
+  el.id = 'sp-overlay';
+  el.innerHTML = _spBuildSplashHTML();
+  document.body.appendChild(el);
+
+  el.querySelector('#sp-btn-tour').addEventListener('click', function() {
+    _spHideSplash();
+    _spStartTour();
+  });
+  el.querySelector('#sp-btn-start').addEventListener('click', function() {
+    _spHideSplash();
+    localStorage.setItem('dwb2_toured', '1');
+    if (window.DWBShell) window.DWBShell.initNewFlow('Untitled Flow');
+  });
+}
+
+function _spHideSplash() {
+  var el = document.getElementById('sp-overlay');
+  if (el) el.remove();
+}
+
+function _spBuildSplashHTML() {
+  return `<div id="sp-card">
+    <div class="sp-anchor">⚓</div>
+    <div class="sp-title-row">
+      <span class="sp-title-dwb">DWB</span>
+      <span class="sp-title-ver">2.0</span>
+    </div>
+    <div class="sp-tagline">Pipeline-based data transformation and visualization</div>
+    <div class="sp-rule"></div>
+    <div class="sp-pills">
+      <span class="sp-pill">⚙️ Pipeline</span>
+      <span class="sp-pill">🎨 Visualizations</span>
+      <span class="sp-pill">🖥️ Displays</span>
+    </div>
+    <div class="sp-actions">
+      <button class="btn-primary sp-btn-lg" id="sp-btn-tour">Take a Tour →</button>
+      <button class="btn-secondary sp-btn-lg" id="sp-btn-start">Start Fresh</button>
+    </div>
+  </div>`;
+}
+
+function _spStartTour() {
+  _spEndTour();
+  _spCurrentStep = 0;
+  _spAdvanceToStep(0);
+}
+
+function _spEndTour() {
+  var overlay = document.getElementById('sp-tour-overlay');
+  if (overlay) overlay.remove();
+  var ring = document.getElementById('sp-tour-ring');
+  if (ring) ring.remove();
+  var tooltip = document.getElementById('sp-tour-tooltip');
+  if (tooltip) tooltip.remove();
+  if (_spResizeHandler) {
+    window.removeEventListener('resize', _spResizeHandler);
+    _spResizeHandler = null;
+  }
+  localStorage.setItem('dwb2_toured', '1');
+  if (window.DWBShell && window.DWBState && !window.DWBState.flow) {
+    window.DWBShell.initNewFlow('Untitled Flow');
+  }
+}
+
+function _spHasNextStep(fromIdx) {
+  for (var i = fromIdx + 1; i < _spTourSteps.length; i++) {
+    if (document.querySelector(_spTourSteps[i].target)) return true;
+  }
+  return false;
+}
+
+function _spAdvanceToStep(idx) {
+  while (idx < _spTourSteps.length && !document.querySelector(_spTourSteps[idx].target)) {
+    idx++;
+  }
+  if (idx >= _spTourSteps.length) {
+    _spEndTour();
+    return;
+  }
+  _spCurrentStep = idx;
+  _spRenderStep(idx);
+}
+
+function _spRenderStep(idx) {
+  var step = _spTourSteps[idx];
+  var target = document.querySelector(step.target);
+
+  var overlay = document.getElementById('sp-tour-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'sp-tour-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  var ring = document.getElementById('sp-tour-ring');
+  if (!ring) {
+    ring = document.createElement('div');
+    ring.id = 'sp-tour-ring';
+    document.body.appendChild(ring);
+  }
+  _spPositionRing(ring, target);
+
+  var tooltip = document.getElementById('sp-tour-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'sp-tour-tooltip';
+    document.body.appendChild(tooltip);
+  }
+
+  var isFirst = (idx === 0);
+  var isLast  = !_spHasNextStep(idx);
+
+  tooltip.innerHTML = _spBuildTooltipHTML(idx, step, isFirst, isLast);
+  _spPositionTooltip(tooltip, target);
+
+  var btnBack = tooltip.querySelector('#sp-tour-back');
+  var btnNext = tooltip.querySelector('#sp-tour-next');
+  var btnSkip = tooltip.querySelector('#sp-tour-skip');
+
+  if (btnBack) {
+    btnBack.addEventListener('click', function() {
+      var prev = _spCurrentStep - 1;
+      while (prev >= 0 && !document.querySelector(_spTourSteps[prev].target)) {
+        prev--;
+      }
+      if (prev >= 0) {
+        _spCurrentStep = prev;
+        _spRenderStep(prev);
+      }
+    });
+  }
+
+  btnNext.addEventListener('click', function() {
+    if (isLast) {
+      _spEndTour();
+    } else {
+      _spAdvanceToStep(_spCurrentStep + 1);
+    }
+  });
+
+  btnSkip.addEventListener('click', function() {
+    _spEndTour();
+  });
+
+  if (_spResizeHandler) window.removeEventListener('resize', _spResizeHandler);
+  _spResizeHandler = function() {
+    var t = document.querySelector(_spTourSteps[_spCurrentStep].target);
+    if (t) {
+      _spPositionRing(ring, t);
+      _spPositionTooltip(tooltip, t);
+    }
+  };
+  window.addEventListener('resize', _spResizeHandler);
+}
+
+function _spPositionRing(ring, target) {
+  var rect = target.getBoundingClientRect();
+  var pad = 4;
+  ring.style.top    = (rect.top    - pad) + 'px';
+  ring.style.left   = (rect.left   - pad) + 'px';
+  ring.style.width  = (rect.width  + pad * 2) + 'px';
+  ring.style.height = (rect.height + pad * 2) + 'px';
+}
+
+function _spPositionTooltip(tooltip, target) {
+  var rect = target.getBoundingClientRect();
+  var vw   = window.innerWidth;
+  var vh   = window.innerHeight;
+  var TW   = 280;
+  var TH   = tooltip.offsetHeight || 160;
+  var GAP  = 12;
+
+  var top, left;
+
+  if (rect.bottom + GAP + TH <= vh - 8) {
+    top = rect.bottom + GAP;
+  } else {
+    top = rect.top - GAP - TH;
+    if (top < 8) top = Math.max(8, rect.bottom + GAP);
+  }
+
+  left = rect.left;
+  if (left + TW > vw - 8) left = vw - TW - 8;
+  if (left < 8) left = 8;
+
+  tooltip.style.top  = top  + 'px';
+  tooltip.style.left = left + 'px';
+}
+
+function _spBuildTooltipHTML(idx, step, isFirst, isLast) {
+  return `<div class="sp-tip-step">Step ${idx + 1} of ${_spTourSteps.length}</div>
+    <div class="sp-tip-title">${step.title}</div>
+    <div class="sp-tip-desc">${step.desc}</div>
+    <div class="sp-tip-nav">
+      ${!isFirst ? '<button class="btn-secondary sp-tip-btn" id="sp-tour-back">← Back</button>' : '<span></span>'}
+      <span class="flex-spacer"></span>
+      <button class="sp-tip-skip" id="sp-tour-skip">Skip tour</button>
+      <button class="btn-primary sp-tip-btn" id="sp-tour-next">${isLast ? 'Finish' : 'Next →'}</button>
+    </div>`;
+}
+
+window.DWBSplash = {
+  showSplash: _spShowSplash,
+  hideSplash: _spHideSplash,
+  startTour:  _spStartTour,
+  endTour:    _spEndTour
+};
+
+})();
+
 /* --- src\v2\shell\state.js --- */
 /* === DWBState / DWBShell: global state and shell coordination === */
 
@@ -8706,6 +9355,7 @@ window.DWBTopbar = (function() {
       <button class="tb-btn" id="tb-btn-new" title="New Flow">New</button>
       <button class="tb-btn" id="tb-btn-open" title="Open .dwbflow">Open</button>
       <button class="tb-btn" id="tb-btn-save" title="Save .dwbflow">Save</button>
+      <button class="tb-btn" id="tb-btn-help" title="Help tour" style="padding:4px 8px;font-size:13px;font-weight:700">?</button>
       <button class="tb-btn" id="tb-btn-theme" title="Toggle theme" style="padding:4px 8px;font-size:15px">☀</button>
     `;
   }
@@ -8760,6 +9410,13 @@ window.DWBTopbar = (function() {
     const btnSave = document.getElementById('tb-btn-save');
     if (btnSave) {
       btnSave.addEventListener('click', function() { window.DWBio.saveFlow(); });
+    }
+
+    const btnHelp = document.getElementById('tb-btn-help');
+    if (btnHelp) {
+      btnHelp.addEventListener('click', function() {
+        window.DWBSplash && window.DWBSplash.startTour();
+      });
     }
 
     const btnTheme = document.getElementById('tb-btn-theme');
@@ -9116,18 +9773,26 @@ window.DWBVizTab = (function() {
   }
 
   function _vtRenderDataTable(viz, rows, container) {
+    var cfg = viz.config || {};
+    var selectedCols = (cfg.selectedColumns && cfg.selectedColumns.length) ? cfg.selectedColumns : null;
+    var maxRows = cfg.maxRows || 200;
+    var showRowNums = cfg.showRowNumbers === true;
     if (rows.length === 0) {
       container.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">No data available.</div>';
       return;
     }
-    const cols = Object.keys(rows[0]);
-    const limit = Math.min(rows.length, 100);
-    let html = '<div style="overflow:auto;max-height:360px"><table class="dwb-data-table">';
-    html += '<thead><tr>' + cols.map(function(c) { return '<th>' + _vtEsc(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
-    for (let i = 0; i < limit; i++) {
-      html += '<tr>' + cols.map(function(c) {
-        const v = String(rows[i][c] !== undefined ? rows[i][c] : '');
-        return '<td>' + _vtEsc(v.length > 60 ? v.slice(0,60)+'…' : v) + '</td>';
+    var allCols = Object.keys(rows[0]);
+    var cols = selectedCols ? selectedCols.filter(function(c) { return allCols.indexOf(c) !== -1; }) : allCols;
+    var limit = Math.min(rows.length, maxRows);
+    var html = '<div style="overflow:auto;max-height:360px"><table class="dwb-data-table"><thead><tr>';
+    if (showRowNums) html += '<th style="color:var(--text-faint);font-weight:normal;width:40px">#</th>';
+    html += cols.map(function(c) { return '<th>' + _vtEsc(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    for (var i = 0; i < limit; i++) {
+      html += '<tr>';
+      if (showRowNums) html += '<td class="row-num-cell">' + (i + 1) + '</td>';
+      html += cols.map(function(c) {
+        var v = String(rows[i][c] !== undefined ? rows[i][c] : '');
+        return '<td>' + _vtEsc(v.length > 60 ? v.slice(0, 60) + '…' : v) + '</td>';
       }).join('') + '</tr>';
     }
     html += '</tbody></table></div>';
@@ -9183,6 +9848,9 @@ window.DWBVizTab = (function() {
       _vtRenderPreview(viz);
     };
 
+    // Display Filters section (all viz types)
+    configEl.appendChild(_vtBuildDisplayFiltersSection(viz, cols, onChange));
+
     // Type-specific config dispatch
     if (viz.type === 'LINE') {
       configEl.appendChild(_vtBuildLineConfig(viz, cols, onChange));
@@ -9204,6 +9872,8 @@ window.DWBVizTab = (function() {
       configEl.appendChild(_vtBuildRichTextConfig(viz, cols, onChange));
     } else if (viz.type === 'AI_ASSIST') {
       configEl.appendChild(_vtBuildAiAssistConfig(viz, cols, onChange));
+    } else if (viz.type === 'DATA_TABLE') {
+      configEl.appendChild(_vtBuildDataTableConfig(viz, cols, onChange));
     } else {
       const ph = document.createElement('div');
       ph.className = 'vt-config-section';
@@ -10012,6 +10682,279 @@ window.DWBVizTab = (function() {
     return el;
   }
 
+  // ── Display Filters section (shared across all viz types) ────────────────────
+  function _vtBuildDisplayFiltersSection(viz, cols, onChange) {
+    var el = document.createElement('div');
+    el.className = 'vt-config-section';
+
+    function rebuild() {
+      el.innerHTML = '';
+
+      var sectionLabel = document.createElement('span');
+      sectionLabel.className = 'vt-config-label';
+      sectionLabel.textContent = 'Display Filters';
+      el.appendChild(sectionLabel);
+
+      var ffRow = document.createElement('div');
+      ffRow.className = 'form-row';
+      ffRow.innerHTML = '<label>Filterable fields</label>';
+      el.appendChild(ffRow);
+
+      var tags = document.createElement('div');
+      tags.className = 'vt-filter-tags';
+      el.appendChild(tags);
+
+      var fields = viz.filterableFields || (viz.filterableFields = []);
+      fields.forEach(function(field, idx) {
+        var tag = document.createElement('span');
+        tag.className = 'vt-filter-tag';
+        tag.appendChild(document.createTextNode(field));
+        var rmBtn = document.createElement('button');
+        rmBtn.className = 'vt-filter-tag-remove';
+        rmBtn.textContent = '×';
+        rmBtn.title = 'Remove';
+        rmBtn.addEventListener('click', function() {
+          viz.filterableFields = fields.filter(function(_, i) { return i !== idx; });
+          onChange();
+          rebuild();
+        });
+        tag.appendChild(rmBtn);
+        tags.appendChild(tag);
+      });
+
+      var snapshots = (window.DWBState && window.DWBState.snapshots) || {};
+      var snapRows = viz.snapshotName ? (snapshots[viz.snapshotName] || []) : [];
+      var availCols = snapRows.length ? Object.keys(snapRows[0]) : cols;
+      var unused = availCols.filter(function(c) { return fields.indexOf(c) === -1; });
+
+      if (!viz.snapshotName) {
+        var note = document.createElement('div');
+        note.style.cssText = 'font-size:11px;color:var(--text-faint);padding:2px 0 6px';
+        note.textContent = 'Bind a snapshot to add filterable fields';
+        el.appendChild(note);
+      } else if (unused.length > 0) {
+        var addWrap = document.createElement('div');
+        addWrap.style.cssText = 'position:relative;display:inline-block;margin-top:2px';
+        var addBtn = document.createElement('button');
+        addBtn.className = 'vt-filter-add-btn';
+        addBtn.textContent = '＋ Add field';
+        addWrap.appendChild(addBtn);
+        el.appendChild(addWrap);
+
+        addBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var existing = addWrap.querySelector('.vt-filter-dropdown');
+          if (existing) { existing.remove(); return; }
+          var dd = document.createElement('div');
+          dd.className = 'vt-filter-dropdown';
+          unused.forEach(function(col) {
+            var opt = document.createElement('button');
+            opt.className = 'vt-filter-dropdown-item';
+            opt.textContent = col;
+            opt.addEventListener('click', function() {
+              viz.filterableFields = fields.concat([col]);
+              onChange();
+              rebuild();
+            });
+            dd.appendChild(opt);
+          });
+          addWrap.appendChild(dd);
+          setTimeout(function() {
+            var closer = function(ev) {
+              if (!addWrap.contains(ev.target)) { dd.remove(); document.removeEventListener('click', closer); }
+            };
+            document.addEventListener('click', closer);
+          }, 10);
+        });
+      }
+
+      // Link to display filters toggle
+      var linked = viz.linkToDisplayFilters !== false;
+      var toggleRow = document.createElement('div');
+      toggleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px';
+      var toggleInfo = document.createElement('div');
+      toggleInfo.innerHTML =
+        '<div style="font-size:12px;font-weight:600;color:var(--text-main)">Respond to display filters</div>' +
+        '<div style="font-size:11px;color:var(--text-faint);margin-top:2px">When off, always shows unfiltered data</div>';
+      toggleRow.appendChild(toggleInfo);
+
+      var toggleLabel = document.createElement('label');
+      toggleLabel.className = 'vt-toggle';
+      var toggleInput = document.createElement('input');
+      toggleInput.type = 'checkbox';
+      toggleInput.checked = linked;
+      var toggleTrack = document.createElement('span');
+      toggleTrack.className = 'vt-toggle-track';
+      toggleLabel.appendChild(toggleInput);
+      toggleLabel.appendChild(toggleTrack);
+      toggleRow.appendChild(toggleLabel);
+      el.appendChild(toggleRow);
+
+      toggleInput.addEventListener('change', function() {
+        viz.linkToDisplayFilters = this.checked;
+        onChange();
+      });
+    }
+
+    rebuild();
+    return el;
+  }
+
+  // ── DATA_TABLE config builder ─────────────────────────────────────────────────
+  function _vtBuildDataTableConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    var cfg = viz.config;
+    if (!cfg.selectedColumns) cfg.selectedColumns = [];
+
+    var el = document.createElement('div');
+    var _dtDragSrcIdx = null;
+
+    function rebuild() {
+      el.innerHTML = '';
+
+      // COLUMNS section
+      var colSec = document.createElement('div');
+      colSec.className = 'vt-config-section';
+
+      var secHeader = document.createElement('div');
+      secHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
+      secHeader.innerHTML =
+        '<span class="vt-config-label" style="margin-bottom:0">Columns</span>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="vt-dt-sel-all" style="font-size:10px;background:none;border:none;color:var(--accent);cursor:pointer;padding:0">Select all</button>' +
+          '<button class="vt-dt-clr-all" style="font-size:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0">Clear all</button>' +
+        '</div>';
+      colSec.appendChild(secHeader);
+
+      var colList = document.createElement('div');
+      colList.style.cssText = 'max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;background:var(--bg-raised);padding:2px 0';
+      colSec.appendChild(colList);
+
+      var allNote = document.createElement('div');
+      allNote.style.cssText = 'font-size:10px;color:var(--text-faint);margin-top:4px';
+      allNote.textContent = 'All columns shown when none selected';
+      colSec.appendChild(allNote);
+      el.appendChild(colSec);
+
+      var selectedSet = {};
+      (cfg.selectedColumns || []).forEach(function(c) { selectedSet[c] = true; });
+      var orderedCols = (cfg.selectedColumns && cfg.selectedColumns.length)
+        ? cfg.selectedColumns.filter(function(c) { return cols.indexOf(c) !== -1; })
+            .concat(cols.filter(function(c) { return !selectedSet[c]; }))
+        : cols.slice();
+
+      orderedCols.forEach(function(col, idx) {
+        var isChecked = !!selectedSet[col];
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:default;transition:background 0.1s';
+        row.draggable = true;
+        row.dataset.col = col;
+
+        var drag = document.createElement('span');
+        drag.textContent = '⠿';
+        drag.style.cssText = 'cursor:grab;color:var(--text-faint);font-size:13px;user-select:none;flex-shrink:0';
+
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = isChecked;
+        cb.style.flexShrink = '0';
+
+        var lbl = document.createElement('span');
+        lbl.textContent = col;
+        lbl.style.cssText = 'font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1';
+
+        row.appendChild(drag);
+        row.appendChild(cb);
+        row.appendChild(lbl);
+        colList.appendChild(row);
+
+        cb.addEventListener('change', function() {
+          if (this.checked) {
+            if (cfg.selectedColumns.indexOf(col) === -1) cfg.selectedColumns.push(col);
+          } else {
+            cfg.selectedColumns = cfg.selectedColumns.filter(function(c) { return c !== col; });
+          }
+          selectedSet[col] = this.checked;
+          onChange();
+        });
+
+        row.addEventListener('dragstart', function(e) {
+          _dtDragSrcIdx = idx;
+          e.dataTransfer.effectAllowed = 'move';
+          row.style.opacity = '0.5';
+        });
+        row.addEventListener('dragend', function() {
+          _dtDragSrcIdx = null;
+          row.style.opacity = '';
+          colList.querySelectorAll('[draggable]').forEach(function(r) { r.style.outline = ''; });
+        });
+        row.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          colList.querySelectorAll('[draggable]').forEach(function(r) { r.style.outline = ''; });
+          row.style.outline = '2px solid var(--accent)';
+        });
+        row.addEventListener('drop', function(e) {
+          e.preventDefault();
+          colList.querySelectorAll('[draggable]').forEach(function(r) { r.style.outline = ''; });
+          if (_dtDragSrcIdx === null || _dtDragSrcIdx === idx) return;
+          var moved = orderedCols.splice(_dtDragSrcIdx, 1)[0];
+          var insertAt = idx > _dtDragSrcIdx ? idx - 1 : idx;
+          orderedCols.splice(insertAt, 0, moved);
+          _dtDragSrcIdx = null;
+          var currentChecked = {};
+          cfg.selectedColumns.forEach(function(c) { currentChecked[c] = true; });
+          cfg.selectedColumns = orderedCols.filter(function(c) { return currentChecked[c]; });
+          rebuild();
+          onChange();
+        });
+      });
+
+      secHeader.querySelector('.vt-dt-sel-all').addEventListener('click', function() {
+        cfg.selectedColumns = cols.slice();
+        rebuild();
+        onChange();
+      });
+      secHeader.querySelector('.vt-dt-clr-all').addEventListener('click', function() {
+        cfg.selectedColumns = [];
+        rebuild();
+        onChange();
+      });
+
+      // DISPLAY section
+      var dispSec = document.createElement('div');
+      dispSec.className = 'vt-config-section';
+      dispSec.innerHTML =
+        '<span class="vt-config-label">Display</span>' +
+        '<div class="form-row"><label>Max rows</label>' +
+          '<input type="number" class="vt-dt-maxrows" value="' + (cfg.maxRows || 200) + '" min="1" max="1000" style="width:100%"></div>' +
+        '<div class="form-row form-row-inline" style="margin-bottom:6px"><label>' +
+          '<input type="checkbox" class="vt-dt-rownums"' + (cfg.showRowNumbers ? ' checked' : '') + '> Show row numbers' +
+        '</label></div>' +
+        '<div class="form-row form-row-inline"><label>' +
+          '<input type="checkbox" class="vt-dt-search"' + (cfg.enableSearch ? ' checked' : '') + '> Enable search' +
+        '</label></div>';
+      el.appendChild(dispSec);
+
+      dispSec.querySelector('.vt-dt-maxrows').addEventListener('change', function() {
+        cfg.maxRows = Math.max(1, Math.min(1000, parseInt(this.value) || 200));
+        this.value = cfg.maxRows;
+        onChange();
+      });
+      dispSec.querySelector('.vt-dt-rownums').addEventListener('change', function() {
+        cfg.showRowNumbers = this.checked;
+        onChange();
+      });
+      dispSec.querySelector('.vt-dt-search').addEventListener('change', function() {
+        cfg.enableSearch = this.checked;
+        onChange();
+      });
+    }
+
+    rebuild();
+    return el;
+  }
+
   function _vtShowAddModal() {
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
@@ -10304,10 +11247,25 @@ window.DWBPipelineDesigner = {
 document.addEventListener('DOMContentLoaded', function() {
   window.DWBNodes = window.DWBNodes || {};
   DWBTopbar.init();
-  const hasAutoSave = DWBio.loadAutoSave();
-  if (!hasAutoSave) { DWBShell.initNewFlow(); }
-  DWBPipelineTab.mount();
-  DWBShell.switchTab('pipeline');
+
+  var saved  = localStorage.getItem('dwb2_autosave');
+  var toured = localStorage.getItem('dwb2_toured');
+
+  if (saved) {
+    var ok = DWBio.loadAutoSave();
+    if (!ok) {
+      localStorage.removeItem('dwb2_autosave');
+      DWBShell.initNewFlow('Untitled Flow');
+    }
+    DWBPipelineTab.mount();
+    DWBShell.switchTab('pipeline');
+    if (!toured) window.DWBSplash.startTour();
+  } else {
+    DWBShell.initNewFlow('Untitled Flow');
+    DWBPipelineTab.mount();
+    DWBShell.switchTab('pipeline');
+    window.DWBSplash.showSplash();
+  }
 });
 </script>
 </body>

@@ -318,18 +318,26 @@ window.DWBVizTab = (function() {
   }
 
   function _vtRenderDataTable(viz, rows, container) {
+    var cfg = viz.config || {};
+    var selectedCols = (cfg.selectedColumns && cfg.selectedColumns.length) ? cfg.selectedColumns : null;
+    var maxRows = cfg.maxRows || 200;
+    var showRowNums = cfg.showRowNumbers === true;
     if (rows.length === 0) {
       container.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">No data available.</div>';
       return;
     }
-    const cols = Object.keys(rows[0]);
-    const limit = Math.min(rows.length, 100);
-    let html = '<div style="overflow:auto;max-height:360px"><table class="dwb-data-table">';
-    html += '<thead><tr>' + cols.map(function(c) { return '<th>' + _vtEsc(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
-    for (let i = 0; i < limit; i++) {
-      html += '<tr>' + cols.map(function(c) {
-        const v = String(rows[i][c] !== undefined ? rows[i][c] : '');
-        return '<td>' + _vtEsc(v.length > 60 ? v.slice(0,60)+'…' : v) + '</td>';
+    var allCols = Object.keys(rows[0]);
+    var cols = selectedCols ? selectedCols.filter(function(c) { return allCols.indexOf(c) !== -1; }) : allCols;
+    var limit = Math.min(rows.length, maxRows);
+    var html = '<div style="overflow:auto;max-height:360px"><table class="dwb-data-table"><thead><tr>';
+    if (showRowNums) html += '<th style="color:var(--text-faint);font-weight:normal;width:40px">#</th>';
+    html += cols.map(function(c) { return '<th>' + _vtEsc(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    for (var i = 0; i < limit; i++) {
+      html += '<tr>';
+      if (showRowNums) html += '<td class="row-num-cell">' + (i + 1) + '</td>';
+      html += cols.map(function(c) {
+        var v = String(rows[i][c] !== undefined ? rows[i][c] : '');
+        return '<td>' + _vtEsc(v.length > 60 ? v.slice(0, 60) + '…' : v) + '</td>';
       }).join('') + '</tr>';
     }
     html += '</tbody></table></div>';
@@ -385,6 +393,9 @@ window.DWBVizTab = (function() {
       _vtRenderPreview(viz);
     };
 
+    // Display Filters section (all viz types)
+    configEl.appendChild(_vtBuildDisplayFiltersSection(viz, cols, onChange));
+
     // Type-specific config dispatch
     if (viz.type === 'LINE') {
       configEl.appendChild(_vtBuildLineConfig(viz, cols, onChange));
@@ -406,6 +417,8 @@ window.DWBVizTab = (function() {
       configEl.appendChild(_vtBuildRichTextConfig(viz, cols, onChange));
     } else if (viz.type === 'AI_ASSIST') {
       configEl.appendChild(_vtBuildAiAssistConfig(viz, cols, onChange));
+    } else if (viz.type === 'DATA_TABLE') {
+      configEl.appendChild(_vtBuildDataTableConfig(viz, cols, onChange));
     } else {
       const ph = document.createElement('div');
       ph.className = 'vt-config-section';
@@ -1211,6 +1224,279 @@ window.DWBVizTab = (function() {
       window.DWBShell && window.DWBShell.markDirty();
     });
 
+    return el;
+  }
+
+  // ── Display Filters section (shared across all viz types) ────────────────────
+  function _vtBuildDisplayFiltersSection(viz, cols, onChange) {
+    var el = document.createElement('div');
+    el.className = 'vt-config-section';
+
+    function rebuild() {
+      el.innerHTML = '';
+
+      var sectionLabel = document.createElement('span');
+      sectionLabel.className = 'vt-config-label';
+      sectionLabel.textContent = 'Display Filters';
+      el.appendChild(sectionLabel);
+
+      var ffRow = document.createElement('div');
+      ffRow.className = 'form-row';
+      ffRow.innerHTML = '<label>Filterable fields</label>';
+      el.appendChild(ffRow);
+
+      var tags = document.createElement('div');
+      tags.className = 'vt-filter-tags';
+      el.appendChild(tags);
+
+      var fields = viz.filterableFields || (viz.filterableFields = []);
+      fields.forEach(function(field, idx) {
+        var tag = document.createElement('span');
+        tag.className = 'vt-filter-tag';
+        tag.appendChild(document.createTextNode(field));
+        var rmBtn = document.createElement('button');
+        rmBtn.className = 'vt-filter-tag-remove';
+        rmBtn.textContent = '×';
+        rmBtn.title = 'Remove';
+        rmBtn.addEventListener('click', function() {
+          viz.filterableFields = fields.filter(function(_, i) { return i !== idx; });
+          onChange();
+          rebuild();
+        });
+        tag.appendChild(rmBtn);
+        tags.appendChild(tag);
+      });
+
+      var snapshots = (window.DWBState && window.DWBState.snapshots) || {};
+      var snapRows = viz.snapshotName ? (snapshots[viz.snapshotName] || []) : [];
+      var availCols = snapRows.length ? Object.keys(snapRows[0]) : cols;
+      var unused = availCols.filter(function(c) { return fields.indexOf(c) === -1; });
+
+      if (!viz.snapshotName) {
+        var note = document.createElement('div');
+        note.style.cssText = 'font-size:11px;color:var(--text-faint);padding:2px 0 6px';
+        note.textContent = 'Bind a snapshot to add filterable fields';
+        el.appendChild(note);
+      } else if (unused.length > 0) {
+        var addWrap = document.createElement('div');
+        addWrap.style.cssText = 'position:relative;display:inline-block;margin-top:2px';
+        var addBtn = document.createElement('button');
+        addBtn.className = 'vt-filter-add-btn';
+        addBtn.textContent = '＋ Add field';
+        addWrap.appendChild(addBtn);
+        el.appendChild(addWrap);
+
+        addBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var existing = addWrap.querySelector('.vt-filter-dropdown');
+          if (existing) { existing.remove(); return; }
+          var dd = document.createElement('div');
+          dd.className = 'vt-filter-dropdown';
+          unused.forEach(function(col) {
+            var opt = document.createElement('button');
+            opt.className = 'vt-filter-dropdown-item';
+            opt.textContent = col;
+            opt.addEventListener('click', function() {
+              viz.filterableFields = fields.concat([col]);
+              onChange();
+              rebuild();
+            });
+            dd.appendChild(opt);
+          });
+          addWrap.appendChild(dd);
+          setTimeout(function() {
+            var closer = function(ev) {
+              if (!addWrap.contains(ev.target)) { dd.remove(); document.removeEventListener('click', closer); }
+            };
+            document.addEventListener('click', closer);
+          }, 10);
+        });
+      }
+
+      // Link to display filters toggle
+      var linked = viz.linkToDisplayFilters !== false;
+      var toggleRow = document.createElement('div');
+      toggleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px';
+      var toggleInfo = document.createElement('div');
+      toggleInfo.innerHTML =
+        '<div style="font-size:12px;font-weight:600;color:var(--text-main)">Respond to display filters</div>' +
+        '<div style="font-size:11px;color:var(--text-faint);margin-top:2px">When off, always shows unfiltered data</div>';
+      toggleRow.appendChild(toggleInfo);
+
+      var toggleLabel = document.createElement('label');
+      toggleLabel.className = 'vt-toggle';
+      var toggleInput = document.createElement('input');
+      toggleInput.type = 'checkbox';
+      toggleInput.checked = linked;
+      var toggleTrack = document.createElement('span');
+      toggleTrack.className = 'vt-toggle-track';
+      toggleLabel.appendChild(toggleInput);
+      toggleLabel.appendChild(toggleTrack);
+      toggleRow.appendChild(toggleLabel);
+      el.appendChild(toggleRow);
+
+      toggleInput.addEventListener('change', function() {
+        viz.linkToDisplayFilters = this.checked;
+        onChange();
+      });
+    }
+
+    rebuild();
+    return el;
+  }
+
+  // ── DATA_TABLE config builder ─────────────────────────────────────────────────
+  function _vtBuildDataTableConfig(viz, cols, onChange) {
+    viz.config = viz.config || {};
+    var cfg = viz.config;
+    if (!cfg.selectedColumns) cfg.selectedColumns = [];
+
+    var el = document.createElement('div');
+    var _dtDragSrcIdx = null;
+
+    function rebuild() {
+      el.innerHTML = '';
+
+      // COLUMNS section
+      var colSec = document.createElement('div');
+      colSec.className = 'vt-config-section';
+
+      var secHeader = document.createElement('div');
+      secHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
+      secHeader.innerHTML =
+        '<span class="vt-config-label" style="margin-bottom:0">Columns</span>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="vt-dt-sel-all" style="font-size:10px;background:none;border:none;color:var(--accent);cursor:pointer;padding:0">Select all</button>' +
+          '<button class="vt-dt-clr-all" style="font-size:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0">Clear all</button>' +
+        '</div>';
+      colSec.appendChild(secHeader);
+
+      var colList = document.createElement('div');
+      colList.style.cssText = 'max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;background:var(--bg-raised);padding:2px 0';
+      colSec.appendChild(colList);
+
+      var allNote = document.createElement('div');
+      allNote.style.cssText = 'font-size:10px;color:var(--text-faint);margin-top:4px';
+      allNote.textContent = 'All columns shown when none selected';
+      colSec.appendChild(allNote);
+      el.appendChild(colSec);
+
+      var selectedSet = {};
+      (cfg.selectedColumns || []).forEach(function(c) { selectedSet[c] = true; });
+      var orderedCols = (cfg.selectedColumns && cfg.selectedColumns.length)
+        ? cfg.selectedColumns.filter(function(c) { return cols.indexOf(c) !== -1; })
+            .concat(cols.filter(function(c) { return !selectedSet[c]; }))
+        : cols.slice();
+
+      orderedCols.forEach(function(col, idx) {
+        var isChecked = !!selectedSet[col];
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:default;transition:background 0.1s';
+        row.draggable = true;
+        row.dataset.col = col;
+
+        var drag = document.createElement('span');
+        drag.textContent = '⠿';
+        drag.style.cssText = 'cursor:grab;color:var(--text-faint);font-size:13px;user-select:none;flex-shrink:0';
+
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = isChecked;
+        cb.style.flexShrink = '0';
+
+        var lbl = document.createElement('span');
+        lbl.textContent = col;
+        lbl.style.cssText = 'font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1';
+
+        row.appendChild(drag);
+        row.appendChild(cb);
+        row.appendChild(lbl);
+        colList.appendChild(row);
+
+        cb.addEventListener('change', function() {
+          if (this.checked) {
+            if (cfg.selectedColumns.indexOf(col) === -1) cfg.selectedColumns.push(col);
+          } else {
+            cfg.selectedColumns = cfg.selectedColumns.filter(function(c) { return c !== col; });
+          }
+          selectedSet[col] = this.checked;
+          onChange();
+        });
+
+        row.addEventListener('dragstart', function(e) {
+          _dtDragSrcIdx = idx;
+          e.dataTransfer.effectAllowed = 'move';
+          row.style.opacity = '0.5';
+        });
+        row.addEventListener('dragend', function() {
+          _dtDragSrcIdx = null;
+          row.style.opacity = '';
+          colList.querySelectorAll('[draggable]').forEach(function(r) { r.style.outline = ''; });
+        });
+        row.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          colList.querySelectorAll('[draggable]').forEach(function(r) { r.style.outline = ''; });
+          row.style.outline = '2px solid var(--accent)';
+        });
+        row.addEventListener('drop', function(e) {
+          e.preventDefault();
+          colList.querySelectorAll('[draggable]').forEach(function(r) { r.style.outline = ''; });
+          if (_dtDragSrcIdx === null || _dtDragSrcIdx === idx) return;
+          var moved = orderedCols.splice(_dtDragSrcIdx, 1)[0];
+          var insertAt = idx > _dtDragSrcIdx ? idx - 1 : idx;
+          orderedCols.splice(insertAt, 0, moved);
+          _dtDragSrcIdx = null;
+          var currentChecked = {};
+          cfg.selectedColumns.forEach(function(c) { currentChecked[c] = true; });
+          cfg.selectedColumns = orderedCols.filter(function(c) { return currentChecked[c]; });
+          rebuild();
+          onChange();
+        });
+      });
+
+      secHeader.querySelector('.vt-dt-sel-all').addEventListener('click', function() {
+        cfg.selectedColumns = cols.slice();
+        rebuild();
+        onChange();
+      });
+      secHeader.querySelector('.vt-dt-clr-all').addEventListener('click', function() {
+        cfg.selectedColumns = [];
+        rebuild();
+        onChange();
+      });
+
+      // DISPLAY section
+      var dispSec = document.createElement('div');
+      dispSec.className = 'vt-config-section';
+      dispSec.innerHTML =
+        '<span class="vt-config-label">Display</span>' +
+        '<div class="form-row"><label>Max rows</label>' +
+          '<input type="number" class="vt-dt-maxrows" value="' + (cfg.maxRows || 200) + '" min="1" max="1000" style="width:100%"></div>' +
+        '<div class="form-row form-row-inline" style="margin-bottom:6px"><label>' +
+          '<input type="checkbox" class="vt-dt-rownums"' + (cfg.showRowNumbers ? ' checked' : '') + '> Show row numbers' +
+        '</label></div>' +
+        '<div class="form-row form-row-inline"><label>' +
+          '<input type="checkbox" class="vt-dt-search"' + (cfg.enableSearch ? ' checked' : '') + '> Enable search' +
+        '</label></div>';
+      el.appendChild(dispSec);
+
+      dispSec.querySelector('.vt-dt-maxrows').addEventListener('change', function() {
+        cfg.maxRows = Math.max(1, Math.min(1000, parseInt(this.value) || 200));
+        this.value = cfg.maxRows;
+        onChange();
+      });
+      dispSec.querySelector('.vt-dt-rownums').addEventListener('change', function() {
+        cfg.showRowNumbers = this.checked;
+        onChange();
+      });
+      dispSec.querySelector('.vt-dt-search').addEventListener('change', function() {
+        cfg.enableSearch = this.checked;
+        onChange();
+      });
+    }
+
+    rebuild();
     return el;
   }
 

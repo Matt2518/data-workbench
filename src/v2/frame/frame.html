@@ -69,10 +69,25 @@
 document.addEventListener('DOMContentLoaded', function() {
   window.DWBNodes = window.DWBNodes || {};
   DWBTopbar.init();
-  const hasAutoSave = DWBio.loadAutoSave();
-  if (!hasAutoSave) { DWBShell.initNewFlow(); }
-  DWBPipelineTab.mount();
-  DWBShell.switchTab('pipeline');
+
+  var saved  = localStorage.getItem('dwb2_autosave');
+  var toured = localStorage.getItem('dwb2_toured');
+
+  if (saved) {
+    var ok = DWBio.loadAutoSave();
+    if (!ok) {
+      localStorage.removeItem('dwb2_autosave');
+      DWBShell.initNewFlow('Untitled Flow');
+    }
+    DWBPipelineTab.mount();
+    DWBShell.switchTab('pipeline');
+    if (!toured) window.DWBSplash.startTour();
+  } else {
+    DWBShell.initNewFlow('Untitled Flow');
+    DWBPipelineTab.mount();
+    DWBShell.switchTab('pipeline');
+    window.DWBSplash.showSplash();
+  }
 });
 </script>
 </body>

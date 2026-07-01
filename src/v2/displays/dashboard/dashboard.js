@@ -140,6 +140,8 @@ window.DWBDashboard = (function() {
       if (body) {
         if (viz.type === 'AI_ASSIST') {
           _dRenderAiAssist(body, viz, rows);
+        } else if (viz.type === 'DATA_TABLE') {
+          _dRenderDataTable(body, viz, rows);
         } else if (window.DWBVizTab) {
           window.DWBVizTab.renderViz(viz, rows, body, allRows);
         }
@@ -839,6 +841,78 @@ window.DWBDashboard = (function() {
     });
   }
 
+  // ── DATA_TABLE renderer ────────────────────────────────────────────────────────
+  function _dRenderDataTable(body, viz, rows) {
+    var cfg = viz.config || {};
+    var selectedCols = (cfg.selectedColumns && cfg.selectedColumns.length) ? cfg.selectedColumns : null;
+    var maxRows = cfg.maxRows || 200;
+    var showRowNums = cfg.showRowNumbers === true;
+    var enableSearch = cfg.enableSearch === true;
+
+    if (!rows.length) {
+      body.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">No data available.</div>';
+      return;
+    }
+
+    var allCols = Object.keys(rows[0]);
+    var cols = selectedCols ? selectedCols.filter(function(c) { return allCols.indexOf(c) !== -1; }) : allCols;
+    var allIndices = rows.map(function(_, i) { return i; });
+
+    var wrap = document.createElement('div');
+    var searchInput = null;
+
+    if (enableSearch) {
+      searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.className = 'dash-table-search';
+      searchInput.placeholder = 'Search…';
+      wrap.appendChild(searchInput);
+    }
+
+    var tableWrap = document.createElement('div');
+    tableWrap.style.cssText = 'overflow:auto;max-height:360px';
+    wrap.appendChild(tableWrap);
+
+    function renderTable(indices) {
+      var limit = Math.min(indices.length, maxRows);
+      var html = '<table class="dwb-data-table"><thead><tr>';
+      if (showRowNums) html += '<th style="color:var(--text-faint);font-weight:normal;width:40px">#</th>';
+      html += cols.map(function(c) { return '<th>' + _dEsc(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+      for (var i = 0; i < limit; i++) {
+        var ri = indices[i];
+        html += '<tr>';
+        if (showRowNums) html += '<td class="row-num-cell">' + (ri + 1) + '</td>';
+        html += cols.map(function(c) {
+          var v = String(rows[ri][c] !== undefined ? rows[ri][c] : '');
+          return '<td>' + _dEsc(v.length > 60 ? v.slice(0, 60) + '…' : v) + '</td>';
+        }).join('') + '</tr>';
+      }
+      html += '</tbody></table>';
+      if (indices.length > limit) {
+        html += '<div style="padding:6px 8px;font-size:11px;color:var(--text-muted)">Showing ' + limit + ' of ' + indices.length + ' rows</div>';
+      }
+      tableWrap.innerHTML = html;
+    }
+
+    renderTable(allIndices);
+
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        var term = this.value.toLowerCase();
+        if (!term) { renderTable(allIndices); return; }
+        var filtered = allIndices.filter(function(ri) {
+          return cols.some(function(c) {
+            return String(rows[ri][c] !== undefined ? rows[ri][c] : '').toLowerCase().indexOf(term) !== -1;
+          });
+        });
+        renderTable(filtered);
+      });
+    }
+
+    body.innerHTML = '';
+    body.appendChild(wrap);
+  }
+
   // ── Export HTML ───────────────────────────────────────────────────────────────
 
   var _dExportCSS = [
@@ -1198,11 +1272,23 @@ window.DWBDashboard = (function() {
     container.innerHTML='<div class="vt-kpi"><div class="vt-kpi-value">'+esc(formatted)+'</div><div class="vt-kpi-label">'+esc(cfg.label||viz.label)+'</div><div class="vt-kpi-sub">'+rows.length.toLocaleString()+' rows</div></div>';
   }
 
-  function renderDataTable(container, rows) {
+  function renderDataTable(container, viz, rows) {
+    var cfg=viz.config||{};
+    var selCols=(cfg.selectedColumns&&cfg.selectedColumns.length)?cfg.selectedColumns:null;
+    var maxR=cfg.maxRows||200;
+    var showNums=cfg.showRowNumbers===true;
     if(!rows.length){container.innerHTML='<div style="padding:20px;color:#64748b;font-size:12px">No data available.</div>';return;}
-    var cols=Object.keys(rows[0]); var limit=Math.min(rows.length,100);
-    var html='<div style="overflow:auto;max-height:360px"><table class="dwb-data-table"><thead><tr>'+cols.map(function(c){return'<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
-    for(var i=0;i<limit;i++){html+='<tr>'+cols.map(function(c){var v=String(rows[i][c]!==undefined?rows[i][c]:'');return'<td>'+esc(v.length>60?v.slice(0,60)+'…':v)+'</td>';}).join('')+'</tr>';}
+    var allCols=Object.keys(rows[0]);
+    var cols=selCols?selCols.filter(function(c){return allCols.indexOf(c)!==-1;}):allCols;
+    var limit=Math.min(rows.length,maxR);
+    var html='<div style="overflow:auto;max-height:360px"><table class="dwb-data-table"><thead><tr>';
+    if(showNums) html+='<th style="color:#94a3b8;font-weight:normal;width:40px">#</th>';
+    html+=cols.map(function(c){return'<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
+    for(var i=0;i<limit;i++){
+      html+='<tr>';
+      if(showNums) html+='<td style="color:#94a3b8;font-size:10px;text-align:right;padding:3px 6px;user-select:none;width:40px">'+(i+1)+'</td>';
+      html+=cols.map(function(c){var v=String(rows[i][c]!==undefined?rows[i][c]:'');return'<td>'+esc(v.length>60?v.slice(0,60)+'…':v)+'</td>';}).join('')+'</tr>';
+    }
     html+='</tbody></table></div>';
     if(rows.length>limit) html+='<div style="padding:6px 8px;font-size:11px;color:#64748b">Showing '+limit+' of '+rows.length+' rows</div>';
     container.innerHTML=html;
@@ -1265,7 +1351,7 @@ window.DWBDashboard = (function() {
         case 'WORD_CLOUD': renderWordCloud(viz,filteredRows,body); break;
         case 'STAT_CARD': renderStatCard(body,viz,allRows,filteredRows); break;
         case 'KPI_STAT': renderKpiStat(body,viz,filteredRows); break;
-        case 'DATA_TABLE': renderDataTable(body,filteredRows); break;
+        case 'DATA_TABLE': renderDataTable(body,viz,filteredRows); break;
         case 'QUOTES_BOARD': renderQuotesBoard(body,viz,filteredRows); break;
         case 'RICH_TEXT': renderRichText(body,viz,filteredRows); break;
         case 'AI_ASSIST': renderAiAssist(body,viz); break;

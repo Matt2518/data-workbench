@@ -232,3 +232,20 @@
   background: var(--bg-surface);
   color: var(--text-main);
 }
+
+/* DATA_TABLE search input */
+.dash-table-search {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+.dash-table-search:focus { border-color: var(--accent); }

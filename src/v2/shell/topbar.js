@@ -20,6 +20,7 @@ window.DWBTopbar = (function() {
       <button class="tb-btn" id="tb-btn-new" title="New Flow">New</button>
       <button class="tb-btn" id="tb-btn-open" title="Open .dwbflow">Open</button>
       <button class="tb-btn" id="tb-btn-save" title="Save .dwbflow">Save</button>
+      <button class="tb-btn" id="tb-btn-help" title="Help tour" style="padding:4px 8px;font-size:13px;font-weight:700">?</button>
       <button class="tb-btn" id="tb-btn-theme" title="Toggle theme" style="padding:4px 8px;font-size:15px">☀</button>
     `;
   }
@@ -74,6 +75,13 @@ window.DWBTopbar = (function() {
     const btnSave = document.getElementById('tb-btn-save');
     if (btnSave) {
       btnSave.addEventListener('click', function() { window.DWBio.saveFlow(); });
+    }
+
+    const btnHelp = document.getElementById('tb-btn-help');
+    if (btnHelp) {
+      btnHelp.addEventListener('click', function() {
+        window.DWBSplash && window.DWBSplash.startTour();
+      });
     }
 
     const btnTheme = document.getElementById('tb-btn-theme');

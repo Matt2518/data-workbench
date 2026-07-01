@@ -196,3 +196,113 @@
   flex: 1; gap: 12px; color: var(--text-faint);
   font-size: 13px; text-align: center; padding: 40px;
 }
+
+/* ── Display Filters section ────────────────────────────────────────────── */
+.vt-filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+  min-height: 24px;
+}
+
+.vt-filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 11px;
+  padding: 3px 8px;
+  color: var(--text-main);
+}
+
+.vt-filter-tag-remove {
+  background: none;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+.vt-filter-tag-remove:hover { color: var(--danger); }
+
+.vt-filter-add-btn {
+  background: none;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 10px;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.vt-filter-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.vt-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  min-width: 160px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.vt-filter-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text-main);
+}
+.vt-filter-dropdown-item:hover { background: var(--bg-raised); }
+
+/* ── Toggle switch ──────────────────────────────────────────────────────── */
+.vt-toggle {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.vt-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.vt-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border-strong);
+  border-radius: 20px;
+  transition: background var(--transition-fast);
+}
+.vt-toggle-track::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  top: 3px;
+  left: 3px;
+  transition: transform var(--transition-fast);
+}
+.vt-toggle input:checked + .vt-toggle-track { background: var(--accent); }
+.vt-toggle input:checked + .vt-toggle-track::before { transform: translateX(14px); }
