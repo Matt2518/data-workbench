@@ -3589,6 +3589,13 @@ window.DWBDashboard = (function() {
     var ec=window.echarts; var existing=ec.getInstanceByDom(el); if(existing) existing.dispose();
     var chart=ec.init(el);
     chart.setOption({ tooltip:{trigger:'axis'}, xAxis:{type:'category',data:data.map(function(d){return d.category;}),axisLabel:{rotate:30,fontSize:11}}, yAxis:{type:'value'}, series:[{type:'bar',data:data.map(function(d){return d.value;}),itemStyle:{color:'#005EB8'}}], grid:{left:50,right:20,bottom:60,top:20} });
+    chart.on('click', function(params) {
+      if (!viz.linkToDisplayFilters || !viz.filterableFields || !viz.filterableFields.length) return;
+      var field = catF; if (!field) return;
+      var val = params.name || ''; if (!val) return;
+      if (activeFilters[field] === val) { delete activeFilters[field]; } else { activeFilters[field] = val; }
+      renderBanner(); renderChips(); renderPlacements();
+    });
     setTimeout(function(){chart.resize();},50);
   }
 
@@ -3609,6 +3616,13 @@ window.DWBDashboard = (function() {
     var ec=window.echarts; var existing=ec.getInstanceByDom(el); if(existing) existing.dispose();
     var chart=ec.init(el);
     chart.setOption({ tooltip:{trigger:'axis'}, legend:echartsSeries.length>1?{bottom:0}:{show:false}, xAxis:{type:'category',data:xCats,name:cfg.xLabel||''}, yAxis:yAxisDef, series:echartsSeries, grid:{top:40,bottom:40,left:60,right:cfg.dualYAxis?60:20} });
+    chart.on('click', function(params) {
+      if (!viz.linkToDisplayFilters || !viz.filterableFields || !viz.filterableFields.length) return;
+      var field = xF; if (!field) return;
+      var val = params.name || ''; if (!val) return;
+      if (activeFilters[field] === val) { delete activeFilters[field]; } else { activeFilters[field] = val; }
+      renderBanner(); renderChips(); renderPlacements();
+    });
     setTimeout(function(){chart.resize();},50);
   }
 
@@ -3626,6 +3640,13 @@ window.DWBDashboard = (function() {
     var ec=window.echarts; var existing=ec.getInstanceByDom(el); if(existing) existing.dispose();
     var chart=ec.init(el);
     chart.setOption({ color:PALETTE, tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'}, legend:{show:cfg.showLegend!==false,orient:'vertical',right:10,type:'scroll'}, series:[{type:'pie',radius:cfg.donut?['40%','70%']:'70%',data:data,label:{show:cfg.showLabels!==false,formatter:'{b}: {d}%'},emphasis:{itemStyle:{shadowBlur:10,shadowColor:'rgba(0,0,0,0.5)'}}}] });
+    chart.on('click', function(params) {
+      if (!viz.linkToDisplayFilters || !viz.filterableFields || !viz.filterableFields.length) return;
+      var field = catF; if (!field) return;
+      var val = params.name || ''; if (!val) return;
+      if (activeFilters[field] === val) { delete activeFilters[field]; } else { activeFilters[field] = val; }
+      renderBanner(); renderChips(); renderPlacements();
+    });
     setTimeout(function(){chart.resize();},50);
   }
 
@@ -3664,6 +3685,13 @@ window.DWBDashboard = (function() {
     var ec=window.echarts; var existing=ec.getInstanceByDom(el); if(existing) existing.dispose();
     var chart=ec.init(el);
     chart.setOption({ tooltip:{trigger:'axis',axisPointer:{type:'shadow'}}, legend:{data:legendData,bottom:4,type:'scroll'}, grid:{top:20,bottom:40,left:160,right:20}, xAxis:{type:'value',min:function(v){return -Math.max(Math.abs(v.min),Math.abs(v.max));},max:function(v){return Math.max(Math.abs(v.min),Math.abs(v.max));}}, yAxis:{type:'category',data:questions,inverse:true}, series:series });
+    chart.on('click', function(params) {
+      if (!viz.linkToDisplayFilters || !viz.filterableFields || !viz.filterableFields.length) return;
+      var field = qF; if (!field) return;
+      var val = params.name || ''; if (!val) return;
+      if (activeFilters[field] === val) { delete activeFilters[field]; } else { activeFilters[field] = val; }
+      renderBanner(); renderChips(); renderPlacements();
+    });
     setTimeout(function(){chart.resize();},50);
   }
 
@@ -3680,6 +3708,13 @@ window.DWBDashboard = (function() {
     var ec=window.echarts; var existing=ec.getInstanceByDom(el); if(existing) existing.dispose();
     var chart=ec.init(el);
     chart.setOption({ series:[{ type:'wordCloud', shape:'circle', sizeRange:[12,48], rotationRange:[0,0], gridSize:8, data:wordData, textStyle:{color:cfg.colorMode==='single'?'#005EB8':function(){return PALETTE[Math.floor(Math.random()*PALETTE.length)];}} }] });
+    chart.on('click', function(params) {
+      if (!viz.linkToDisplayFilters || !viz.filterableFields || !viz.filterableFields.length) return;
+      var field = wF; if (!field) return;
+      var val = params.name || ''; if (!val) return;
+      if (activeFilters[field] === val) { delete activeFilters[field]; } else { activeFilters[field] = val; }
+      renderBanner(); renderChips(); renderPlacements();
+    });
     setTimeout(function(){chart.resize();},50);
   }
 
