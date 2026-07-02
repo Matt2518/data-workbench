@@ -312,40 +312,102 @@ window.DWBNodes.ARBITRARY_DATE = {
   }
 };
 
+/* ── Likert templates ── */
+var _aoLikertTemplates = {
+  numeric_5: {
+    label: '5-Point Numeric (1–5)',
+    scale: ['1','2','3','4','5'],
+    displayLabels: { '1':'Strongly Disagree','2':'Disagree','3':'Neutral','4':'Agree','5':'Strongly Agree' },
+    weights: { '1':-2,'2':-1,'3':0,'4':1,'5':2 }
+  },
+  agree_5: {
+    label: '5-Point Agreement',
+    scale: ['Strongly Disagree','Disagree','Neutral','Agree','Strongly Agree'],
+    displayLabels: {},
+    weights: { 'Strongly Disagree':-2,'Disagree':-1,'Neutral':0,'Agree':1,'Strongly Agree':2 }
+  },
+  satisfy_5: {
+    label: '5-Point Satisfaction',
+    scale: ['Very Dissatisfied','Dissatisfied','Neutral','Satisfied','Very Satisfied'],
+    displayLabels: {},
+    weights: { 'Very Dissatisfied':-2,'Dissatisfied':-1,'Neutral':0,'Satisfied':1,'Very Satisfied':2 }
+  },
+  always_never: {
+    label: 'Always/Never (5-point)',
+    scale: ['Never','Rarely','Sometimes','Often','Always'],
+    displayLabels: {},
+    weights: { 'Never':-2,'Rarely':-1,'Sometimes':0,'Often':1,'Always':2 }
+  },
+  numeric_4: {
+    label: '4-Point Numeric (1–4)',
+    scale: ['1','2','3','4'],
+    displayLabels: { '1':'Strongly Disagree','2':'Disagree','3':'Agree','4':'Strongly Agree' },
+    weights: { '1':-2,'2':-1,'3':1,'4':2 }
+  },
+  custom: {
+    label: 'Custom',
+    scale: [],
+    displayLabels: {},
+    weights: {}
+  }
+};
+
+function _aoAutoDetectLikertTemplate(colName, currentRows) {
+  if (!currentRows || !currentRows.length) return null;
+  var seen = {};
+  currentRows.forEach(function(row) {
+    var v = row[colName];
+    if (v != null && v !== '') seen[String(v).trim()] = true;
+  });
+  var dataVals = Object.keys(seen);
+  if (!dataVals.length) return null;
+  var tplKeys = ['numeric_5','agree_5','satisfy_5','always_never','numeric_4'];
+  for (var i = 0; i < tplKeys.length; i++) {
+    var tpl = _aoLikertTemplates[tplKeys[i]];
+    var tplLower = tpl.scale.map(function(v) { return v.toLowerCase().trim(); });
+    var match = dataVals.every(function(dv) { return tplLower.indexOf(dv.toLowerCase().trim()) >= 0; });
+    if (match) return tplKeys[i];
+  }
+  return null;
+}
+
 /* ───────────────────────────────────────────────────────────
    SET_TYPES
-   Coerces column values to a target type (string, number,
-   boolean, date). Writes a dynamic column→type mapping.
+   Marks columns with semantic types. string/number/boolean/date
+   coerce values. categorical and likert are metadata-only:
+   run() passes rows through unchanged, and the pipeline
+   executor captures the column metadata into snapshotMeta.
 ─────────────────────────────────────────────────────────── */
 
 window.DWBNodes.SET_TYPES = {
   label: 'Set Types',
   icon: '🔢',
   category: 'Advanced',
-  defaultConfig: { typeMap: {} },
+  defaultConfig: { columns: {} },
 
   run: function(rows, config) {
-    var typeMap = config.typeMap || {};
-    if (!Object.keys(typeMap).length) return rows;
-
+    var columns = config.columns || {};
+    if (!Object.keys(columns).length) return rows;
     return rows.map(function(row) {
       var nr = Object.assign({}, row);
-      Object.keys(typeMap).forEach(function(col) {
-        var targetType = typeMap[col];
+      Object.keys(columns).forEach(function(col) {
+        var colCfg = columns[col];
+        var type = colCfg.type || 'string';
+        if (type === 'categorical' || type === 'likert') return;
         var val = row[col];
         try {
-          if (targetType === 'number') {
+          if (type === 'number') {
             nr[col] = parseFloat(val);
             if (isNaN(nr[col])) nr[col] = 0;
-          } else if (targetType === 'string') {
+          } else if (type === 'string') {
             nr[col] = String(val == null ? '' : val);
-          } else if (targetType === 'boolean') {
+          } else if (type === 'boolean') {
             if (typeof val === 'boolean') { nr[col] = val; }
             else {
               var s = String(val == null ? '' : val).toLowerCase().trim();
               nr[col] = s === 'true' || s === '1' || s === 'yes';
             }
-          } else if (targetType === 'date') {
+          } else if (type === 'date') {
             var d = _aoParseDate(val);
             nr[col] = d ? _aoIsoDate(d) : '';
           }
@@ -358,12 +420,12 @@ window.DWBNodes.SET_TYPES = {
   },
 
   validate: function(config) {
-    if (!config.typeMap || !Object.keys(config.typeMap).length) return 'Add at least one column mapping';
+    if (!config.columns || !Object.keys(config.columns).length) return 'Add at least one column mapping';
     return null;
   },
 
   configUI: function(config, onChange, currentRows) {
-    var typeMap = config.typeMap || {};
+    var columns = config.columns || {};
     var allCols = _aoCols(currentRows);
 
     var div = document.createElement('div');
@@ -371,8 +433,7 @@ window.DWBNodes.SET_TYPES = {
 
     function renderRows() {
       div.innerHTML = '';
-
-      var mappedCols = Object.keys(typeMap);
+      var mappedCols = Object.keys(columns);
 
       if (!mappedCols.length) {
         var empty = document.createElement('div');
@@ -382,65 +443,222 @@ window.DWBNodes.SET_TYPES = {
       }
 
       mappedCols.forEach(function(col) {
-        var row = document.createElement('div');
-        row.style.cssText = 'display:flex;gap:6px;align-items:center';
+        var colCfg = columns[col];
+        var type = colCfg.type || 'string';
 
-        // Column selector (exclude columns already in other rows)
+        var card = document.createElement('div');
+        card.style.cssText = 'border:1px solid var(--border);border-radius:4px;padding:6px 8px;background:var(--bg-raised);margin-bottom:2px';
+
+        var hdr = document.createElement('div');
+        hdr.style.cssText = 'display:flex;gap:6px;align-items:center' + (type === 'likert' ? ';margin-bottom:6px' : '');
+
         var otherMapped = mappedCols.filter(function(c) { return c !== col; });
-        var availCols = allCols.filter(function(c) { return c === col || !otherMapped.includes(c); });
+        var availCols = allCols.filter(function(c) { return c === col || otherMapped.indexOf(c) < 0; });
         var colSel = document.createElement('select');
         colSel.style.cssText = 'flex:1;font-size:12px';
         colSel.innerHTML = _aoColOptHtml(availCols, col);
         colSel.addEventListener('change', function(e) {
           var newCol = e.target.value;
           if (!newCol || newCol === col) return;
-          var savedType = typeMap[col];
-          delete typeMap[col];
-          typeMap[newCol] = savedType;
-          onChange('typeMap', Object.assign({}, typeMap));
+          var savedCfg = Object.assign({}, columns[col]);
+          delete columns[col];
+          columns[newCol] = savedCfg;
+          onChange('columns', Object.assign({}, columns));
           renderRows();
         });
 
-        // Type selector
         var typeSel = document.createElement('select');
         typeSel.style.cssText = 'flex:1;font-size:12px';
-        typeSel.innerHTML = ['string', 'number', 'boolean', 'date'].map(function(t) {
-          return '<option value="' + t + '"' + (typeMap[col] === t ? ' selected' : '') + '>' +
-            t.charAt(0).toUpperCase() + t.slice(1) + '</option>';
-        }).join('');
+        ['string','number','boolean','date','categorical','likert'].forEach(function(t) {
+          var opt = document.createElement('option');
+          opt.value = t;
+          opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+          if (type === t) opt.selected = true;
+          typeSel.appendChild(opt);
+        });
         typeSel.addEventListener('change', function(e) {
-          typeMap[col] = e.target.value;
-          onChange('typeMap', Object.assign({}, typeMap));
+          var newType = e.target.value;
+          columns[col].type = newType;
+          if (newType === 'likert' && !columns[col].scale) {
+            columns[col].scale = [];
+            columns[col].displayLabels = {};
+            columns[col].weights = {};
+            columns[col].template = 'custom';
+          }
+          onChange('columns', Object.assign({}, columns));
+          renderRows();
         });
 
-        // Delete button
         var del = document.createElement('button');
         del.style.cssText = 'background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--text-muted);padding:0 4px;flex-shrink:0';
         del.textContent = '✕';
         del.title = 'Remove';
         del.addEventListener('click', function() {
-          delete typeMap[col];
-          onChange('typeMap', Object.assign({}, typeMap));
+          delete columns[col];
+          onChange('columns', Object.assign({}, columns));
           renderRows();
         });
 
-        row.appendChild(colSel);
-        row.appendChild(typeSel);
-        row.appendChild(del);
-        div.appendChild(row);
+        hdr.appendChild(colSel);
+        hdr.appendChild(typeSel);
+        hdr.appendChild(del);
+        card.appendChild(hdr);
+
+        if (type === 'likert') {
+          var panel = document.createElement('div');
+          panel.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+
+          var tplRow = document.createElement('div');
+          tplRow.style.cssText = 'display:flex;align-items:center;gap:6px';
+          var tplLbl = document.createElement('span');
+          tplLbl.style.cssText = 'font-size:11px;color:var(--text-muted);flex-shrink:0';
+          tplLbl.textContent = 'Template:';
+          var tplSel = document.createElement('select');
+          tplSel.style.cssText = 'flex:1;font-size:12px';
+          ['numeric_5','agree_5','satisfy_5','always_never','numeric_4','custom'].forEach(function(tk) {
+            var opt = document.createElement('option');
+            opt.value = tk;
+            opt.textContent = _aoLikertTemplates[tk].label;
+            if ((colCfg.template || 'custom') === tk) opt.selected = true;
+            tplSel.appendChild(opt);
+          });
+          tplSel.addEventListener('change', function(e) {
+            var tk = e.target.value;
+            var tpl = _aoLikertTemplates[tk];
+            columns[col].template = tk;
+            columns[col].scale = tpl.scale.slice();
+            columns[col].displayLabels = Object.assign({}, tpl.displayLabels);
+            columns[col].weights = Object.assign({}, tpl.weights);
+            onChange('columns', Object.assign({}, columns));
+            renderRows();
+          });
+          tplRow.appendChild(tplLbl);
+          tplRow.appendChild(tplSel);
+          panel.appendChild(tplRow);
+
+          var scale = colCfg.scale || [];
+          if (scale.length) {
+            var scaleHdr = document.createElement('div');
+            scaleHdr.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 56px 20px;gap:4px;font-size:10px;color:var(--text-muted);font-weight:600;margin-top:4px';
+            scaleHdr.innerHTML = '<span>Raw value</span><span>Display label</span><span>Weight</span><span></span>';
+            panel.appendChild(scaleHdr);
+
+            scale.forEach(function(rawVal, idx) {
+              var sr = document.createElement('div');
+              sr.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 56px 20px;gap:4px;align-items:center';
+
+              var rawIn = document.createElement('input');
+              rawIn.type = 'text';
+              rawIn.style.cssText = 'font-size:11px;padding:2px 4px;width:100%;box-sizing:border-box';
+              rawIn.value = rawVal;
+              rawIn.addEventListener('change', function() {
+                var oldVal = rawVal;
+                var newVal = rawIn.value;
+                scale[idx] = newVal;
+                if (oldVal !== newVal) {
+                  var savedLbl = colCfg.displayLabels[oldVal];
+                  var savedWt = colCfg.weights[oldVal];
+                  delete colCfg.displayLabels[oldVal];
+                  delete colCfg.weights[oldVal];
+                  colCfg.displayLabels[newVal] = savedLbl !== undefined ? savedLbl : newVal;
+                  colCfg.weights[newVal] = savedWt !== undefined ? savedWt : 0;
+                }
+                onChange('columns', Object.assign({}, columns));
+                renderRows();
+              });
+
+              var dispIn = document.createElement('input');
+              dispIn.type = 'text';
+              dispIn.style.cssText = 'font-size:11px;padding:2px 4px;width:100%;box-sizing:border-box';
+              dispIn.value = colCfg.displayLabels[rawVal] !== undefined ? colCfg.displayLabels[rawVal] : rawVal;
+              dispIn.addEventListener('input', function() {
+                colCfg.displayLabels[rawVal] = dispIn.value;
+                onChange('columns', Object.assign({}, columns));
+              });
+
+              var wtIn = document.createElement('input');
+              wtIn.type = 'number';
+              wtIn.style.cssText = 'font-size:11px;padding:2px 4px;width:100%;box-sizing:border-box';
+              wtIn.value = colCfg.weights[rawVal] !== undefined ? colCfg.weights[rawVal] : 0;
+              wtIn.addEventListener('input', function() {
+                colCfg.weights[rawVal] = parseInt(wtIn.value, 10) || 0;
+                onChange('columns', Object.assign({}, columns));
+              });
+
+              var delS = document.createElement('button');
+              delS.style.cssText = 'background:transparent;border:none;font-size:11px;color:var(--text-faint);cursor:pointer;padding:0';
+              delS.textContent = '✕';
+              delS.addEventListener('click', function() {
+                scale.splice(idx, 1);
+                delete colCfg.displayLabels[rawVal];
+                delete colCfg.weights[rawVal];
+                onChange('columns', Object.assign({}, columns));
+                renderRows();
+              });
+
+              sr.appendChild(rawIn);
+              sr.appendChild(dispIn);
+              sr.appendChild(wtIn);
+              sr.appendChild(delS);
+              panel.appendChild(sr);
+            });
+          }
+
+          var btnRow = document.createElement('div');
+          btnRow.style.cssText = 'display:flex;gap:6px;margin-top:4px';
+
+          var detectBtn = document.createElement('button');
+          detectBtn.style.cssText = 'font-size:11px;padding:3px 8px;border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:3px;cursor:pointer';
+          detectBtn.textContent = '⚡ Auto-detect';
+          detectBtn.addEventListener('click', function() {
+            var detected = _aoAutoDetectLikertTemplate(col, currentRows);
+            if (detected) {
+              var tpl = _aoLikertTemplates[detected];
+              columns[col].template = detected;
+              columns[col].scale = tpl.scale.slice();
+              columns[col].displayLabels = Object.assign({}, tpl.displayLabels);
+              columns[col].weights = Object.assign({}, tpl.weights);
+              onChange('columns', Object.assign({}, columns));
+              renderRows();
+            } else {
+              alert('No matching Likert template detected for "' + col + '".');
+            }
+          });
+
+          var addScaleBtn = document.createElement('button');
+          addScaleBtn.style.cssText = 'font-size:11px;padding:3px 8px;border:1px dashed var(--accent);background:transparent;color:var(--accent);border-radius:3px;cursor:pointer';
+          addScaleBtn.textContent = '+ Add point';
+          addScaleBtn.addEventListener('click', function() {
+            var newVal = 'Value ' + ((colCfg.scale || []).length + 1);
+            if (!colCfg.scale) colCfg.scale = [];
+            colCfg.scale.push(newVal);
+            if (!colCfg.displayLabels) colCfg.displayLabels = {};
+            colCfg.displayLabels[newVal] = newVal;
+            if (!colCfg.weights) colCfg.weights = {};
+            colCfg.weights[newVal] = 0;
+            onChange('columns', Object.assign({}, columns));
+            renderRows();
+          });
+
+          btnRow.appendChild(detectBtn);
+          btnRow.appendChild(addScaleBtn);
+          panel.appendChild(btnRow);
+          card.appendChild(panel);
+        }
+
+        div.appendChild(card);
       });
 
-      // "+ Add column" button
       var addBtn = document.createElement('button');
       addBtn.style.cssText = 'margin-top:4px;padding:4px 10px;border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:4px;font-size:12px;cursor:pointer';
       addBtn.textContent = '+ Add column';
-      var unmapped = allCols.filter(function(c) { return !mappedCols.includes(c); });
+      var unmapped = allCols.filter(function(c) { return Object.keys(columns).indexOf(c) < 0; });
       if (!unmapped.length) addBtn.disabled = true;
       addBtn.addEventListener('click', function() {
         var next = unmapped[0];
         if (!next) return;
-        typeMap[next] = 'string';
-        onChange('typeMap', Object.assign({}, typeMap));
+        columns[next] = { type: 'string' };
+        onChange('columns', Object.assign({}, columns));
         renderRows();
       });
       div.appendChild(addBtn);

@@ -122,6 +122,7 @@
   border: 1px solid transparent;
   transition: background var(--transition-fast);
   user-select: none;
+  position: relative;
 }
 .pt-node-card:hover { background: var(--bg-raised); }
 .pt-node-card.selected { background: var(--accent-light); border-color: var(--accent); }
@@ -257,3 +258,74 @@
 .pt-checklist-row input[type="checkbox"] { accent-color: var(--accent); flex-shrink: 0; }
 .pt-checklist-drag { color: var(--text-faint); cursor: grab; font-size: var(--text-base); padding: 0 4px; }
 .pt-checklist-drag:active { cursor: grabbing; }
+
+/* ── Drag handle on node cards ── */
+.pt-drag-handle {
+  color: var(--text-muted);
+  cursor: grab;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  padding: 0 2px;
+  opacity: 0.4;
+}
+.pt-drag-handle:active { cursor: grabbing; }
+
+/* Drag reorder insertion indicators */
+.pt-node-card.drag-over-above::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+  z-index: 3;
+  pointer-events: none;
+  border-radius: 1px;
+}
+.pt-node-card.drag-over-below::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+  z-index: 3;
+  pointer-events: none;
+  border-radius: 1px;
+}
+
+/* ── Insert zones between node cards ── */
+.pt-insert-zone {
+  position: relative;
+  height: 4px;
+  margin: -2px 0;
+  cursor: pointer;
+  z-index: 2;
+}
+.pt-insert-line {
+  position: absolute;
+  left: 8px; right: 8px; top: 50%;
+  height: 2px;
+  background: transparent;
+  transform: translateY(-50%);
+  transition: background var(--transition-fast);
+}
+.pt-insert-zone:hover .pt-insert-line { background: var(--accent); }
+.pt-insert-btn {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+  display: flex; align-items: center; justify-content: center;
+}
+.pt-insert-zone:hover .pt-insert-btn { transform: translate(-50%, -50%) scale(1); }
+
+/* Suppress insert zone hover while a drag is in progress */
+#pt-node-list.dragging .pt-insert-zone { pointer-events: none; }

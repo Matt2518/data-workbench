@@ -1418,23 +1418,15 @@ window.DWBDashboard = (function() {
       return;
     }
 
-    var scaleType = cfg.scaleType || '5point';
-    var scaleLabels = (scaleType === 'custom') ? (cfg.scaleLabels || []) : (_LIKERT_SCALES[scaleType] || _LIKERT_SCALES['5point']);
-    var scaleColors;
-    if (scaleType === '7point') {
-      scaleColors = _LIKERT_COLORS_7.slice();
-    } else if (scaleType === 'custom') {
-      var baseC = ['#1d4ed8','#3b82f6','#93c5fd','#94a3b8','#fdba74','#f97316','#c2410c'];
-      scaleColors = baseC.slice(0, scaleLabels.length);
-    } else {
-      scaleColors = _LIKERT_COLORS_5.slice();
+    // Check for likert metadata from pipeline SET_TYPES node
+    var metaLikert = null;
+    if (cfg.useAutoScale !== false && responseField) {
+      var snMeta = window.DWBState && window.DWBState.snapshotMeta && window.DWBState.snapshotMeta[viz.snapshotName];
+      if (snMeta && snMeta.columnTypes && snMeta.columnTypes[responseField]) {
+        var cm = snMeta.columnTypes[responseField];
+        if (cm.type === 'likert' && cm.scale && cm.scale.length) metaLikert = cm;
+      }
     }
-
-    var n = scaleLabels.length;
-    if (!n) { _dMissingConfig(container, 'STACKED_DIVERGING_BAR'); return; }
-
-    var midIdx = Math.floor(n / 2);
-    var hasNeutral = (n % 2 === 1);
 
     // Unique questions in first-occurrence order
     var questions = [];
@@ -1445,82 +1437,166 @@ window.DWBDashboard = (function() {
     });
     if (!questions.length) { _dMissingConfig(container, 'STACKED_DIVERGING_BAR'); return; }
 
-    // Count responses per question per scale label
-    var counts = {};
-    questions.forEach(function(q) {
-      counts[q] = {};
-      scaleLabels.forEach(function(l) { counts[q][l] = 0; });
-    });
-
-    rows.forEach(function(row) {
-      var q = row[questionField] !== undefined ? String(row[questionField]) : '';
-      var r = row[responseField] !== undefined ? String(row[responseField]) : '';
-      if (!q || !counts[q]) return;
-      var rLower = r.toLowerCase().trim();
-      var matched = null;
-      for (var li = 0; li < scaleLabels.length; li++) {
-        if (scaleLabels[li].toLowerCase().trim() === rLower) { matched = scaleLabels[li]; break; }
-      }
-      if (matched) {
-        var inc = 1;
-        if (cfg.countField && row[cfg.countField] !== undefined) inc = parseInt(row[cfg.countField]) || 1;
-        counts[q][matched] = (counts[q][matched] || 0) + inc;
-      }
-    });
-
-    // Build diverging series following v1.0 stacking pattern:
-    // [neutral-left(neg), ...negOrd(outermost-first, idx 0..midIdx-1), neutral-right(pos), ...posOrd(innermost-first, idx midIdx+1..n-1)]
-    var neutralLabel = hasNeutral ? scaleLabels[midIdx] : '';
-    var neutralColor = hasNeutral ? (scaleColors[midIdx] || '#94a3b8') : '';
-
     var series = [];
-
-    if (hasNeutral) {
-      series.push({
-        type: 'bar', name: '__nl_' + neutralLabel, stack: 'likert',
-        data: questions.map(function(q) { return -Math.floor((counts[q][neutralLabel] || 0) / 2); }),
-        itemStyle: { color: neutralColor }, label: { show: false }
-      });
-    }
-
-    // Negative series: outermost first = ascending index order (index 0 = most negative)
-    for (var ni = 0; ni < midIdx; ni++) {
-      (function(idx) {
-        var lbl = scaleLabels[idx];
-        series.push({
-          type: 'bar', name: lbl, stack: 'likert',
-          data: questions.map(function(q) { return -(counts[q][lbl] || 0); }),
-          itemStyle: { color: scaleColors[idx] || '#94a3b8' },
-          emphasis: { focus: 'series' }
-        });
-      })(ni);
-    }
-
-    if (hasNeutral) {
-      series.push({
-        type: 'bar', name: neutralLabel, stack: 'likert',
-        data: questions.map(function(q) { return Math.ceil((counts[q][neutralLabel] || 0) / 2); }),
-        itemStyle: { color: neutralColor }, emphasis: { focus: 'series' }
-      });
-    }
-
-    // Positive series: innermost first = ascending index order (midIdx+1 = least positive)
-    var posStart = midIdx + (hasNeutral ? 1 : 0);
-    for (var pi = posStart; pi < n; pi++) {
-      (function(idx) {
-        var lbl = scaleLabels[idx];
-        series.push({
-          type: 'bar', name: lbl, stack: 'likert',
-          data: questions.map(function(q) { return counts[q][lbl] || 0; }),
-          itemStyle: { color: scaleColors[idx] || '#94a3b8' },
-          emphasis: { focus: 'series' }
-        });
-      })(pi);
-    }
-
-    // Legend (skip __ ghost series, deduplicate)
     var legendData = [];
     var legendSeen = {};
+
+    if (metaLikert) {
+      // Weight-based rendering driven by pipeline metadata
+      var mScale = metaLikert.scale || [];
+      var mLabels = metaLikert.displayLabels || {};
+      var mWeights = metaLikert.weights || {};
+
+      var entries = mScale.map(function(raw) {
+        return {
+          raw: raw,
+          label: (mLabels[raw] != null && mLabels[raw] !== '') ? mLabels[raw] : raw,
+          weight: mWeights[raw] !== undefined ? (parseInt(mWeights[raw], 10) || 0) : 0
+        };
+      });
+      entries.sort(function(a, b) { return a.weight - b.weight; });
+
+      var rawCounts = {};
+      questions.forEach(function(q) {
+        rawCounts[q] = {};
+        mScale.forEach(function(raw) { rawCounts[q][raw] = 0; });
+      });
+      rows.forEach(function(row) {
+        var q = row[questionField] !== undefined ? String(row[questionField]) : '';
+        var r = row[responseField] !== undefined ? String(row[responseField]) : '';
+        if (!q || !rawCounts[q]) return;
+        var rLower = r.toLowerCase().trim();
+        for (var si = 0; si < mScale.length; si++) {
+          if (mScale[si].toLowerCase().trim() === rLower) {
+            var inc = 1;
+            if (cfg.countField && row[cfg.countField] !== undefined) inc = parseInt(row[cfg.countField]) || 1;
+            rawCounts[q][mScale[si]] = (rawCounts[q][mScale[si]] || 0) + inc;
+            break;
+          }
+        }
+      });
+
+      var negEntries = entries.filter(function(e) { return e.weight < 0; });
+      var neuEntries = entries.filter(function(e) { return e.weight === 0; });
+      var posEntries = entries.filter(function(e) { return e.weight > 0; });
+      var blueShades = ['#1d4ed8','#2563eb','#3b82f6','#60a5fa','#93c5fd','#bfdbfe'];
+      var grayShade = '#94a3b8';
+      var redShades = ['#fbbf24','#f97316','#ea580c','#c2410c','#b91c1c'];
+      var entryColors = {};
+      negEntries.forEach(function(e, i) { entryColors[e.raw] = blueShades[Math.min(i, blueShades.length - 1)]; });
+      neuEntries.forEach(function(e) { entryColors[e.raw] = grayShade; });
+      posEntries.forEach(function(e, i) { entryColors[e.raw] = redShades[Math.min(i, redShades.length - 1)]; });
+
+      // Ghost neutral left half
+      neuEntries.forEach(function(e) {
+        series.push({
+          type: 'bar', name: '__nl_' + e.label, stack: 'likert',
+          data: questions.map(function(q) { return -Math.floor((rawCounts[q][e.raw] || 0) / 2); }),
+          itemStyle: { color: grayShade }, label: { show: false }
+        });
+      });
+      // Negatives outermost-first (most negative = entries[0])
+      negEntries.forEach(function(e) {
+        series.push({
+          type: 'bar', name: e.label, stack: 'likert',
+          data: questions.map(function(q) { return -(rawCounts[q][e.raw] || 0); }),
+          itemStyle: { color: entryColors[e.raw] }, emphasis: { focus: 'series' }
+        });
+      });
+      // Neutral real right half
+      neuEntries.forEach(function(e) {
+        series.push({
+          type: 'bar', name: e.label, stack: 'likert',
+          data: questions.map(function(q) { return Math.ceil((rawCounts[q][e.raw] || 0) / 2); }),
+          itemStyle: { color: grayShade }, emphasis: { focus: 'series' }
+        });
+      });
+      // Positives innermost-first (least positive first)
+      posEntries.forEach(function(e) {
+        series.push({
+          type: 'bar', name: e.label, stack: 'likert',
+          data: questions.map(function(q) { return rawCounts[q][e.raw] || 0; }),
+          itemStyle: { color: entryColors[e.raw] }, emphasis: { focus: 'series' }
+        });
+      });
+
+    } else {
+      // Manual config fallback
+      var scaleType = cfg.scaleType || '5point';
+      var scaleLabels = (scaleType === 'custom') ? (cfg.scaleLabels || []) : (_LIKERT_SCALES[scaleType] || _LIKERT_SCALES['5point']);
+      var scaleColors;
+      if (scaleType === '7point') scaleColors = _LIKERT_COLORS_7.slice();
+      else if (scaleType === 'custom') {
+        var baseC = ['#1d4ed8','#3b82f6','#93c5fd','#94a3b8','#fdba74','#f97316','#c2410c'];
+        scaleColors = baseC.slice(0, scaleLabels.length);
+      } else scaleColors = _LIKERT_COLORS_5.slice();
+
+      var n = scaleLabels.length;
+      if (!n) { _dMissingConfig(container, 'STACKED_DIVERGING_BAR'); return; }
+      var midIdx = Math.floor(n / 2);
+      var hasNeutral = (n % 2 === 1);
+
+      var counts = {};
+      questions.forEach(function(q) {
+        counts[q] = {};
+        scaleLabels.forEach(function(l) { counts[q][l] = 0; });
+      });
+      rows.forEach(function(row) {
+        var q = row[questionField] !== undefined ? String(row[questionField]) : '';
+        var r = row[responseField] !== undefined ? String(row[responseField]) : '';
+        if (!q || !counts[q]) return;
+        var rLower = r.toLowerCase().trim();
+        var matched = null;
+        for (var li = 0; li < scaleLabels.length; li++) {
+          if (scaleLabels[li].toLowerCase().trim() === rLower) { matched = scaleLabels[li]; break; }
+        }
+        if (matched) {
+          var inc = 1;
+          if (cfg.countField && row[cfg.countField] !== undefined) inc = parseInt(row[cfg.countField]) || 1;
+          counts[q][matched] = (counts[q][matched] || 0) + inc;
+        }
+      });
+
+      var neutralLabel = hasNeutral ? scaleLabels[midIdx] : '';
+      var neutralColor = hasNeutral ? (scaleColors[midIdx] || '#94a3b8') : '';
+
+      if (hasNeutral) {
+        series.push({
+          type: 'bar', name: '__nl_' + neutralLabel, stack: 'likert',
+          data: questions.map(function(q) { return -Math.floor((counts[q][neutralLabel] || 0) / 2); }),
+          itemStyle: { color: neutralColor }, label: { show: false }
+        });
+      }
+      for (var ni = 0; ni < midIdx; ni++) {
+        (function(idx) {
+          var lbl = scaleLabels[idx];
+          series.push({
+            type: 'bar', name: lbl, stack: 'likert',
+            data: questions.map(function(q) { return -(counts[q][lbl] || 0); }),
+            itemStyle: { color: scaleColors[idx] || '#94a3b8' }, emphasis: { focus: 'series' }
+          });
+        })(ni);
+      }
+      if (hasNeutral) {
+        series.push({
+          type: 'bar', name: neutralLabel, stack: 'likert',
+          data: questions.map(function(q) { return Math.ceil((counts[q][neutralLabel] || 0) / 2); }),
+          itemStyle: { color: neutralColor }, emphasis: { focus: 'series' }
+        });
+      }
+      var posStart = midIdx + (hasNeutral ? 1 : 0);
+      for (var pi = posStart; pi < n; pi++) {
+        (function(idx) {
+          var lbl = scaleLabels[idx];
+          series.push({
+            type: 'bar', name: lbl, stack: 'likert',
+            data: questions.map(function(q) { return counts[q][lbl] || 0; }),
+            itemStyle: { color: scaleColors[idx] || '#94a3b8' }, emphasis: { focus: 'series' }
+          });
+        })(pi);
+      }
+    }
+
     series.forEach(function(s) {
       if (!s.name.startsWith('__') && !legendSeen[s.name]) { legendSeen[s.name] = true; legendData.push(s.name); }
     });

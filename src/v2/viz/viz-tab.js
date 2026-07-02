@@ -651,53 +651,86 @@ window.DWBVizTab = (function() {
     function rebuild() {
       el.innerHTML = '';
       const scaleType = cfg.scaleType || '5point';
+
+      // Detect likert metadata for current responseField
+      let metaBanner = null;
+      if (cfg.responseField) {
+        const snMeta = window.DWBState && window.DWBState.snapshotMeta && window.DWBState.snapshotMeta[viz.snapshotName];
+        if (snMeta && snMeta.columnTypes && snMeta.columnTypes[cfg.responseField]) {
+          const cm = snMeta.columnTypes[cfg.responseField];
+          if (cm.type === 'likert' && cm.scale && cm.scale.length) metaBanner = cm;
+        }
+      }
+      const useAutoScale = metaBanner && (cfg.useAutoScale !== false);
+
       const ds = document.createElement('div');
       ds.className = 'vt-config-section';
-      ds.innerHTML = '<span class="vt-config-label">Chart Data</span>' +
-        '<div class="form-row"><label>Question/category field</label>' + colSel('vcsdb-q', cfg.questionField) + '</div>' +
-        '<div class="form-row"><label>Response field</label>' + colSel('vcsdb-r', cfg.responseField) + '</div>' +
-        '<div class="form-row"><label>Scale type</label><div style="display:flex;gap:10px">' +
-        [['5point','5-point'],['7point','7-point'],['custom','Custom']].map(function(pair) {
-          return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcsdb-scale" value="' + pair[0] + '"' + (scaleType === pair[0] ? ' checked' : '') + '> ' + pair[1] + '</label>';
-        }).join('') + '</div></div>' +
-        '<div id="vcsdb-custom" style="' + (scaleType !== 'custom' ? 'display:none' : '') + ';margin-bottom:8px">' +
-        '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Custom scale labels</div>' +
-        '<div id="vcsdb-clist"></div>' +
-        '<button class="vt-add-btn" id="vcsdb-add" style="margin-top:2px;width:calc(100%)">＋ Add point</button>' +
-        '</div>' +
-        '<div class="form-row"><label>Pre-aggregated count field</label>' + colSel('vcsdb-cnt', cfg.countField, true) +
-        '<span style="font-size:10px;color:var(--text-faint);margin-top:2px">Leave blank to compute counts from raw responses</span></div>';
-      el.appendChild(ds);
 
-      ds.querySelector('#vcsdb-q').addEventListener('change', function() { cfg.questionField = this.value; onChange(); });
-      ds.querySelector('#vcsdb-r').addEventListener('change', function() { cfg.responseField = this.value; onChange(); });
-      ds.querySelector('#vcsdb-cnt').addEventListener('change', function() { cfg.countField = this.value || ''; onChange(); });
-
-      const customSec = ds.querySelector('#vcsdb-custom');
-      ds.querySelectorAll('input[name="vcsdb-scale"]').forEach(function(r) {
-        r.addEventListener('change', function() {
-          cfg.scaleType = this.value;
-          customSec.style.display = this.value === 'custom' ? '' : 'none';
+      if (metaBanner) {
+        const banner = document.createElement('div');
+        banner.style.cssText = 'background:var(--accent-light);border:1px solid var(--accent);border-radius:4px;padding:6px 10px;font-size:11px;margin-bottom:8px';
+        banner.innerHTML = '<div style="color:var(--accent);font-weight:600">✓ Likert metadata detected for <em>' + _vtEsc(cfg.responseField) + '</em></div>' +
+          '<label style="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer;font-weight:normal">' +
+          '<input type="checkbox"' + (useAutoScale ? ' checked' : '') + '> Use automatic scale from pipeline metadata</label>';
+        banner.querySelector('input').addEventListener('change', function() {
+          cfg.useAutoScale = this.checked;
           onChange();
-        });
-      });
-
-      if (scaleType === 'custom') {
-        const clist = ds.querySelector('#vcsdb-clist');
-        (cfg.scaleLabels || []).forEach(function(lbl, idx) {
-          const row = document.createElement('div');
-          row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:4px';
-          row.innerHTML = '<input type="text" value="' + _vtEsc(lbl) + '" placeholder="Scale point ' + (idx + 1) + '" style="flex:1">' +
-            '<button style="background:none;border:none;color:var(--text-faint);font-size:14px;padding:0 2px">✕</button>';
-          row.querySelector('input').addEventListener('input', function() { cfg.scaleLabels[idx] = this.value; onChange(); });
-          row.querySelector('button').addEventListener('click', function() { cfg.scaleLabels.splice(idx, 1); rebuild(); onChange(); });
-          clist.appendChild(row);
-        });
-        ds.querySelector('#vcsdb-add').addEventListener('click', function() {
-          cfg.scaleLabels = cfg.scaleLabels || [];
-          cfg.scaleLabels.push('');
           rebuild();
         });
+        ds.appendChild(banner);
+      }
+
+      const body = document.createElement('div');
+      body.innerHTML = '<span class="vt-config-label">Chart Data</span>' +
+        '<div class="form-row"><label>Question/category field</label>' + colSel('vcsdb-q', cfg.questionField) + '</div>' +
+        '<div class="form-row"><label>Response field</label>' + colSel('vcsdb-r', cfg.responseField) + '</div>' +
+        (useAutoScale ? '' :
+          '<div class="form-row"><label>Scale type</label><div style="display:flex;gap:10px">' +
+          [['5point','5-point'],['7point','7-point'],['custom','Custom']].map(function(pair) {
+            return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal"><input type="radio" name="vcsdb-scale" value="' + pair[0] + '"' + (scaleType === pair[0] ? ' checked' : '') + '> ' + pair[1] + '</label>';
+          }).join('') + '</div></div>' +
+          '<div id="vcsdb-custom" style="' + (scaleType !== 'custom' ? 'display:none' : '') + ';margin-bottom:8px">' +
+          '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Custom scale labels</div>' +
+          '<div id="vcsdb-clist"></div>' +
+          '<button class="vt-add-btn" id="vcsdb-add" style="margin-top:2px;width:calc(100%)">＋ Add point</button>' +
+          '</div>'
+        ) +
+        '<div class="form-row"><label>Pre-aggregated count field</label>' + colSel('vcsdb-cnt', cfg.countField, true) +
+        '<span style="font-size:10px;color:var(--text-faint);margin-top:2px">Leave blank to compute counts from raw responses</span></div>';
+      ds.appendChild(body);
+      el.appendChild(ds);
+
+      body.querySelector('#vcsdb-q').addEventListener('change', function() { cfg.questionField = this.value; onChange(); rebuild(); });
+      body.querySelector('#vcsdb-r').addEventListener('change', function() { cfg.responseField = this.value; onChange(); rebuild(); });
+      body.querySelector('#vcsdb-cnt').addEventListener('change', function() { cfg.countField = this.value || ''; onChange(); });
+
+      if (!useAutoScale) {
+        const customSec = body.querySelector('#vcsdb-custom');
+        body.querySelectorAll('input[name="vcsdb-scale"]').forEach(function(r) {
+          r.addEventListener('change', function() {
+            cfg.scaleType = this.value;
+            customSec.style.display = this.value === 'custom' ? '' : 'none';
+            onChange();
+          });
+        });
+
+        if (scaleType === 'custom') {
+          const clist = body.querySelector('#vcsdb-clist');
+          (cfg.scaleLabels || []).forEach(function(lbl, idx) {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:4px';
+            row.innerHTML = '<input type="text" value="' + _vtEsc(lbl) + '" placeholder="Scale point ' + (idx + 1) + '" style="flex:1">' +
+              '<button style="background:none;border:none;color:var(--text-faint);font-size:14px;padding:0 2px">✕</button>';
+            row.querySelector('input').addEventListener('input', function() { cfg.scaleLabels[idx] = this.value; onChange(); });
+            row.querySelector('button').addEventListener('click', function() { cfg.scaleLabels.splice(idx, 1); rebuild(); onChange(); });
+            clist.appendChild(row);
+          });
+          body.querySelector('#vcsdb-add').addEventListener('click', function() {
+            cfg.scaleLabels = cfg.scaleLabels || [];
+            cfg.scaleLabels.push('');
+            rebuild();
+          });
+        }
       }
     }
 

@@ -4,6 +4,8 @@ window.DWBPipelineTab = (function() {
   let _ptCurrentRows = [];
   let _ptPreviewRows = null; // null = show final output
   let _ptRefreshTimer = null;
+  let _ptDragSrcIdx = null; // index of card being dragged
+  let _ptInsertAt = null;   // insert-zone target index (null = append)
 
   // Node categories for the picker
   const _ptNodeCats = [
@@ -110,7 +112,7 @@ window.DWBPipelineTab = (function() {
     _ptWireResize();
 
     // Wire add node button
-    document.getElementById('pt-add-node-btn').addEventListener('click', _ptShowNodePicker);
+    document.getElementById('pt-add-node-btn').addEventListener('click', function() { _ptShowNodePicker(); });
 
     // Wire file picker for node picker modal (if exists)
     _ptWireNodePickerModal();
@@ -147,28 +149,39 @@ window.DWBPipelineTab = (function() {
     const countEl = document.getElementById('pt-node-count');
     if (countEl) countEl.textContent = nodes.length + ' node' + (nodes.length !== 1 ? 's' : '');
 
-    list.innerHTML = nodes.map(function(node) {
+    if (nodes.length === 0) {
+      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-faint);font-size:11px">No nodes yet.<br>Click ＋ Add Node to start.</div>';
+      return;
+    }
+
+    let html = '';
+    nodes.forEach(function(node, i) {
       const icon = _ptNodeIcon(node.type);
       const label = node.label || _ptNodeLabel(node.type);
       const isSelected = node.id === state.selectedNodeId;
-      return `<div class="pt-node-card${isSelected ? ' selected' : ''}" data-node-id="${node.id}">
-        <div class="status-dot idle" data-status-dot="${node.id}"></div>
-        <span class="pt-node-icon">${icon}</span>
-        <div class="pt-node-info">
-          <div class="pt-node-name" title="${_esc(label)}">${_esc(label)}</div>
-          <div class="pt-node-type">${node.type}</div>
-        </div>
-        <button class="pt-node-del" data-del-id="${node.id}" title="Delete node">✕</button>
-      </div>`;
-    }).join('');
-
-    if (nodes.length === 0) {
-      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-faint);font-size:11px">No nodes yet.<br>Click ＋ Add Node to start.</div>';
-    }
+      html += '<div class="pt-insert-zone" data-insert-index="' + i + '">' +
+        '<div class="pt-insert-line"></div>' +
+        '<button class="pt-insert-btn" title="Insert node here">+</button>' +
+        '</div>';
+      html += '<div class="pt-node-card' + (isSelected ? ' selected' : '') + '"' +
+        ' data-node-id="' + _esc(node.id) + '"' +
+        ' data-node-index="' + i + '"' +
+        ' draggable="true">' +
+        '<span class="pt-drag-handle" title="Drag to reorder">⠿</span>' +
+        '<div class="status-dot idle" data-status-dot="' + _esc(node.id) + '"></div>' +
+        '<span class="pt-node-icon">' + icon + '</span>' +
+        '<div class="pt-node-info">' +
+          '<div class="pt-node-name" title="' + _esc(label) + '">' + _esc(label) + '</div>' +
+          '<div class="pt-node-type">' + node.type + '</div>' +
+        '</div>' +
+        '<button class="pt-node-del" data-del-id="' + _esc(node.id) + '" title="Delete node">✕</button>' +
+        '</div>';
+    });
+    list.innerHTML = html;
 
     list.querySelectorAll('.pt-node-card').forEach(function(card) {
       card.addEventListener('click', function(e) {
-        if (e.target.closest('.pt-node-del')) return;
+        if (e.target.closest('.pt-node-del') || e.target.closest('.pt-drag-handle')) return;
         _ptSelectNode(card.dataset.nodeId, false);
       });
     });
@@ -178,6 +191,88 @@ window.DWBPipelineTab = (function() {
         _ptDeleteNode(btn.dataset.delId);
       });
     });
+    list.querySelectorAll('.pt-insert-zone').forEach(function(zone) {
+      zone.addEventListener('click', function(e) {
+        e.stopPropagation();
+        _ptShowNodePicker(parseInt(zone.dataset.insertIndex));
+      });
+    });
+
+    _ptWireDragEvents(list);
+  }
+
+  function _ptWireDragEvents(list) {
+    list.querySelectorAll('.pt-node-card').forEach(function(card) {
+      card.addEventListener('dragstart', function(e) {
+        _ptDragSrcIdx = parseInt(card.dataset.nodeIndex);
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(function() {
+          card.style.opacity = '0.5';
+          list.classList.add('dragging');
+        }, 0);
+      });
+      card.addEventListener('dragend', function() {
+        card.style.opacity = '';
+        list.classList.remove('dragging');
+        _ptClearDragIndicators();
+        _ptDragSrcIdx = null;
+      });
+    });
+
+    list.addEventListener('dragover', function(e) {
+      if (_ptDragSrcIdx === null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const card = e.target.closest('.pt-node-card');
+      _ptClearDragIndicators();
+      if (!card) return;
+      const rect = card.getBoundingClientRect();
+      card.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-above' : 'drag-over-below');
+    });
+
+    list.addEventListener('dragleave', function(e) {
+      if (!list.contains(e.relatedTarget)) _ptClearDragIndicators();
+    });
+
+    list.addEventListener('drop', function(e) {
+      e.preventDefault();
+      const card = e.target.closest('.pt-node-card');
+      if (!card || _ptDragSrcIdx === null) { _ptClearDragIndicators(); return; }
+      const toIdx = parseInt(card.dataset.nodeIndex);
+      const rect = card.getBoundingClientRect();
+      const insertBefore = e.clientY < rect.top + rect.height / 2 ? toIdx : toIdx + 1;
+      _ptClearDragIndicators();
+      _ptMoveNodeTo(_ptDragSrcIdx, insertBefore);
+    });
+  }
+
+  function _ptClearDragIndicators() {
+    const list = document.getElementById('pt-node-list');
+    if (!list) return;
+    list.querySelectorAll('.drag-over-above, .drag-over-below').forEach(function(el) {
+      el.classList.remove('drag-over-above', 'drag-over-below');
+    });
+  }
+
+  function _ptInsertNodeAt(node, index) {
+    const state = window.DWBState;
+    if (!state.flow) return;
+    state.flow.pipeline.nodes.splice(index, 0, node);
+    state.selectedNodeId = node.id;
+    window.DWBShell.markDirty();
+    refresh();
+  }
+
+  function _ptMoveNodeTo(fromIndex, toIndex) {
+    const state = window.DWBState;
+    if (!state.flow) return;
+    const nodes = state.flow.pipeline.nodes;
+    const adjustedTo = toIndex > fromIndex ? toIndex - 1 : toIndex;
+    if (fromIndex === adjustedTo) return;
+    const moved = nodes.splice(fromIndex, 1)[0];
+    nodes.splice(adjustedTo, 0, moved);
+    window.DWBShell.markDirty();
+    refresh();
   }
 
   function _ptSelectNode(nodeId, skipRun) {
@@ -356,7 +451,8 @@ window.DWBPipelineTab = (function() {
     }).join('');
   }
 
-  function _ptShowNodePicker() {
+  function _ptShowNodePicker(insertIndex) {
+    _ptInsertAt = (insertIndex !== undefined) ? insertIndex : null;
     const overlay = document.getElementById('node-picker-overlay');
     if (!overlay) return;
     overlay.classList.remove('hidden');
@@ -423,15 +519,20 @@ window.DWBPipelineTab = (function() {
     const state = window.DWBState;
     if (!state.flow) return;
     const node = window.DWBSchema.createNode(type, label);
-    // Copy default config from implementation
     const impl = window.DWBNodes && window.DWBNodes[type];
     if (impl && impl.defaultConfig) {
       node.config = JSON.parse(JSON.stringify(impl.defaultConfig));
     }
-    state.flow.pipeline.nodes.push(node);
-    state.selectedNodeId = node.id;
-    window.DWBShell.markDirty();
-    refresh();
+    if (_ptInsertAt !== null) {
+      const idx = _ptInsertAt;
+      _ptInsertAt = null;
+      _ptInsertNodeAt(node, idx);
+    } else {
+      state.flow.pipeline.nodes.push(node);
+      state.selectedNodeId = node.id;
+      window.DWBShell.markDirty();
+      refresh();
+    }
   }
 
   function _ptWireResize() {

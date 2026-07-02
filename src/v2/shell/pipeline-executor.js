@@ -39,7 +39,7 @@ window.DWBPipeline = (function() {
     return { headers: headers || [], rows };
   }
 
-  function _peRunNodes(nodes, sourceData, stashes, snapshots, onLog) {
+  function _peRunNodes(nodes, sourceData, stashes, snapshots, snapshotMeta, onLog) {
     let currentRows = [];
     const localStashes = Object.assign({}, stashes);
     const nodeResults = {};
@@ -85,6 +85,13 @@ window.DWBPipeline = (function() {
           const sname = node.promotedAs || ('snapshot_' + i);
           if (sname) {
             snapshots[sname] = currentRows.slice();
+            for (let si = i - 1; si >= 0; si--) {
+              if (nodes[si].type === 'SET_TYPES') {
+                const stCols = (nodes[si].config || {}).columns || {};
+                if (Object.keys(stCols).length) snapshotMeta[sname] = { columnTypes: stCols };
+                break;
+              }
+            }
             onLog('Pushed to viz as "' + sname + '": ' + currentRows.length + ' rows', 'success');
           }
           // pass-through: currentRows unchanged
@@ -118,6 +125,7 @@ window.DWBPipeline = (function() {
     if (!state.flow) return Promise.resolve();
     state.snapshots = {};
     state.stashes = {};
+    state.snapshotMeta = {};
 
     return new Promise(function(resolve) {
       try {
@@ -126,6 +134,7 @@ window.DWBPipeline = (function() {
           state.flow.pipeline.sourceData,
           state.stashes,
           state.snapshots,
+          state.snapshotMeta,
           function(msg, level) { window.DWBShell && window.DWBShell.log(msg, level); }
         );
         resolve(result);
@@ -153,6 +162,7 @@ window.DWBPipeline = (function() {
           state.flow.pipeline.sourceData,
           tmpStashes,
           tmpSnaps,
+          {},
           function() {}
         );
         resolve(result);
