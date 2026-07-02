@@ -1,4 +1,4 @@
-/* === DWBNodes: Transform category (7 nodes) === */
+/* === DWBNodes: Transform category (8 nodes) === */
 window.DWBNodes = window.DWBNodes || {};
 
 /* ── Shared helpers ── */
@@ -775,6 +775,182 @@ function _tfBmRenderOperand(div, config, onChange, currentRows) {
     holder.appendChild(_tfColumnSelect('Column B', 'columnB', config, currentRows, onChange));
   }
 }
+
+/* ── ROUND helpers ── */
+
+function _tfRoundValue(num, decimals, mode) {
+  var factor = Math.pow(10, decimals);
+  var n = parseFloat(num);
+  if (isNaN(n)) return null;
+  switch (mode) {
+    case 'ceil':     return Math.ceil(n * factor) / factor;
+    case 'floor':    return Math.floor(n * factor) / factor;
+    case 'truncate': return Math.trunc(n * factor) / factor;
+    default:
+      return Math.round((n * factor) + (n >= 0 ? 1e-8 : -1e-8)) / factor;
+  }
+}
+
+function _tfPadString(str, length, padChar, align) {
+  var s = String(str);
+  if (s.length >= length) return s;
+  var pad = padChar.repeat(length - s.length);
+  return align === 'right' ? s + pad : pad + s;
+}
+
+/* ── ROUND ── */
+
+window.DWBNodes.ROUND = {
+  label: 'Round',
+  icon: '🔢',
+  category: 'Transform',
+  defaultConfig: { column: '', decimals: 2, roundMode: 'standard', outputFormat: 'raw', padLength: 8, padChar: '0', padAlign: 'left', outputColumn: '' },
+
+  run: function(rows, config) {
+    if (!config.column) return rows;
+    var decimals = typeof config.decimals === 'number' ? config.decimals : 2;
+    var mode     = config.roundMode || 'standard';
+    var outFmt   = config.outputFormat || 'raw';
+    var outCol   = (config.outputColumn || '').trim() || config.column;
+    var padLen   = config.padLength || 8;
+    var padChar  = (config.padChar && config.padChar.length) ? config.padChar[0] : '0';
+    var padAlign = config.padAlign || 'left';
+    return rows.map(function(row) {
+      var nr = Object.assign({}, row);
+      try {
+        var rounded = _tfRoundValue(row[config.column], decimals, mode);
+        if (rounded === null) { nr[outCol] = ''; return nr; }
+        if (outFmt === 'fixed_decimal') {
+          nr[outCol] = rounded.toFixed(decimals);
+        } else if (outFmt === 'fixed_length') {
+          nr[outCol] = _tfPadString(rounded.toFixed(decimals), padLen, padChar, padAlign);
+        } else {
+          nr[outCol] = rounded;
+        }
+      } catch (e) {
+        nr[outCol] = '';
+      }
+      return nr;
+    });
+  },
+
+  validate: function(config) {
+    if (!config.column) return 'Select a column';
+    var dec = config.decimals;
+    if (typeof dec !== 'number' || dec < 0 || dec > 10) return 'Decimal places must be between 0 and 10';
+    if (config.outputFormat === 'fixed_length' && !(config.padLength >= 1)) return 'Total length must be at least 1';
+    return null;
+  },
+
+  configUI: function(config, onChange, currentRows) {
+    var div = document.createElement('div');
+
+    // SOURCE
+    div.appendChild(_tfColumnSelect('Column', 'column', config, currentRows, onChange));
+
+    // ROUNDING
+    var decRow = document.createElement('div');
+    decRow.className = 'form-row';
+    decRow.innerHTML = '<label>Decimal places</label>' +
+      '<input type="number" id="tf-rd-dec" value="' + (config.decimals !== undefined ? config.decimals : 2) +
+      '" min="0" max="10" style="width:60px">';
+    decRow.querySelector('#tf-rd-dec').addEventListener('input', function(e) {
+      var v = parseInt(e.target.value, 10);
+      onChange('decimals', isNaN(v) ? 2 : Math.max(0, Math.min(10, v)));
+    });
+    div.appendChild(decRow);
+
+    var modeRow = document.createElement('div');
+    modeRow.className = 'form-row';
+    var modeLbl = document.createElement('label');
+    modeLbl.textContent = 'Rounding mode';
+    modeRow.appendChild(modeLbl);
+    modeRow.appendChild(_coreRadioGroup('tf-rd-mode',
+      [
+        { value: 'standard',  label: 'Standard' },
+        { value: 'ceil',      label: 'Round Up' },
+        { value: 'floor',     label: 'Round Down' },
+        { value: 'truncate',  label: 'Truncate' }
+      ],
+      config.roundMode || 'standard',
+      function(val) { onChange('roundMode', val); }
+    ));
+    div.appendChild(modeRow);
+
+    // OUTPUT FORMAT — pad controls declared before radio group so onChange can toggle them
+    var padControls = document.createElement('div');
+    padControls.style.display = (config.outputFormat === 'fixed_length') ? '' : 'none';
+
+    var padLenRow = document.createElement('div');
+    padLenRow.className = 'form-row';
+    padLenRow.innerHTML = '<label>Total length</label>' +
+      '<input type="number" id="tf-rd-padlen" value="' + (config.padLength || 8) +
+      '" min="1" max="30" style="width:60px">';
+    padLenRow.querySelector('#tf-rd-padlen').addEventListener('input', function(e) {
+      var v = parseInt(e.target.value, 10);
+      onChange('padLength', isNaN(v) ? 8 : Math.max(1, Math.min(30, v)));
+    });
+    padControls.appendChild(padLenRow);
+
+    var padCharRow = document.createElement('div');
+    padCharRow.className = 'form-row';
+    padCharRow.innerHTML = '<label>Pad character</label>' +
+      '<input type="text" id="tf-rd-padchar" value="' + _tfEsc(config.padChar || '0') +
+      '" maxlength="1" style="width:2ch;text-align:center">';
+    padCharRow.querySelector('#tf-rd-padchar').addEventListener('input', function(e) {
+      var v = e.target.value.slice(-1);
+      e.target.value = v;
+      onChange('padChar', v || '0');
+    });
+    padControls.appendChild(padCharRow);
+
+    var padAlignRow = document.createElement('div');
+    padAlignRow.className = 'form-row';
+    var padAlignLbl = document.createElement('label');
+    padAlignLbl.textContent = 'Alignment';
+    padAlignRow.appendChild(padAlignLbl);
+    padAlignRow.appendChild(_coreRadioGroup('tf-rd-align',
+      [{ value: 'left', label: 'Left-pad' }, { value: 'right', label: 'Right-pad' }],
+      config.padAlign || 'left',
+      function(val) { onChange('padAlign', val); }
+    ));
+    padControls.appendChild(padAlignRow);
+
+    var fmtRow = document.createElement('div');
+    fmtRow.className = 'form-row';
+    var fmtLbl = document.createElement('label');
+    fmtLbl.textContent = 'Output format';
+    fmtRow.appendChild(fmtLbl);
+    fmtRow.appendChild(_coreRadioGroup('tf-rd-fmt',
+      [
+        { value: 'raw',           label: 'Raw number (e.g. 1.5)' },
+        { value: 'fixed_decimal', label: 'Fixed decimal places (e.g. 1.50)' },
+        { value: 'fixed_length',  label: 'Fixed string length (e.g. 001.50)' }
+      ],
+      config.outputFormat || 'raw',
+      function(val) {
+        onChange('outputFormat', val);
+        padControls.style.display = val === 'fixed_length' ? '' : 'none';
+      },
+      'vertical'
+    ));
+    div.appendChild(fmtRow);
+    div.appendChild(padControls);
+
+    // OUTPUT COLUMN
+    var outRow = document.createElement('div');
+    outRow.className = 'form-row';
+    outRow.innerHTML = '<label>Output column</label>' +
+      '<input type="text" id="tf-rd-out" value="' + _tfEsc(config.outputColumn || '') +
+      '" placeholder="Leave blank to overwrite source column" style="width:100%">';
+    outRow.querySelector('#tf-rd-out').addEventListener('input', function(e) {
+      onChange('outputColumn', e.target.value);
+    });
+    div.appendChild(outRow);
+
+    return div;
+  }
+};
 
 /* ── AUTOINCREMENT ── */
 
