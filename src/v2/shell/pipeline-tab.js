@@ -14,7 +14,7 @@ window.DWBPipelineTab = (function() {
     { cat: 'Validation',     nodes: ['REGEX_VALIDATE','REGEX_EXTRACT','FUZZY_STANDARDIZE'] },
     { cat: 'Transform',      nodes: ['PAD_TEXT','SUBSTRING','DATE_FORMAT','FORMAT_PHONE','URL_SAFE','BASIC_MATH','AUTOINCREMENT'] },
     { cat: 'Structure',      nodes: ['SPLIT_COL','ADD_COL','DROP_COLS','RENAME_COL','UNPIVOT','PIVOT'] },
-    { cat: 'Logic & Reconcile', nodes: ['IF_THEN_ELSE','FUZZY_MATCH','DATA_VALIDATION','LEFT_JOIN','DIFF_TABLES'] },
+    { cat: 'Logic & Reconcile', nodes: ['IF_THEN_ELSE','CASE_WHEN','FUZZY_MATCH','DATA_VALIDATION','LEFT_JOIN','DIFF_TABLES'] },
     { cat: 'Advanced',       nodes: ['SENTIMENT_ANALYSIS','ARBITRARY_DATE','SET_TYPES'] }
   ];
 

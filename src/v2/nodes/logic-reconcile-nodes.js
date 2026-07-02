@@ -58,6 +58,24 @@ function _lrSnapOptHtml(names, selected) {
   }).join('');
 }
 
+/* ── Shared operator evaluator ── */
+
+function _lrEvalOperator(cell, op, cmpVal) {
+  cell   = String(cell   != null ? cell   : '');
+  cmpVal = String(cmpVal != null ? cmpVal : '');
+  if (op === 'is_empty')     return cell.trim() === '';
+  if (op === 'is_not_empty') return cell.trim() !== '';
+  var _n1 = parseFloat(cell), _n2 = parseFloat(cmpVal), _numeric = !isNaN(_n1) && !isNaN(_n2);
+  if (op === 'greater_than')  return _numeric ? _n1 > _n2  : cell > cmpVal;
+  if (op === 'greater_equal') return _numeric ? _n1 >= _n2 : cell >= cmpVal;
+  if (op === 'less_than')     return _numeric ? _n1 < _n2  : cell < cmpVal;
+  if (op === 'less_equal')    return _numeric ? _n1 <= _n2 : cell <= cmpVal;
+  if (op === 'equals')        return cell === cmpVal;
+  if (op === 'not_equals')    return cell !== cmpVal;
+  if (op === 'contains')      return cell.indexOf(cmpVal) !== -1;
+  return false;
+}
+
 /* ── IF_THEN_ELSE ── */
 
 window.DWBNodes.IF_THEN_ELSE = {
@@ -68,8 +86,8 @@ window.DWBNodes.IF_THEN_ELSE = {
     conditionColumn: '',
     operator: 'equals',
     compareValue: '',
-    thenValue: '',
-    elseValue: '',
+    thenType: 'static', thenValue: '', thenColumn: '',
+    elseType: 'static', elseValue: '', elseColumn: '',
     outputColumn: 'result'
   },
 
@@ -77,39 +95,15 @@ window.DWBNodes.IF_THEN_ELSE = {
     var col    = config.conditionColumn;
     var outCol = (config.outputColumn || 'result').trim() || 'result';
     var op     = config.operator || 'equals';
-    var cmpVal = String(config.compareValue != null ? config.compareValue : '');
-    var thenVal = String(config.thenValue != null ? config.thenValue : '');
-    var elseVal = String(config.elseValue != null ? config.elseValue : '');
-
-    function _test(cell) {
-      if (op === 'is_empty')     return cell.trim() === '';
-      if (op === 'is_not_empty') return cell.trim() !== '';
-      if (op === 'greater_than') {
-        var cn = parseFloat(cell), vn = parseFloat(cmpVal);
-        return (!isNaN(cn) && !isNaN(vn)) ? cn > vn : cell > cmpVal;
-      }
-      if (op === 'greater_equal') {
-        var cn3 = parseFloat(cell), vn3 = parseFloat(cmpVal);
-        return (!isNaN(cn3) && !isNaN(vn3)) ? cn3 >= vn3 : cell >= cmpVal;
-      }
-      if (op === 'less_than') {
-        var cn2 = parseFloat(cell), vn2 = parseFloat(cmpVal);
-        return (!isNaN(cn2) && !isNaN(vn2)) ? cn2 < vn2 : cell < cmpVal;
-      }
-      if (op === 'less_equal') {
-        var cn4 = parseFloat(cell), vn4 = parseFloat(cmpVal);
-        return (!isNaN(cn4) && !isNaN(vn4)) ? cn4 <= vn4 : cell <= cmpVal;
-      }
-      if (op === 'equals')     return cell === cmpVal;
-      if (op === 'not_equals') return cell !== cmpVal;
-      if (op === 'contains')   return cell.indexOf(cmpVal) !== -1;
-      return false;
-    }
+    var cmpVal = config.compareValue != null ? config.compareValue : '';
 
     return rows.map(function(row) {
-      var nr   = Object.assign({}, row);
-      var cell = String(row[col] != null ? row[col] : '');
-      nr[outCol] = _test(cell) ? thenVal : elseVal;
+      var nr      = Object.assign({}, row);
+      var cell    = row[col] != null ? row[col] : '';
+      var matched = _lrEvalOperator(cell, op, cmpVal);
+      nr[outCol]  = matched
+        ? _coreResolveValue(config.thenType || 'static', config.thenValue, config.thenColumn, row)
+        : _coreResolveValue(config.elseType || 'static', config.elseValue, config.elseColumn, row);
       return nr;
     });
   },
@@ -145,12 +139,17 @@ window.DWBNodes.IF_THEN_ELSE = {
       '<div class="form-row" id="lr-ite-cmprow"' + (NO_VAL[curOp] ? ' style="display:none"' : '') + '>' +
         '<label>Compare Value</label>' +
         '<input type="text" id="lr-ite-cmp" value="' + _lrEsc(config.compareValue || '') + '" style="width:100%"></div>' +
-      '<div class="form-row"><label>Then (if true)</label>' +
-        '<input type="text" id="lr-ite-then" value="' + _lrEsc(config.thenValue || '') + '" style="width:100%"></div>' +
-      '<div class="form-row"><label>Else (if false)</label>' +
-        '<input type="text" id="lr-ite-else" value="' + _lrEsc(config.elseValue || '') + '" style="width:100%"></div>' +
+      '<div class="form-row"><label>Then (if true)</label><div id="lr-ite-then-wrap"></div></div>' +
+      '<div class="form-row"><label>Else (if false)</label><div id="lr-ite-else-wrap"></div></div>' +
       '<div class="form-row"><label>Output Column Name</label>' +
         '<input type="text" id="lr-ite-out" value="' + _lrEsc(config.outputColumn || 'result') + '" style="width:100%"></div>';
+
+    div.querySelector('#lr-ite-then-wrap').appendChild(
+      _coreValueSource('lr-ite-then', config, 'then', cols, onChange, false)
+    );
+    div.querySelector('#lr-ite-else-wrap').appendChild(
+      _coreValueSource('lr-ite-else', config, 'else', cols, onChange, true)
+    );
 
     div.querySelector('#lr-ite-col').addEventListener('change', function(e) { onChange('conditionColumn', e.target.value); });
     div.querySelector('#lr-ite-op').addEventListener('change', function(e) {
@@ -159,8 +158,6 @@ window.DWBNodes.IF_THEN_ELSE = {
       if (row) row.style.display = NO_VAL[e.target.value] ? 'none' : '';
     });
     div.querySelector('#lr-ite-cmp').addEventListener('input', function(e) { onChange('compareValue', e.target.value); });
-    div.querySelector('#lr-ite-then').addEventListener('input', function(e) { onChange('thenValue', e.target.value); });
-    div.querySelector('#lr-ite-else').addEventListener('input', function(e) { onChange('elseValue', e.target.value); });
     div.querySelector('#lr-ite-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
 
     return div;
@@ -687,6 +684,263 @@ window.DWBNodes.DIFF_TABLES = {
     div.querySelector('#lr-dt-key').addEventListener('change', function(e) { onChange('keyColumn', e.target.value); });
     div.querySelector('#lr-dt-snap').addEventListener('change', function(e) { onChange('compareSnapshot', e.target.value); });
 
+    return div;
+  }
+};
+
+/* ── CASE_WHEN ── */
+
+window.DWBNodes.CASE_WHEN = {
+  label: 'Case / Switch',
+  icon: '🔀',
+  category: 'Logic & Reconcile',
+  defaultConfig: {
+    sourceColumn: '',
+    cases: [],
+    defaultType: 'static',
+    defaultValue: '',
+    defaultColumn: '',
+    outputColumn: 'result'
+  },
+
+  run: function(rows, config) {
+    var col    = config.sourceColumn;
+    var outCol = (config.outputColumn || 'result').trim() || 'result';
+    var cases  = config.cases || [];
+
+    return rows.map(function(row) {
+      var nr   = Object.assign({}, row);
+      var cell = row[col] != null ? row[col] : '';
+      var result = null;
+      for (var i = 0; i < cases.length; i++) {
+        var c = cases[i];
+        if (_lrEvalOperator(cell, c.operator || 'equals', c.value)) {
+          result = _coreResolveValue(c.resultType || 'static', c.resultValue, c.resultColumn, row);
+          break;
+        }
+      }
+      if (result === null) {
+        result = _coreResolveValue(config.defaultType || 'static', config.defaultValue, config.defaultColumn, row);
+      }
+      nr[outCol] = result;
+      return nr;
+    });
+  },
+
+  validate: function(config) {
+    if (!config.sourceColumn)            return 'Select a source column';
+    if (!config.cases || !config.cases.length) return 'Add at least one case';
+    if (!(config.outputColumn || '').trim()) return 'Enter an output column name';
+    return null;
+  },
+
+  configUI: function(config, onChange, currentRows) {
+    var div  = document.createElement('div');
+    div.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    var cols = _lrCols(currentRows);
+
+    if (!config.cases) config.cases = [];
+
+    var OPERATORS = [
+      ['equals','equals'], ['not_equals','not equals'], ['contains','contains'],
+      ['greater_than','greater than'], ['greater_equal','greater than or equal to'],
+      ['less_than','less than'], ['less_equal','less than or equal to'],
+      ['is_empty','is empty'], ['is_not_empty','is not empty']
+    ];
+    var NO_VAL = { is_empty: 1, is_not_empty: 1 };
+
+    function _cwGenId() {
+      return 'cw-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    }
+
+    // Drag state — scoped to this configUI invocation
+    var _cwDragSrc = null;
+
+    function rebuildCases() {
+      var caseList = div.querySelector('#cw-case-list');
+      if (!caseList) return;
+      var scrollTop = caseList.scrollTop;
+      caseList.innerHTML = '';
+
+      config.cases.forEach(function(caseObj, idx) {
+        var card = document.createElement('div');
+        card.className = 'cw-case-card';
+        card.draggable = true;
+        card.style.cssText = 'border:1px solid var(--border);border-radius:4px;padding:8px;margin-bottom:6px;background:var(--bg-surface);';
+
+        // Top row: drag handle + operator + value + arrow + delete
+        var row1 = document.createElement('div');
+        row1.style.cssText = 'display:flex;align-items:center;gap:5px;margin-bottom:6px;';
+
+        var handle = document.createElement('span');
+        handle.textContent = '⠿';
+        handle.style.cssText = 'cursor:grab;color:var(--text-faint);flex-shrink:0;font-size:14px;';
+
+        var opSel = document.createElement('select');
+        opSel.style.cssText = 'flex:1.2;font-size:12px;min-width:0;';
+        OPERATORS.forEach(function(p) {
+          var opt = document.createElement('option');
+          opt.value = p[0]; opt.textContent = p[1];
+          if ((caseObj.operator || 'equals') === p[0]) opt.selected = true;
+          opSel.appendChild(opt);
+        });
+
+        var valInp = document.createElement('input');
+        valInp.type = 'text';
+        valInp.value = caseObj.value || '';
+        valInp.placeholder = 'value';
+        valInp.style.cssText = 'flex:1;font-size:12px;min-width:0;' + (NO_VAL[caseObj.operator || 'equals'] ? 'visibility:hidden;' : '');
+
+        var arrow = document.createElement('span');
+        arrow.textContent = '→';
+        arrow.style.cssText = 'color:var(--text-faint);flex-shrink:0;';
+
+        var delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.style.cssText = 'padding:2px 6px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px;color:var(--text-faint);flex-shrink:0;font-family:inherit;';
+
+        row1.appendChild(handle);
+        row1.appendChild(opSel);
+        row1.appendChild(valInp);
+        row1.appendChild(arrow);
+        row1.appendChild(delBtn);
+        card.appendChild(row1);
+
+        // Result value source
+        var resultWrap = document.createElement('div');
+        resultWrap.style.cssText = 'padding-left:22px;';
+        resultWrap.appendChild(
+          _coreValueSource('cw-case-' + caseObj.id, caseObj, 'result', cols, function() {
+            onChange('cases', config.cases.slice());
+          }, false)
+        );
+        card.appendChild(resultWrap);
+
+        // Listeners
+        opSel.addEventListener('change', function() {
+          caseObj.operator = opSel.value;
+          valInp.style.visibility = NO_VAL[opSel.value] ? 'hidden' : '';
+          onChange('cases', config.cases.slice());
+        });
+
+        valInp.addEventListener('input', function() {
+          caseObj.value = valInp.value;
+          onChange('cases', config.cases.slice());
+        });
+
+        delBtn.addEventListener('click', function() {
+          config.cases.splice(idx, 1);
+          onChange('cases', config.cases.slice());
+          rebuildCases();
+        });
+
+        // Drag-to-reorder
+        card.addEventListener('dragstart', function(e) {
+          _cwDragSrc = idx;
+          e.dataTransfer.effectAllowed = 'move';
+          card.style.opacity = '0.5';
+        });
+
+        card.addEventListener('dragend', function() {
+          _cwDragSrc = null;
+          card.style.opacity = '';
+          caseList.querySelectorAll('.cw-case-card').forEach(function(c) { c.style.outline = ''; });
+        });
+
+        card.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          caseList.querySelectorAll('.cw-case-card').forEach(function(c) { c.style.outline = ''; });
+          card.style.outline = '2px solid var(--accent)';
+        });
+
+        card.addEventListener('drop', function(e) {
+          e.preventDefault();
+          caseList.querySelectorAll('.cw-case-card').forEach(function(c) { c.style.outline = ''; });
+          if (_cwDragSrc === null || _cwDragSrc === idx) return;
+          var moved = config.cases.splice(_cwDragSrc, 1)[0];
+          var insertAt = idx > _cwDragSrc ? idx - 1 : idx;
+          config.cases.splice(insertAt, 0, moved);
+          _cwDragSrc = null;
+          onChange('cases', config.cases.slice());
+          rebuildCases();
+        });
+
+        caseList.appendChild(card);
+      });
+
+      if (!config.cases.length) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'font-size:11px;color:var(--text-faint);padding:6px 2px;';
+        empty.textContent = 'No cases yet — add one below.';
+        caseList.appendChild(empty);
+      }
+
+      caseList.scrollTop = scrollTop;
+    }
+
+    // ── Layout ──
+
+    var srcRow = document.createElement('div');
+    srcRow.className = 'form-row';
+    srcRow.innerHTML = '<label>Source Column</label>' +
+      '<select id="cw-src-col" style="width:100%">' + _lrColOptHtml(cols, config.sourceColumn) + '</select>';
+    div.appendChild(srcRow);
+
+    var casesHdr = document.createElement('div');
+    casesHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:4px;';
+    casesHdr.textContent = 'Cases (first match wins)';
+    div.appendChild(casesHdr);
+
+    var caseList = document.createElement('div');
+    caseList.id = 'cw-case-list';
+    div.appendChild(caseList);
+
+    var addBtn = document.createElement('button');
+    addBtn.textContent = '+ Add Case';
+    addBtn.style.cssText = 'width:100%;padding:5px;background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit;';
+    div.appendChild(addBtn);
+
+    var defHdr = document.createElement('div');
+    defHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:4px;';
+    defHdr.textContent = 'Default (no match)';
+    div.appendChild(defHdr);
+
+    var defWrap = document.createElement('div');
+    defWrap.className = 'form-row';
+    defWrap.appendChild(_coreValueSource('cw-default', config, 'default', cols, onChange, false));
+    div.appendChild(defWrap);
+
+    var outRow = document.createElement('div');
+    outRow.className = 'form-row';
+    outRow.innerHTML = '<label>Output Column Name</label>' +
+      '<input type="text" id="cw-out-col" value="' + _lrEsc(config.outputColumn || 'result') + '" style="width:100%">';
+    div.appendChild(outRow);
+
+    // ── Wire events ──
+
+    div.querySelector('#cw-src-col').addEventListener('change', function(e) {
+      onChange('sourceColumn', e.target.value);
+    });
+
+    div.querySelector('#cw-out-col').addEventListener('input', function(e) {
+      onChange('outputColumn', e.target.value);
+    });
+
+    addBtn.addEventListener('click', function() {
+      config.cases.push({
+        id: _cwGenId(),
+        operator: 'equals',
+        value: '',
+        resultType: 'static',
+        resultValue: '',
+        resultColumn: ''
+      });
+      onChange('cases', config.cases.slice());
+      rebuildCases();
+    });
+
+    rebuildCases();
     return div;
   }
 };

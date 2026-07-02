@@ -195,14 +195,15 @@ window.DWBNodes.ADD_COL = {
   label: 'Add Column',
   icon: '➕',
   category: 'Structure',
-  defaultConfig: { outputColumn: 'new_column', defaultValue: '' },
+  defaultConfig: { outputColumn: 'new_column', valueType: 'static', valueValue: '', valueColumn: '' },
 
   run: function(rows, config) {
     var col = (config.outputColumn || '').trim() || 'new_column';
-    var val = config.defaultValue != null ? config.defaultValue : '';
+    // Backward compat: old flows stored static text in 'defaultValue'
+    var staticVal = config.valueValue !== undefined ? config.valueValue : (config.defaultValue || '');
     return rows.map(function(row) {
       var nr = Object.assign({}, row);
-      nr[col] = val;
+      nr[col] = _coreResolveValue(config.valueType || 'static', staticVal, config.valueColumn, row);
       return nr;
     });
   },
@@ -212,8 +213,9 @@ window.DWBNodes.ADD_COL = {
     return null;
   },
 
-  configUI: function(config, onChange) {
+  configUI: function(config, onChange, currentRows) {
     var div = document.createElement('div');
+    var cols = _stCols(currentRows);
 
     var colRow = document.createElement('div');
     colRow.className = 'form-row';
@@ -224,9 +226,10 @@ window.DWBNodes.ADD_COL = {
 
     var valRow = document.createElement('div');
     valRow.className = 'form-row';
-    valRow.innerHTML = '<label>Default value</label>' +
-      '<input type="text" id="st-ac-val" value="' + _stEsc(config.defaultValue != null ? config.defaultValue : '') + '" placeholder="" style="width:100%">';
-    valRow.querySelector('#st-ac-val').addEventListener('input', function(e) { onChange('defaultValue', e.target.value); });
+    var valLabel = document.createElement('label');
+    valLabel.textContent = 'Value';
+    valRow.appendChild(valLabel);
+    valRow.appendChild(_coreValueSource('st-ac-val', config, 'value', cols, onChange, false));
     div.appendChild(valRow);
 
     return div;

@@ -45,3 +45,85 @@ function _coreRadioGroup(name, options, currentValue, onChange, direction) {
   });
   return wrap;
 }
+
+/* Shared value-source selector: radio group (Static / Column / optionally Empty)
+   + a conditional text input or column dropdown beneath.
+   prefix: string prepended to 'Type', 'Value', 'Column' to form config keys.
+   columns: array of column name strings for the column dropdown.
+   onChange(key, value): called whenever config is mutated.
+   allowEmpty: whether to show the "Empty" third option. */
+function _coreValueSource(name, config, prefix, columns, onChange, allowEmpty) {
+  var typeKey  = prefix + 'Type';
+  var valueKey = prefix + 'Value';
+  var colKey   = prefix + 'Column';
+
+  var wrap = document.createElement('div');
+
+  var modes = [
+    { value: 'static', label: 'Static text' },
+    { value: 'column', label: 'Column value' }
+  ];
+  if (allowEmpty) modes.push({ value: 'empty', label: 'Empty' });
+
+  var currentType = config[typeKey] || 'static';
+
+  var radioRow = _coreRadioGroup(name, modes, currentType, function(val) {
+    config[typeKey] = val;
+    onChange(typeKey, val);
+    rebuildControl();
+  });
+  wrap.appendChild(radioRow);
+
+  var controlWrap = document.createElement('div');
+  controlWrap.style.cssText = 'margin-top:6px;';
+  wrap.appendChild(controlWrap);
+
+  function rebuildControl() {
+    controlWrap.innerHTML = '';
+    var type = config[typeKey] || 'static';
+    if (type === 'static') {
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = config[valueKey] || '';
+      input.placeholder = 'Enter value…';
+      input.style.cssText = 'width:100%;box-sizing:border-box;';
+      input.addEventListener('input', function() {
+        config[valueKey] = input.value;
+        onChange(valueKey, input.value);
+      });
+      controlWrap.appendChild(input);
+    } else if (type === 'column') {
+      var sel = document.createElement('select');
+      sel.style.cssText = 'width:100%;box-sizing:border-box;';
+      var blank = document.createElement('option');
+      blank.value = ''; blank.textContent = '— select column —';
+      sel.appendChild(blank);
+      (columns || []).forEach(function(c) {
+        var opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        if (config[colKey] === c) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', function() {
+        config[colKey] = sel.value;
+        onChange(colKey, sel.value);
+      });
+      controlWrap.appendChild(sel);
+    }
+    // 'empty' mode: no control rendered
+  }
+
+  rebuildControl();
+  return wrap;
+}
+
+/* Resolve a value-source config at run() time.
+   type: 'static' | 'column' | 'empty'
+   staticVal: the stored string for static mode.
+   colName: the column name key for column mode.
+   row: the current data row object. */
+function _coreResolveValue(type, staticVal, colName, row) {
+  if (type === 'column') return String(row[colName] !== undefined ? row[colName] : '');
+  if (type === 'empty')  return '';
+  return staticVal || '';
+}

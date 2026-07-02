@@ -255,20 +255,25 @@ window.DWBNodes.FIND_REPLACE = {
   label: 'Find & Replace',
   icon: '🔄',
   category: 'Text Cleaning',
-  defaultConfig: { column: '', find: '', replace: '', useRegex: false, caseSensitive: false },
+  defaultConfig: { column: '', find: '', replaceType: 'static', replaceValue: '', replaceColumn: '', useRegex: false, caseSensitive: false },
   run: function(rows, config) {
     if (!config.column || !config.find) return rows;
+    // Backward compat: old flows stored replacement in 'replace'
+    if (config.replace !== undefined && config.replaceValue === undefined) {
+      config.replaceValue = config.replace;
+    }
     return rows.map(function(row) {
       const nr = Object.assign({}, row);
       let v = String(nr[config.column] || '');
+      const repl = _coreResolveValue(config.replaceType || 'static', config.replaceValue, config.replaceColumn, row);
       if (config.useRegex) {
         try {
           const flags = config.caseSensitive ? 'g' : 'gi';
-          v = v.replace(new RegExp(config.find, flags), config.replace || '');
+          v = v.replace(new RegExp(config.find, flags), repl);
         } catch (e) { /* invalid regex - pass through */ }
       } else {
         const flags = config.caseSensitive ? 'g' : 'gi';
-        v = v.replace(new RegExp(config.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags), config.replace || '');
+        v = v.replace(new RegExp(config.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags), repl);
       }
       nr[config.column] = v;
       return nr;
@@ -276,16 +281,22 @@ window.DWBNodes.FIND_REPLACE = {
   },
   validate: function(config) { return config.column ? null : 'Select a column'; },
   configUI: function(config, onChange, currentRows) {
+    // Backward compat: migrate old 'replace' field on open
+    if (config.replace !== undefined && config.replaceValue === undefined) {
+      config.replaceValue = config.replace;
+    }
     const div = document.createElement('div');
     const cols = _getColumns(currentRows);
     div.innerHTML = `
       <div class="form-row"><label>Column</label>
         <select id="fr-col" style="width:100%"><option value="">-- select --</option>${cols.map(function(c) { return '<option value="' + _esc(c) + '"' + (config.column === c ? ' selected' : '') + '>' + _esc(c) + '</option>'; }).join('')}</select></div>
       <div class="form-row"><label>Find</label><input type="text" id="fr-find" value="${_esc(config.find||'')}" style="width:100%"></div>
-      <div class="form-row"><label>Replace with</label><input type="text" id="fr-rep" value="${_esc(config.replace||'')}" style="width:100%"></div>`;
+      <div class="form-row"><label>Replace with</label><div id="fr-rep-wrap"></div></div>`;
     div.querySelector('#fr-col').addEventListener('change', function(e) { onChange('column', e.target.value); });
     div.querySelector('#fr-find').addEventListener('input', function(e) { onChange('find', e.target.value); });
-    div.querySelector('#fr-rep').addEventListener('input', function(e) { onChange('replace', e.target.value); });
+    div.querySelector('#fr-rep-wrap').appendChild(
+      _coreValueSource('fr-rep', config, 'replace', cols, onChange, false)
+    );
     div.appendChild(_coreCheckboxRow('Use regex', config.useRegex, function(v) { onChange('useRegex', v); }));
     div.appendChild(_coreCheckboxRow('Case sensitive', config.caseSensitive, function(v) { onChange('caseSensitive', v); }));
     return div;
