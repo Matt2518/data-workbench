@@ -1764,9 +1764,13 @@ window.DWBDashboard = (function() {
   }
 
   function _dRenderStatCardLine(text, varMap) {
-    return text.replace(/\{\{(\w+)\}\}/g, function(match, name) {
+    var result = text.replace(/\{\{(\w+)\}\}/g, function(match, name) {
       return varMap.hasOwnProperty(name) ? String(varMap[name]) : match;
     });
+    if (window.DWBGlobalTokens && window.DWBGlobalTokens.resolve) {
+      result = window.DWBGlobalTokens.resolve(result);
+    }
+    return result;
   }
 
   function _dRenderStatCard(contentEl, viz, allRows, filteredRows) {
@@ -1828,6 +1832,9 @@ window.DWBDashboard = (function() {
     var text = cfg.text.replace(/\{\{(\w+)\}\}/g, function(match, name) {
       return row.hasOwnProperty(name) ? String(row[name]) : match;
     });
+    if (window.DWBGlobalTokens && window.DWBGlobalTokens.resolve) {
+      text = window.DWBGlobalTokens.resolve(text);
+    }
     contentEl.innerHTML = '<div class="dash-richtext"></div>';
     var el = contentEl.querySelector('.dash-richtext');
     el.style.fontSize = (cfg.fontSize || 16) + 'px';

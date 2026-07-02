@@ -48,6 +48,9 @@ window.DWBReport = (function() {
     const vizList = (state.flow && state.flow.visualizations) || [];
     const cfg = display.config || {};
     const placements = display.placements || [];
+    const resolvedLabel = (window.DWBGlobalTokens && window.DWBGlobalTokens.resolve)
+      ? window.DWBGlobalTokens.resolve(display.label || '')
+      : (display.label || '');
 
     canvas.innerHTML = '';
 
@@ -55,7 +58,7 @@ window.DWBReport = (function() {
     const cover = document.createElement('div');
     cover.className = 'report-page';
     cover.innerHTML = `<div class="report-cover">
-      <div class="report-cover-title">${_rEsc(display.label)}</div>
+      <div class="report-cover-title">${_rEsc(resolvedLabel)}</div>
       <div class="report-cover-sub">${new Date().toLocaleDateString()}</div>
     </div>`;
     canvas.appendChild(cover);
@@ -64,9 +67,9 @@ window.DWBReport = (function() {
     if (placements.length === 0) {
       const emptyPage = document.createElement('div');
       emptyPage.className = 'report-page';
-      emptyPage.innerHTML = `<div class="report-page-header"><span>${_rEsc(display.label)}</span><span>${new Date().toLocaleDateString()}</span></div>
+      emptyPage.innerHTML = `<div class="report-page-header"><span>${_rEsc(resolvedLabel)}</span><span>${new Date().toLocaleDateString()}</span></div>
         <div class="empty-state"><div class="es-icon">📄</div><div class="es-desc">Click ＋ Add Section to add content.</div></div>
-        <div class="report-page-footer"><span>${_rEsc(display.label)}</span><span>Page 2</span></div>
+        <div class="report-page-footer"><span>${_rEsc(resolvedLabel)}</span><span>Page 2</span></div>
         <button class="report-add-btn" id="r-first-add">＋ Add first section</button>`;
       emptyPage.querySelector('#r-first-add').addEventListener('click', function() {
         _rAddPlacement(display, container);
@@ -82,9 +85,9 @@ window.DWBReport = (function() {
       if (!currentPage || placement.pageBreakBefore) {
         currentPage = document.createElement('div');
         currentPage.className = 'report-page';
-        currentPage.innerHTML = `<div class="report-page-header"><span>${_rEsc(display.label)}</span><span>${new Date().toLocaleDateString()}</span></div>
+        currentPage.innerHTML = `<div class="report-page-header"><span>${_rEsc(resolvedLabel)}</span><span>${new Date().toLocaleDateString()}</span></div>
           <div class="r-page-content" id="r-page-content-${pageNum}"></div>
-          <div class="report-page-footer"><span>${_rEsc(display.label)}</span><span>Page ${pageNum}</span></div>`;
+          <div class="report-page-footer"><span>${_rEsc(resolvedLabel)}</span><span>Page ${pageNum}</span></div>`;
         canvas.appendChild(currentPage);
         pageNum++;
       }

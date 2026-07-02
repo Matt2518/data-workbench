@@ -1,0 +1,20 @@
+{
+  "name": "Sec Domains",
+  "values": [
+    "CNIC-HQ",
+    "CYP",
+    "EURAFCENT",
+    "HAWAII",
+    "JAPAN",
+    "KOREA",
+    "MARIANAS",
+    "MID-ATLANTIC",
+    "NDW",
+    "NORTHWEST",
+    "SOUTHEAST",
+    "SOUTHWEST",
+    "CYP_SOUTHEAST",
+    "CYP_NDW",
+    "CYP_HAWAII"
+  ]
+}

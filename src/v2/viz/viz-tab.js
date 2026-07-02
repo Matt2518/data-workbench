@@ -909,6 +909,11 @@ window.DWBVizTab = (function() {
       el.appendChild(availHelper);
       rebuildAvailableVars();
 
+      var _vscGtTip = document.createElement('div');
+      _vscGtTip.style.cssText = 'font-size:10px;color:var(--text-faint);padding:0 0 8px';
+      _vscGtTip.textContent = 'Tip: {{tokens}} work here too — manage global tokens in ⚙ Settings.';
+      el.appendChild(_vscGtTip);
+
       // ── TEMPLATE section ───────────────────────────────────────────────────────
       var tplSec = document.createElement('div');
       tplSec.className = 'vt-config-section';
@@ -1138,7 +1143,8 @@ window.DWBVizTab = (function() {
         '<div class="form-row"><label>Content</label>' +
           '<textarea id="vrt-text" rows="4" style="width:100%;resize:vertical" placeholder="Type text, use {{column_name}} to insert a value from the first row">' + _vtEsc(cfg.text || '') + '</textarea>' +
         '</div>' +
-        '<div id="vrt-col-pills" style="padding:2px 0 10px;font-size:11px;line-height:2"></div>' +
+        '<div id="vrt-col-pills" style="padding:2px 0 6px;font-size:11px;line-height:2"></div>' +
+        '<div style="font-size:10px;color:var(--text-faint);padding-bottom:8px">Tip: {{tokens}} work here too — manage global tokens in ⚙ Settings.</div>' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-bottom:8px">' +
           '<input type="number" id="vrt-size" value="' + (cfg.fontSize || 16) + '" min="10" max="72" style="width:60px" title="Font size (px)">' +
           '<button id="vrt-bold" style="padding:2px 8px;font-weight:700;font-size:12px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:' + (weight === 'bold' ? 'var(--accent)' : 'var(--bg-surface)') + ';color:' + (weight === 'bold' ? '#fff' : 'var(--text-muted)') + '" title="Bold">B</button>' +

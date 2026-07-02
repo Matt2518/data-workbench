@@ -1,0 +1,16 @@
+{
+  "name": "Regions",
+  "values": [
+    "CNIC-HQ",
+    "EURAFCENT",
+    "HAWAII",
+    "JAPAN",
+    "KOREA",
+    "MARIANAS",
+    "MID-ATLANTIC",
+    "NDW",
+    "NORTHWEST",
+    "SOUTHEAST",
+    "SOUTHWEST"
+  ]
+}

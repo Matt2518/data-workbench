@@ -1,0 +1,7 @@
+{
+  "name": "Status",
+  "values": [
+    "Active",
+    "Inactive"
+  ]
+}
