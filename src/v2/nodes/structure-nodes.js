@@ -49,9 +49,13 @@ function _stChecklist(label, cols, selected, onToggle) {
       chk.type = 'checkbox';
       chk.value = col;
       chk.checked = selected.indexOf(col) !== -1;
+      chk.style.cssText = 'flex-shrink:0; margin:0; width:14px; height:14px; padding:0; accent-color:var(--accent);';
       chk.addEventListener('change', function() { onToggle(col, chk.checked); });
+      var colSpan = document.createElement('span');
+      colSpan.textContent = col;
+      colSpan.style.cssText = 'flex:1; font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; text-align:left;';
       rowLbl.appendChild(chk);
-      rowLbl.appendChild(document.createTextNode(col));
+      rowLbl.appendChild(colSpan);
       list.appendChild(rowLbl);
     });
   }

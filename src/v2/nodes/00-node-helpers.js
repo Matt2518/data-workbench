@@ -117,6 +117,22 @@ function _coreValueSource(name, config, prefix, columns, onChange, allowEmpty) {
   return wrap;
 }
 
+/* Returns unique STASH_SAVE names that appear before the given node in the pipeline. */
+function _coreGetUpstreamStashNames(node) {
+  var flow = window.DWBState && window.DWBState.flow;
+  if (!flow) return [];
+  var nodes = flow.pipeline.nodes;
+  var myIndex = nodes.findIndex(function(n) { return n.id === node.id; });
+  if (myIndex === -1) return [];
+  var names = [];
+  for (var i = 0; i < myIndex; i++) {
+    if (nodes[i].type === 'STASH_SAVE' && nodes[i].config && nodes[i].config.name) {
+      if (names.indexOf(nodes[i].config.name) === -1) names.push(nodes[i].config.name);
+    }
+  }
+  return names;
+}
+
 /* Resolve a value-source config at run() time.
    type: 'static' | 'column' | 'empty'
    staticVal: the stored string for static mode.

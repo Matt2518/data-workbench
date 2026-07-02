@@ -450,10 +450,54 @@ window.DWBNodes.STASH_RESTORE = {
   defaultConfig: { name: 'my_stash' },
   run: function(rows) { return rows; }, // handled by executor
   validate: function(config) { return (config.name||'').trim() ? null : 'Stash name required'; },
-  configUI: function(config, onChange) {
-    const div = document.createElement('div');
-    div.innerHTML = '<div class="form-row"><label>Stash Name</label><input type="text" id="sr-name" value="' + _esc(config.name||'my_stash') + '" style="width:100%"></div>';
-    div.querySelector('#sr-name').addEventListener('input', function(e) { onChange('name', e.target.value.trim()); });
+  configUI: function(config, onChange, currentRows, node) {
+    var div = document.createElement('div');
+    var row = document.createElement('div');
+    row.className = 'form-row';
+    var lbl = document.createElement('label');
+    lbl.textContent = 'Stash Name';
+    row.appendChild(lbl);
+
+    var sel = document.createElement('select');
+    sel.style.cssText = 'width:100%;box-sizing:border-box;';
+
+    var available = node ? _coreGetUpstreamStashNames(node) : [];
+    var current = (config.name || '').trim();
+
+    if (available.length === 0 && !current) {
+      var placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'No stashes available upstream — add a Stash Save node first';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      sel.appendChild(placeholder);
+    } else {
+      if (current && available.indexOf(current) === -1) {
+        var warn = document.createElement('option');
+        warn.value = current;
+        warn.textContent = '⚠️ ' + current + ' (not found upstream)';
+        warn.selected = true;
+        sel.appendChild(warn);
+      }
+      available.forEach(function(name) {
+        var opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      if (!current) sel.selectedIndex = 0;
+    }
+
+    sel.addEventListener('change', function() { onChange('name', sel.value); });
+    row.appendChild(sel);
+
+    var hint = document.createElement('div');
+    hint.textContent = 'Only stashes created earlier in this pipeline are available.';
+    hint.style.cssText = 'font-size:var(--text-xs,11px);color:var(--text-faint);margin-top:3px;';
+    row.appendChild(hint);
+
+    div.appendChild(row);
     return div;
   }
 };

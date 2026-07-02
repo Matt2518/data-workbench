@@ -6883,6 +6883,22 @@ function _coreValueSource(name, config, prefix, columns, onChange, allowEmpty) {
   return wrap;
 }
 
+/* Returns unique STASH_SAVE names that appear before the given node in the pipeline. */
+function _coreGetUpstreamStashNames(node) {
+  var flow = window.DWBState && window.DWBState.flow;
+  if (!flow) return [];
+  var nodes = flow.pipeline.nodes;
+  var myIndex = nodes.findIndex(function(n) { return n.id === node.id; });
+  if (myIndex === -1) return [];
+  var names = [];
+  for (var i = 0; i < myIndex; i++) {
+    if (nodes[i].type === 'STASH_SAVE' && nodes[i].config && nodes[i].config.name) {
+      if (names.indexOf(nodes[i].config.name) === -1) names.push(nodes[i].config.name);
+    }
+  }
+  return names;
+}
+
 /* Resolve a value-source config at run() time.
    type: 'static' | 'column' | 'empty'
    staticVal: the stored string for static mode.
@@ -9285,9 +9301,13 @@ function _stChecklist(label, cols, selected, onToggle) {
       chk.type = 'checkbox';
       chk.value = col;
       chk.checked = selected.indexOf(col) !== -1;
+      chk.style.cssText = 'flex-shrink:0; margin:0; width:14px; height:14px; padding:0; accent-color:var(--accent);';
       chk.addEventListener('change', function() { onToggle(col, chk.checked); });
+      var colSpan = document.createElement('span');
+      colSpan.textContent = col;
+      colSpan.style.cssText = 'flex:1; font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; text-align:left;';
       rowLbl.appendChild(chk);
-      rowLbl.appendChild(document.createTextNode(col));
+      rowLbl.appendChild(colSpan);
       list.appendChild(rowLbl);
     });
   }
@@ -11309,10 +11329,54 @@ window.DWBNodes.STASH_RESTORE = {
   defaultConfig: { name: 'my_stash' },
   run: function(rows) { return rows; }, // handled by executor
   validate: function(config) { return (config.name||'').trim() ? null : 'Stash name required'; },
-  configUI: function(config, onChange) {
-    const div = document.createElement('div');
-    div.innerHTML = '<div class="form-row"><label>Stash Name</label><input type="text" id="sr-name" value="' + _esc(config.name||'my_stash') + '" style="width:100%"></div>';
-    div.querySelector('#sr-name').addEventListener('input', function(e) { onChange('name', e.target.value.trim()); });
+  configUI: function(config, onChange, currentRows, node) {
+    var div = document.createElement('div');
+    var row = document.createElement('div');
+    row.className = 'form-row';
+    var lbl = document.createElement('label');
+    lbl.textContent = 'Stash Name';
+    row.appendChild(lbl);
+
+    var sel = document.createElement('select');
+    sel.style.cssText = 'width:100%;box-sizing:border-box;';
+
+    var available = node ? _coreGetUpstreamStashNames(node) : [];
+    var current = (config.name || '').trim();
+
+    if (available.length === 0 && !current) {
+      var placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'No stashes available upstream — add a Stash Save node first';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      sel.appendChild(placeholder);
+    } else {
+      if (current && available.indexOf(current) === -1) {
+        var warn = document.createElement('option');
+        warn.value = current;
+        warn.textContent = '⚠️ ' + current + ' (not found upstream)';
+        warn.selected = true;
+        sel.appendChild(warn);
+      }
+      available.forEach(function(name) {
+        var opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      if (!current) sel.selectedIndex = 0;
+    }
+
+    sel.addEventListener('change', function() { onChange('name', sel.value); });
+    row.appendChild(sel);
+
+    var hint = document.createElement('div');
+    hint.textContent = 'Only stashes created earlier in this pipeline are available.';
+    hint.style.cssText = 'font-size:var(--text-xs,11px);color:var(--text-faint);margin-top:3px;';
+    row.appendChild(hint);
+
+    div.appendChild(row);
     return div;
   }
 };
