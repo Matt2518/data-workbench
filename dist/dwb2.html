@@ -6961,11 +6961,16 @@ function _aoTriggerDownload(rows, filename) {
   URL.revokeObjectURL(url);
 }
 
+function _aoUpdateSentimentWarning(el, labelOn, scoreOn) {
+  el.style.display = (!labelOn && !scoreOn) ? '' : 'none';
+}
+
 /* ───────────────────────────────────────────────────────────
    SENTIMENT_ANALYSIS
-   Lexicon-based per-row text scoring. Outputs the string
-   'positive', 'neutral', or 'negative' to outputColumn.
-   Output values match exactly what QUOTES_BOARD sentimentField
+   Lexicon-based per-row text scoring. Independently outputs
+   a text label ('positive'/'neutral'/'negative') and/or a
+   normalized numeric score, each behind its own toggle.
+   Label output matches what QUOTES_BOARD sentimentField
    expects (case-insensitive match in renderer).
 ─────────────────────────────────────────────────────────── */
 
@@ -6973,23 +6978,51 @@ window.DWBNodes.SENTIMENT_ANALYSIS = {
   label: 'Sentiment Analysis',
   icon: '😊',
   category: 'Advanced',
-  defaultConfig: { textColumn: '', outputColumn: 'sentiment' },
+  defaultConfig: {
+    textColumn: '',
+    outputLabelEnabled: true,
+    outputLabelColumn: 'sentiment',
+    outputScoreEnabled: false,
+    outputScoreColumn: 'sentiment_score'
+  },
 
   run: function(rows, config) {
-    var col = config.textColumn;
-    var outCol = (config.outputColumn || 'sentiment').trim() || 'sentiment';
+    // Backward compat: migrate old single outputColumn field
+    if (config.outputColumn && !config.outputLabelColumn) {
+      config.outputLabelColumn = config.outputColumn;
+      config.outputLabelEnabled = true;
+    }
+    var col          = config.textColumn;
+    var labelEnabled = config.outputLabelEnabled !== false;
+    var labelCol     = (config.outputLabelColumn || 'sentiment').trim() || 'sentiment';
+    var scoreEnabled = !!config.outputScoreEnabled;
+    var scoreCol     = (config.outputScoreColumn || 'sentiment_score').trim() || 'sentiment_score';
     return rows.map(function(row) {
-      var nr = Object.assign({}, row);
+      var nr   = Object.assign({}, row);
       var text = String(row[col] == null ? '' : row[col]).trim();
-      if (!text) { nr[outCol] = 'neutral'; return nr; }
-      var score = _aoScoreText(text);
-      nr[outCol] = score > 0 ? 'positive' : score < 0 ? 'negative' : 'neutral';
+      if (!text) {
+        if (labelEnabled) nr[labelCol] = '';
+        if (scoreEnabled) nr[scoreCol] = '';
+        return nr;
+      }
+      var raw = _aoScoreText(text);
+      if (labelEnabled) {
+        nr[labelCol] = raw > 0 ? 'positive' : raw < 0 ? 'negative' : 'neutral';
+      }
+      if (scoreEnabled) {
+        var words = text.split(/\s+/).filter(function(w) { return w.length > 0; });
+        var norm  = words.length > 0 ? raw / words.length : 0;
+        nr[scoreCol] = Math.round(norm * 100) / 100;
+      }
       return nr;
     });
   },
 
   validate: function(config) {
     if (!config.textColumn) return 'Select a text column';
+    if (!config.outputLabelEnabled && !config.outputScoreEnabled) return 'Enable at least one output';
+    if (config.outputLabelEnabled && !(config.outputLabelColumn || '').trim()) return 'Enter a label column name';
+    if (config.outputScoreEnabled && !(config.outputScoreColumn || '').trim()) return 'Enter a score column name';
     return null;
   },
 
@@ -6997,21 +7030,89 @@ window.DWBNodes.SENTIMENT_ANALYSIS = {
     var div = document.createElement('div');
     div.style.cssText = 'display:flex;flex-direction:column;gap:8px';
 
+    // SOURCE
     div.appendChild(_aoColSelect('Text Column', 'textColumn', config, currentRows, onChange));
 
-    var outRow = document.createElement('div');
-    outRow.className = 'form-row';
-    outRow.innerHTML = '<label>Output Column</label>' +
-      '<input type="text" style="width:100%" value="' + _aoEsc(config.outputColumn || 'sentiment') + '" placeholder="sentiment">';
-    outRow.querySelector('input').addEventListener('input', function(e) {
-      onChange('outputColumn', e.target.value.trim() || 'sentiment');
-    });
-    div.appendChild(outRow);
+    // LABEL OUTPUT
+    var labelGroup = document.createElement('div');
+    labelGroup.style.cssText = 'display:flex;flex-direction:column;gap:4px';
 
-    var hint = document.createElement('div');
-    hint.style.cssText = 'font-size:11px;color:var(--text-muted)';
-    hint.textContent = 'Writes "positive", "neutral", or "negative" per row using a keyword lexicon.';
-    div.appendChild(hint);
+    var labelCbWrap = document.createElement('label');
+    labelCbWrap.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:13px';
+    var labelCb = document.createElement('input');
+    labelCb.type = 'checkbox';
+    labelCb.style.cssText = 'padding:0;width:14px;height:14px;accent-color:var(--accent);cursor:pointer';
+    labelCb.checked = config.outputLabelEnabled !== false;
+    labelCbWrap.appendChild(labelCb);
+    labelCbWrap.appendChild(document.createTextNode('Output sentiment label'));
+    labelGroup.appendChild(labelCbWrap);
+
+    var labelColRow = document.createElement('div');
+    labelColRow.className = 'form-row';
+    labelColRow.style.display = config.outputLabelEnabled !== false ? '' : 'none';
+    labelColRow.innerHTML = '<label>Column name</label>' +
+      '<input type="text" style="width:100%" value="' + _aoEsc(config.outputLabelColumn || 'sentiment') + '" placeholder="sentiment">';
+    labelColRow.querySelector('input').addEventListener('input', function(e) {
+      onChange('outputLabelColumn', e.target.value);
+    });
+    labelGroup.appendChild(labelColRow);
+
+    var labelHint = document.createElement('div');
+    labelHint.style.cssText = 'font-size:var(--text-xs,11px);color:var(--text-faint)';
+    labelHint.textContent = "Writes 'positive', 'neutral', or 'negative'";
+    labelGroup.appendChild(labelHint);
+
+    div.appendChild(labelGroup);
+
+    // SCORE OUTPUT
+    var scoreGroup = document.createElement('div');
+    scoreGroup.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+
+    var scoreCbWrap = document.createElement('label');
+    scoreCbWrap.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:13px';
+    var scoreCb = document.createElement('input');
+    scoreCb.type = 'checkbox';
+    scoreCb.style.cssText = 'padding:0;width:14px;height:14px;accent-color:var(--accent);cursor:pointer';
+    scoreCb.checked = !!config.outputScoreEnabled;
+    scoreCbWrap.appendChild(scoreCb);
+    scoreCbWrap.appendChild(document.createTextNode('Output normalized sentiment score'));
+    scoreGroup.appendChild(scoreCbWrap);
+
+    var scoreColRow = document.createElement('div');
+    scoreColRow.className = 'form-row';
+    scoreColRow.style.display = config.outputScoreEnabled ? '' : 'none';
+    scoreColRow.innerHTML = '<label>Column name</label>' +
+      '<input type="text" style="width:100%" value="' + _aoEsc(config.outputScoreColumn || 'sentiment_score') + '" placeholder="sentiment_score">';
+    scoreColRow.querySelector('input').addEventListener('input', function(e) {
+      onChange('outputScoreColumn', e.target.value);
+    });
+    scoreGroup.appendChild(scoreColRow);
+
+    var scoreHint = document.createElement('div');
+    scoreHint.style.cssText = 'font-size:var(--text-xs,11px);color:var(--text-faint)';
+    scoreHint.textContent = 'Writes a score from roughly −3 to +3 (lexicon weight average per word) — suitable for averaging and charting';
+    scoreGroup.appendChild(scoreHint);
+
+    div.appendChild(scoreGroup);
+
+    // Warning shown when neither output is enabled
+    var warningEl = document.createElement('div');
+    warningEl.style.cssText = 'font-size:var(--text-xs,11px);color:var(--warning)';
+    warningEl.textContent = '⚠️ Enable at least one output.';
+    _aoUpdateSentimentWarning(warningEl, labelCb.checked, scoreCb.checked);
+    div.appendChild(warningEl);
+
+    // Checkbox listeners (declared after warningEl so closures capture it)
+    labelCb.addEventListener('change', function() {
+      onChange('outputLabelEnabled', labelCb.checked);
+      labelColRow.style.display = labelCb.checked ? '' : 'none';
+      _aoUpdateSentimentWarning(warningEl, labelCb.checked, scoreCb.checked);
+    });
+    scoreCb.addEventListener('change', function() {
+      onChange('outputScoreEnabled', scoreCb.checked);
+      scoreColRow.style.display = scoreCb.checked ? '' : 'none';
+      _aoUpdateSentimentWarning(warningEl, labelCb.checked, scoreCb.checked);
+    });
 
     return div;
   }
