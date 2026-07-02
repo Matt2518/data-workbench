@@ -1,0 +1,61 @@
+/* === DWBSettings modal === */
+.stg-rail-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--transition-fast);
+}
+.stg-rail-btn:hover:not(.active) { background: var(--bg-raised); }
+.stg-rail-btn.active { background: var(--accent); color: #fff; }
+
+.stg-list-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.stg-list-row:last-child { border-bottom: none; }
+.stg-list-name {
+  flex: 1;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stg-list-count {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.stg-icon-btn {
+  padding: 2px 6px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.stg-icon-btn:hover { background: var(--bg-raised); color: var(--text-main); }
+.stg-icon-btn.danger:hover {
+  background: rgba(220,38,38,0.08);
+  color: var(--danger);
+  border-color: var(--danger);
+}

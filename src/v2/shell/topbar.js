@@ -20,6 +20,7 @@ window.DWBTopbar = (function() {
       <button class="tb-btn" id="tb-btn-new" title="New Flow">New</button>
       <button class="tb-btn" id="tb-btn-open" title="Open .dwbflow">Open</button>
       <button class="tb-btn" id="tb-btn-save" title="Save .dwbflow">Save</button>
+      <button class="tb-btn" id="tb-btn-settings" title="Settings" style="padding:4px 8px;font-size:13px">&#x2699;</button>
       <button class="tb-btn" id="tb-btn-help" title="Help tour" style="padding:4px 8px;font-size:13px;font-weight:700">?</button>
       <button class="tb-btn" id="tb-btn-theme" title="Toggle theme" style="padding:4px 8px;font-size:15px">☀</button>
     `;
@@ -75,6 +76,13 @@ window.DWBTopbar = (function() {
     const btnSave = document.getElementById('tb-btn-save');
     if (btnSave) {
       btnSave.addEventListener('click', function() { window.DWBio.saveFlow(); });
+    }
+
+    const btnSettings = document.getElementById('tb-btn-settings');
+    if (btnSettings) {
+      btnSettings.addEventListener('click', function() {
+        window.DWBSettings && window.DWBSettings.open();
+      });
     }
 
     const btnHelp = document.getElementById('tb-btn-help');

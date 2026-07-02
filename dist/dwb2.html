@@ -1794,6 +1794,69 @@ input:focus, select:focus, textarea:focus {
 /* Suppress insert zone hover while a drag is in progress */
 #pt-node-list.dragging .pt-insert-zone { pointer-events: none; }
 
+/* --- src\v2\shell\settings.css --- */
+/* === DWBSettings modal === */
+.stg-rail-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--transition-fast);
+}
+.stg-rail-btn:hover:not(.active) { background: var(--bg-raised); }
+.stg-rail-btn.active { background: var(--accent); color: #fff; }
+
+.stg-list-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.stg-list-row:last-child { border-bottom: none; }
+.stg-list-name {
+  flex: 1;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stg-list-count {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.stg-icon-btn {
+  padding: 2px 6px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.stg-icon-btn:hover { background: var(--bg-raised); color: var(--text-main); }
+.stg-icon-btn.danger:hover {
+  background: rgba(220,38,38,0.08);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 /* --- src\v2\shell\splash.css --- */
 /* === DWBSplash: splash screen and live tour styles === */
 :root {
@@ -8244,8 +8307,8 @@ window.DWBNodes.DATA_VALIDATION = {
     var rules  = config.rules || [];
     var outCol = (config.outputColumn || 'validation_status').trim() || 'validation_status';
 
-    function _evalRule(rule, row) {
-      var cell  = String(row[rule.column] != null ? row[rule.column] : '');
+    function _evalRule(rule, nr) {
+      var cell  = String(nr[rule.column] != null ? nr[rule.column] : '');
       var param = String(rule.param || '');
       switch (rule.type) {
         case 'not_empty':
@@ -8266,6 +8329,26 @@ window.DWBNodes.DATA_VALIDATION = {
           try { return new RegExp(param).test(cell) ? null : 'Column "' + rule.column + '" must match pattern: ' + param; }
           catch (e) { return null; }
         }
+        case 'in_list': {
+          var ilist = window.DWBValidationLists ? window.DWBValidationLists.get(rule.listId || '') : null;
+          if (!ilist) {
+            if (rule.listId) console.warn('[DATA_VALIDATION] in_list: list "' + rule.listId + '" not found — always-pass');
+            return null;
+          }
+          var resolutions = rule.resolutions || {};
+          if (resolutions.hasOwnProperty(cell)) {
+            var resolved = resolutions[cell];
+            if (rule.applyResolutions !== false && resolved !== '') nr[rule.column] = resolved;
+            return null;
+          }
+          var cs = !!rule.caseSensitive;
+          var checkVal = cs ? cell : cell.toLowerCase();
+          var inList = ilist.values.some(function(v) {
+            var sv = String(v != null ? v : '');
+            return cs ? sv === cell : sv.toLowerCase() === checkVal;
+          });
+          return inList ? null : 'Column "' + rule.column + '" value not in list "' + ilist.name + '"';
+        }
         default: return null;
       }
     }
@@ -8275,7 +8358,7 @@ window.DWBNodes.DATA_VALIDATION = {
       var firstErr = null;
       for (var i = 0; i < rules.length; i++) {
         if (!rules[i].column) continue;
-        var err = _evalRule(rules[i], row);
+        var err = _evalRule(rules[i], nr);
         if (err) { firstErr = err; break; }
       }
       nr[outCol] = firstErr ? 'invalid: ' + firstErr : 'valid';
@@ -8297,9 +8380,11 @@ window.DWBNodes.DATA_VALIDATION = {
 
     var RULE_TYPES = [
       ['not_empty','Not empty'], ['is_number','Is number'], ['is_email','Is email'],
-      ['min_length','Min length'], ['max_length','Max length'], ['matches_pattern','Matches pattern']
+      ['min_length','Min length'], ['max_length','Max length'], ['matches_pattern','Matches pattern'],
+      ['in_list','In list']
     ];
     var NEEDS_PARAM = { min_length: 1, max_length: 1, matches_pattern: 1 };
+    var NEEDS_LIST  = { in_list: 1 };
 
     function _ruleTypeOpts(sel) {
       return RULE_TYPES.map(function(p) {
@@ -8314,13 +8399,46 @@ window.DWBNodes.DATA_VALIDATION = {
         wrap.innerHTML = '<div style="font-size:11px;color:var(--text-faint);padding:6px">No rules yet.</div>';
         return;
       }
+
       wrap.innerHTML = rules.map(function(r, i) {
         var np = NEEDS_PARAM[r.type];
+        var nl = NEEDS_LIST[r.type];
+
+        if (nl) {
+          var allLists = window.DWBValidationLists ? window.DWBValidationLists.getAll() : [];
+          var noLists  = !allLists.length;
+          var listOpts = noLists
+            ? '<option value="" disabled selected>No lists yet</option>'
+            : '<option value="">-- select list --</option>' + allLists.map(function(l) {
+                return '<option value="' + _lrEsc(l.id) + '"' + (r.listId === l.id ? ' selected' : '') + '>' +
+                  _lrEsc(l.name) + ' (' + l.values.length + ')</option>';
+              }).join('');
+          return '<div style="padding:5px 6px;border-bottom:1px solid var(--border)">' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:4px;align-items:center;margin-bottom:4px">' +
+              '<select class="lr-dv-col"  data-idx="' + i + '" style="font-size:12px">' + _lrColOptHtml(cols, r.column) + '</select>' +
+              '<select class="lr-dv-type" data-idx="' + i + '" style="font-size:12px">' + _ruleTypeOpts(r.type) + '</select>' +
+              '<button class="lr-dv-rm"   data-idx="' + i + '" style="padding:1px 6px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px;color:var(--danger)">&#x2715;</button>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">' +
+              '<select class="lr-dv-list" data-idx="' + i + '" style="flex:1;font-size:12px' + (noLists ? ';color:var(--text-faint)' : '') + '">' + listOpts + '</select>' +
+              '<button class="lr-dv-open-settings" data-idx="' + i + '" title="Manage lists" style="padding:2px 6px;background:none;border:1px solid ' + (noLists ? 'var(--accent)' : 'var(--border)') + ';border-radius:3px;cursor:pointer;font-size:12px;color:' + (noLists ? 'var(--accent)' : 'var(--text-muted)') + ';font-family:inherit">&#x2699;</button>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:12px">' +
+              '<label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text-muted);cursor:pointer">' +
+                '<input type="checkbox" class="lr-dv-cs"        data-idx="' + i + '"' + (r.caseSensitive ? ' checked' : '') + '> Case sensitive' +
+              '</label>' +
+              '<label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text-muted);cursor:pointer">' +
+                '<input type="checkbox" class="lr-dv-apply-res" data-idx="' + i + '"' + (r.applyResolutions !== false ? ' checked' : '') + '> Apply resolutions' +
+              '</label>' +
+            '</div>' +
+          '</div>';
+        }
+
         return '<div style="display:grid;grid-template-columns:1fr 1fr ' + (np ? '1fr ' : '') + 'auto;gap:4px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--border)">' +
-          '<select class="lr-dv-col" data-idx="' + i + '" style="font-size:12px">' + _lrColOptHtml(cols, r.column) + '</select>' +
-          '<select class="lr-dv-type" data-idx="' + i + '" style="font-size:12px">' + _ruleTypeOpts(r.type) + '</select>' +
+          '<select class="lr-dv-col"   data-idx="' + i + '" style="font-size:12px">' + _lrColOptHtml(cols, r.column) + '</select>' +
+          '<select class="lr-dv-type"  data-idx="' + i + '" style="font-size:12px">' + _ruleTypeOpts(r.type) + '</select>' +
           (np ? '<input type="text" class="lr-dv-param" data-idx="' + i + '" value="' + _lrEsc(r.param || '') + '" placeholder="' + (r.type === 'matches_pattern' ? 'regex' : 'number') + '" style="font-size:12px">' : '') +
-          '<button class="lr-dv-rm" data-idx="' + i + '" style="padding:1px 6px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px;color:var(--danger)">✕</button>' +
+          '<button class="lr-dv-rm"    data-idx="' + i + '" style="padding:1px 6px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px;color:var(--danger)">&#x2715;</button>' +
         '</div>';
       }).join('');
 
@@ -8332,9 +8450,17 @@ window.DWBNodes.DATA_VALIDATION = {
       });
       wrap.querySelectorAll('.lr-dv-type').forEach(function(sel) {
         sel.addEventListener('change', function() {
-          rules[parseInt(sel.dataset.idx, 10)].type = sel.value;
+          var idx = parseInt(sel.dataset.idx, 10);
+          rules[idx].type = sel.value;
+          if (sel.value === 'in_list') {
+            if (!rules[idx].listId)                               rules[idx].listId = '';
+            if (!rules[idx].hasOwnProperty('caseSensitive'))     rules[idx].caseSensitive = false;
+            if (!rules[idx].hasOwnProperty('resolutions'))       rules[idx].resolutions = {};
+            if (!rules[idx].hasOwnProperty('applyResolutions'))  rules[idx].applyResolutions = true;
+          }
           onChange('rules', rules.slice());
           renderRules();
+          renderReview();
         });
       });
       wrap.querySelectorAll('.lr-dv-param').forEach(function(inp) {
@@ -8343,11 +8469,166 @@ window.DWBNodes.DATA_VALIDATION = {
           onChange('rules', rules.slice());
         });
       });
+      wrap.querySelectorAll('.lr-dv-list').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+          var idx = parseInt(sel.dataset.idx, 10);
+          rules[idx].listId = sel.value;
+          rules[idx].resolutions = {};
+          onChange('rules', rules.slice());
+          renderReview();
+        });
+      });
+      wrap.querySelectorAll('.lr-dv-open-settings').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          window.DWBSettings && window.DWBSettings.open('validation-lists');
+        });
+      });
+      wrap.querySelectorAll('.lr-dv-cs').forEach(function(chk) {
+        chk.addEventListener('change', function() {
+          var idx = parseInt(chk.dataset.idx, 10);
+          rules[idx].caseSensitive = chk.checked;
+          rules[idx].resolutions   = {};
+          onChange('rules', rules.slice());
+          renderReview();
+        });
+      });
+      wrap.querySelectorAll('.lr-dv-apply-res').forEach(function(chk) {
+        chk.addEventListener('change', function() {
+          rules[parseInt(chk.dataset.idx, 10)].applyResolutions = chk.checked;
+          onChange('rules', rules.slice());
+        });
+      });
       wrap.querySelectorAll('.lr-dv-rm').forEach(function(btn) {
         btn.addEventListener('click', function() {
           rules.splice(parseInt(btn.dataset.idx, 10), 1);
           onChange('rules', rules.slice());
           renderRules();
+          renderReview();
+        });
+      });
+    }
+
+    function renderReview() {
+      var wrap = div.querySelector('#lr-dv-review-wrap');
+      if (!wrap) return;
+
+      var inListRules = rules.filter(function(r) { return r.type === 'in_list'; });
+      if (!inListRules.length || !currentRows || !currentRows.length) {
+        wrap.style.display = 'none';
+        return;
+      }
+      wrap.style.display = '';
+
+      var selIdx = Math.min(parseInt(wrap.dataset.selIdx || '0', 10), inListRules.length - 1);
+      if (selIdx < 0) selIdx = 0;
+      var selRule = inListRules[selIdx];
+      var ilist   = selRule.listId && window.DWBValidationLists ? window.DWBValidationLists.get(selRule.listId) : null;
+
+      /* rule picker (shown only when multiple in_list rules exist) */
+      var rulePickHtml = '';
+      if (inListRules.length > 1) {
+        rulePickHtml = '<select id="lr-dv-rev-pick" style="font-size:11px;margin-left:6px">' +
+          inListRules.map(function(r, i) {
+            return '<option value="' + i + '"' + (i === selIdx ? ' selected' : '') + '>' + _lrEsc(r.column || 'Rule ' + (i + 1)) + '</option>';
+          }).join('') +
+        '</select>';
+      }
+
+      /* compute failures */
+      var failCounts = {};
+      if (ilist && selRule.column) {
+        var resolutions = selRule.resolutions || {};
+        var cs = !!selRule.caseSensitive;
+        currentRows.forEach(function(row) {
+          var val = String(row[selRule.column] != null ? row[selRule.column] : '');
+          if (resolutions.hasOwnProperty(val)) return;
+          var checkVal = cs ? val : val.toLowerCase();
+          var inList = ilist.values.some(function(v) {
+            var sv = String(v != null ? v : '');
+            return cs ? sv === val : sv.toLowerCase() === checkVal;
+          });
+          if (!inList) failCounts[val] = (failCounts[val] || 0) + 1;
+        });
+      }
+      var failEntries = Object.keys(failCounts).sort(function(a, b) { return failCounts[b] - failCounts[a]; });
+
+      var bodyHtml = '';
+      if (!ilist) {
+        bodyHtml = '<div style="font-size:11px;color:var(--text-faint);padding:4px 0">Select a list for this rule.</div>';
+      } else if (!selRule.column) {
+        bodyHtml = '<div style="font-size:11px;color:var(--text-faint);padding:4px 0">Select a column for this rule.</div>';
+      } else if (!failEntries.length) {
+        bodyHtml = '<div style="font-size:11px;color:var(--success);padding:4px 0">All values valid &#x2705;</div>';
+      } else {
+        var listVals = ilist.values;
+        bodyHtml = '<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">' +
+          failEntries.map(function(val) {
+            var count = failCounts[val];
+            var bestMatch = '';
+            var bestScore = -1;
+            listVals.forEach(function(lv) {
+              var s = _lrBigramSim(val, String(lv));
+              if (s > bestScore) { bestScore = s; bestMatch = String(lv); }
+            });
+            var valEsc = _lrEsc(val);
+            var opts =
+              '<option value="">&#x2014; Ignore &#x2014;</option>' +
+              listVals.map(function(lv) {
+                var lvStr = String(lv);
+                var isBest = lvStr === bestMatch && bestScore > 0.3;
+                return '<option value="' + _lrEsc(lvStr) + '"' + (isBest ? ' selected' : '') + '>' +
+                  _lrEsc(lvStr) + (isBest ? ' ✓' : '') + '</option>';
+              }).join('') +
+              '<option value="__ADD_TO_LIST__">+ Add to list</option>';
+            return '<div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid var(--border)">' +
+              '<div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + valEsc + '">' +
+                valEsc + ' <span style="color:var(--text-faint);font-size:10px">&#xD7;' + count + '</span>' +
+              '</div>' +
+              '<select class="lr-dv-rev-sel" data-val="' + valEsc + '" style="flex:1;font-size:11px;max-width:150px">' + opts + '</select>' +
+              '<button class="lr-dv-rev-apply" data-val="' + valEsc + '" style="padding:2px 7px;background:var(--accent);border:none;border-radius:3px;color:#fff;font-size:11px;cursor:pointer;font-family:inherit;flex-shrink:0">Apply</button>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+      }
+
+      wrap.innerHTML =
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);display:flex;align-items:center;margin-bottom:4px">' +
+          'Review Invalid Values' + rulePickHtml +
+        '</div>' +
+        bodyHtml;
+      wrap.dataset.selIdx = String(selIdx);
+
+      var revPick = wrap.querySelector('#lr-dv-rev-pick');
+      if (revPick) {
+        revPick.addEventListener('change', function() {
+          wrap.dataset.selIdx = revPick.value;
+          renderReview();
+        });
+      }
+
+      wrap.querySelectorAll('.lr-dv-rev-apply').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var val  = btn.dataset.val;
+          var sel  = null;
+          wrap.querySelectorAll('.lr-dv-rev-sel').forEach(function(s) {
+            if (s.dataset.val === val) sel = s;
+          });
+          if (!sel) return;
+          var chosen = sel.value;
+
+          if (chosen === '__ADD_TO_LIST__') {
+            if (ilist) {
+              window.DWBValidationLists.save({ id: ilist.id, name: ilist.name, values: ilist.values.concat([val]) });
+              onChange('rules', rules.slice());
+              renderReview();
+            }
+            return;
+          }
+
+          if (!selRule.resolutions) selRule.resolutions = {};
+          selRule.resolutions[val] = chosen;
+          onChange('rules', rules.slice());
+          renderReview();
         });
       });
     }
@@ -8355,16 +8636,19 @@ window.DWBNodes.DATA_VALIDATION = {
     div.innerHTML =
       '<div style="font-size:11px;font-weight:700;color:var(--text-muted)">Validation Rules</div>' +
       '<div id="lr-dv-rules" style="border:1px solid var(--border);border-radius:4px;overflow:hidden"></div>' +
-      '<button id="lr-dv-add" style="padding:4px 10px;background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit">＋ Add Rule</button>' +
+      '<button id="lr-dv-add" style="padding:4px 10px;background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit">&#xFF0B; Add Rule</button>' +
       '<div class="form-row"><label>Output Column</label>' +
-        '<input type="text" id="lr-dv-out" value="' + _lrEsc(config.outputColumn || 'validation_status') + '" style="width:100%"></div>';
+        '<input type="text" id="lr-dv-out" value="' + _lrEsc(config.outputColumn || 'validation_status') + '" style="width:100%"></div>' +
+      '<div id="lr-dv-review-wrap" style="border:1px solid var(--border);border-radius:4px;padding:6px 8px;display:none"></div>';
 
     renderRules();
+    renderReview();
 
     div.querySelector('#lr-dv-add').addEventListener('click', function() {
       rules.push({ column: cols[0] || '', type: 'not_empty', param: '' });
       onChange('rules', rules.slice());
       renderRules();
+      renderReview();
     });
     div.querySelector('#lr-dv-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
 
@@ -12100,6 +12384,294 @@ window.DWBPipelineTab = (function() {
   return { mount: mount, refresh: refresh, appendLog: appendLog, renderNodeList: renderNodeList };
 })();
 
+/* --- src\v2\shell\settings.js --- */
+/* === DWBSettings: settings modal (_stg prefix) === */
+window.DWBSettings = (function() {
+  var _activeSection = 'validation-lists';
+
+  function _stgEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _stgEnsureModal() {
+    if (document.getElementById('stg-overlay')) return;
+    var overlay = document.createElement('div');
+    overlay.id = 'stg-overlay';
+    overlay.className = 'overlay hidden';
+    overlay.innerHTML =
+      '<div class="modal" style="width:560px;max-height:80vh;display:flex;flex-direction:column">' +
+        '<div class="modal-header">' +
+          '<span>Settings</span>' +
+          '<button class="modal-close" id="stg-close">✕</button>' +
+        '</div>' +
+        '<div style="display:flex;flex:1;min-height:0;overflow:hidden">' +
+          '<div id="stg-rail" style="width:140px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:6px 0;overflow-y:auto">' +
+            '<button class="stg-rail-btn active" data-section="validation-lists">Validation Lists</button>' +
+          '</div>' +
+          '<div id="stg-panel" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0"></div>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('stg-close').addEventListener('click', _stgClose);
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) _stgClose();
+    });
+    overlay.querySelectorAll('.stg-rail-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        overlay.querySelectorAll('.stg-rail-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        _activeSection = btn.dataset.section;
+        _stgRenderSection();
+      });
+    });
+  }
+
+  function _stgClose() {
+    var ov = document.getElementById('stg-overlay');
+    if (ov) ov.classList.add('hidden');
+  }
+
+  function _stgRenderSection() {
+    var panel = document.getElementById('stg-panel');
+    if (!panel) return;
+    if (_activeSection === 'validation-lists') _stgRenderValidationLists(panel);
+  }
+
+  function _stgRenderValidationLists(panel) {
+    var lists = window.DWBValidationLists ? window.DWBValidationLists.getAll() : [];
+    var isEditing  = panel.dataset.isEditing === '1';
+    var editingId  = panel.dataset.editingId || '';
+    var deletingId = panel.dataset.deletingId || '';
+    var collision  = panel.dataset.importCollision || '';
+
+    panel.innerHTML = '';
+
+    /* ── Header ── */
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0';
+    header.innerHTML =
+      '<div style="font-size:13px;font-weight:700;flex:1">Validation Lists</div>' +
+      '<label style="display:inline-flex;align-items:center;padding:4px 10px;background:var(--bg-raised);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;gap:5px;font-family:inherit">' +
+        '&#x2191; Import' +
+        '<input type="file" id="stg-import-file" accept=".json" style="display:none">' +
+      '</label>';
+    panel.appendChild(header);
+
+    /* ── Import collision banner ── */
+    if (collision) {
+      var colObj = null;
+      try { colObj = JSON.parse(collision); } catch (e) {}
+      if (colObj) {
+        var banner = document.createElement('div');
+        banner.style.cssText = 'padding:8px 14px;background:rgba(245,158,11,0.1);border-bottom:1px solid var(--warning);font-size:12px;flex-shrink:0';
+        banner.innerHTML =
+          '<strong>A list named \'' + _stgEsc(colObj.name) + '\' already exists.</strong>' +
+          '<div style="display:flex;gap:6px;margin-top:6px">' +
+            '<button id="stg-coll-replace" class="btn-secondary" style="font-size:11px;padding:3px 8px">Replace</button>' +
+            '<button id="stg-coll-copy"    class="btn-secondary" style="font-size:11px;padding:3px 8px">Add as copy</button>' +
+            '<button id="stg-coll-cancel"  class="btn-secondary" style="font-size:11px;padding:3px 8px">Cancel</button>' +
+          '</div>';
+        panel.appendChild(banner);
+
+        banner.querySelector('#stg-coll-replace').addEventListener('click', function() {
+          var existing = window.DWBValidationLists.getAll().find(function(l) { return l.name === colObj.name; });
+          if (existing) window.DWBValidationLists.save({ id: existing.id, name: colObj.name, values: colObj.values });
+          panel.dataset.importCollision = '';
+          _stgRenderValidationLists(panel);
+        });
+        banner.querySelector('#stg-coll-copy').addEventListener('click', function() {
+          var base = colObj.name;
+          var allNames = window.DWBValidationLists.getAll().map(function(l) { return l.name; });
+          var copyName = base + ' (copy)';
+          var n = 2;
+          while (allNames.indexOf(copyName) !== -1) { copyName = base + ' (copy ' + n + ')'; n++; }
+          window.DWBValidationLists.save({ name: copyName, values: colObj.values });
+          panel.dataset.importCollision = '';
+          _stgRenderValidationLists(panel);
+        });
+        banner.querySelector('#stg-coll-cancel').addEventListener('click', function() {
+          panel.dataset.importCollision = '';
+          _stgRenderValidationLists(panel);
+        });
+      }
+    }
+
+    /* ── List rows ── */
+    var listWrap = document.createElement('div');
+    listWrap.style.cssText = 'flex:1;overflow-y:auto';
+
+    if (!lists.length && !isEditing) {
+      listWrap.innerHTML = '<div style="padding:24px 14px;text-align:center;font-size:12px;color:var(--text-faint)">No validation lists yet.<br>Create one below or import a JSON file.</div>';
+    } else {
+      var container = document.createElement('div');
+      container.style.borderBottom = '1px solid var(--border)';
+      lists.forEach(function(list) {
+        if (deletingId === list.id) {
+          var delRow = document.createElement('div');
+          delRow.className = 'stg-list-row';
+          delRow.style.background = 'rgba(220,38,38,0.04)';
+          delRow.innerHTML =
+            '<span style="flex:1;font-size:11px;color:var(--danger)">Delete <strong>' + _stgEsc(list.name) + '</strong>? This cannot be undone.</span>' +
+            '<button class="stg-icon-btn danger" id="stg-del-yes" style="border-color:var(--danger);color:var(--danger)">Delete</button>' +
+            '<button class="stg-icon-btn" id="stg-del-no">Cancel</button>';
+          container.appendChild(delRow);
+          delRow.querySelector('#stg-del-yes').addEventListener('click', function() {
+            window.DWBValidationLists.remove(list.id);
+            panel.dataset.deletingId = '';
+            _stgRenderValidationLists(panel);
+          });
+          delRow.querySelector('#stg-del-no').addEventListener('click', function() {
+            panel.dataset.deletingId = '';
+            _stgRenderValidationLists(panel);
+          });
+        } else {
+          var row = document.createElement('div');
+          row.className = 'stg-list-row';
+          row.innerHTML =
+            '<span class="stg-list-name">' + _stgEsc(list.name) + '</span>' +
+            '<span class="stg-list-count">' + list.values.length + ' value' + (list.values.length !== 1 ? 's' : '') + '</span>' +
+            '<button class="stg-icon-btn" data-action="edit"   data-id="' + _stgEsc(list.id) + '" title="Edit">&#x270F;</button>' +
+            '<button class="stg-icon-btn" data-action="export" data-id="' + _stgEsc(list.id) + '" title="Export">&#x2193;</button>' +
+            '<button class="stg-icon-btn danger" data-action="delete" data-id="' + _stgEsc(list.id) + '" title="Delete">&#x2715;</button>';
+          container.appendChild(row);
+        }
+      });
+      listWrap.appendChild(container);
+    }
+    panel.appendChild(listWrap);
+
+    /* ── Inline editor ── */
+    if (isEditing) {
+      var editingList = editingId ? window.DWBValidationLists.get(editingId) : null;
+      var editor = document.createElement('div');
+      editor.style.cssText = 'border-top:1px solid var(--border);padding:12px 14px;flex-shrink:0;background:var(--bg-raised)';
+      editor.innerHTML =
+        '<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">' + (editingId ? 'Edit List' : 'New List') + '</div>' +
+        '<div class="form-row"><label>List Name</label>' +
+          '<input type="text" id="stg-ed-name" value="' + _stgEsc(editingList ? editingList.name : '') + '" placeholder="e.g. Valid Departments" style="width:100%"></div>' +
+        '<div class="form-row"><label>Values (one per line)</label>' +
+          '<textarea id="stg-ed-values" rows="6" style="width:100%;font-size:12px;resize:vertical">' +
+            _stgEsc((editingList ? editingList.values : []).join('\n')) +
+          '</textarea></div>' +
+        '<div style="display:flex;gap:6px">' +
+          '<button id="stg-ed-save" class="btn-primary" style="font-size:12px">Save</button>' +
+          '<button id="stg-ed-cancel" class="btn-secondary" style="font-size:12px">Cancel</button>' +
+        '</div>';
+      panel.appendChild(editor);
+
+      editor.querySelector('#stg-ed-save').addEventListener('click', function() {
+        var name = editor.querySelector('#stg-ed-name').value.trim();
+        var raw  = editor.querySelector('#stg-ed-values').value;
+        var values = raw.split(/\r?\n/).map(function(v) { return v.trim(); }).filter(Boolean);
+        if (!name) { editor.querySelector('#stg-ed-name').focus(); return; }
+        var listObj = { name: name, values: values };
+        if (editingId) listObj.id = editingId;
+        window.DWBValidationLists.save(listObj);
+        panel.dataset.isEditing = '0';
+        panel.dataset.editingId = '';
+        _stgRenderValidationLists(panel);
+      });
+      editor.querySelector('#stg-ed-cancel').addEventListener('click', function() {
+        panel.dataset.isEditing = '0';
+        panel.dataset.editingId = '';
+        _stgRenderValidationLists(panel);
+      });
+      setTimeout(function() {
+        var nameEl = editor.querySelector('#stg-ed-name');
+        if (nameEl) nameEl.focus();
+      }, 0);
+    }
+
+    /* ── + New List button ── */
+    if (!isEditing) {
+      var newBtn = document.createElement('button');
+      newBtn.style.cssText = 'margin:10px 14px;padding:6px 12px;background:none;border:1px solid var(--border);border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text-main);align-self:flex-start';
+      newBtn.textContent = '+ New List';
+      newBtn.addEventListener('click', function() {
+        panel.dataset.isEditing = '1';
+        panel.dataset.editingId = '';
+        _stgRenderValidationLists(panel);
+      });
+      panel.appendChild(newBtn);
+    }
+
+    /* ── Wire list row action buttons ── */
+    panel.querySelectorAll('[data-action]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var id     = el.dataset.id;
+        var action = el.dataset.action;
+        if (action === 'edit') {
+          panel.dataset.isEditing = '1';
+          panel.dataset.editingId = id;
+          _stgRenderValidationLists(panel);
+        } else if (action === 'export') {
+          window.DWBValidationLists.exportList(id);
+        } else if (action === 'delete') {
+          panel.dataset.deletingId = id;
+          _stgRenderValidationLists(panel);
+        }
+      });
+    });
+
+    /* ── Wire import file input ── */
+    var importFile = panel.querySelector('#stg-import-file');
+    if (importFile) {
+      importFile.addEventListener('change', function(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        importFile.value = '';
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          var parsed = null;
+          try { parsed = JSON.parse(ev.target.result); } catch (err) { alert('Invalid JSON file.'); return; }
+          if (!parsed || typeof parsed.name !== 'string' || !Array.isArray(parsed.values)) {
+            alert('File must have "name" (string) and "values" (array) fields.');
+            return;
+          }
+          var name = parsed.name.trim();
+          var allNames = window.DWBValidationLists.getAll().map(function(l) { return l.name; });
+          if (allNames.indexOf(name) !== -1) {
+            panel.dataset.importCollision = JSON.stringify({ name: name, values: parsed.values });
+          } else {
+            window.DWBValidationLists.importList(ev.target.result);
+          }
+          _stgRenderValidationLists(panel);
+        };
+        reader.readAsText(file);
+      });
+    }
+  }
+
+  function open(section) {
+    _stgEnsureModal();
+    var panel = document.getElementById('stg-panel');
+    if (panel) {
+      panel.dataset.isEditing = '0';
+      panel.dataset.editingId = '';
+      panel.dataset.deletingId = '';
+      panel.dataset.importCollision = '';
+    }
+    if (section) {
+      _activeSection = section;
+      var overlay = document.getElementById('stg-overlay');
+      if (overlay) {
+        overlay.querySelectorAll('.stg-rail-btn').forEach(function(btn) {
+          btn.classList.toggle('active', btn.dataset.section === section);
+        });
+      }
+    }
+    var ov = document.getElementById('stg-overlay');
+    if (ov) {
+      ov.classList.remove('hidden');
+      _stgRenderSection();
+    }
+  }
+
+  return { open: open };
+})();
+
 /* --- src\v2\shell\splash.js --- */
 /* === DWBSplash: splash screen and live tour === */
 
@@ -12487,6 +13059,7 @@ window.DWBTopbar = (function() {
       <button class="tb-btn" id="tb-btn-new" title="New Flow">New</button>
       <button class="tb-btn" id="tb-btn-open" title="Open .dwbflow">Open</button>
       <button class="tb-btn" id="tb-btn-save" title="Save .dwbflow">Save</button>
+      <button class="tb-btn" id="tb-btn-settings" title="Settings" style="padding:4px 8px;font-size:13px">&#x2699;</button>
       <button class="tb-btn" id="tb-btn-help" title="Help tour" style="padding:4px 8px;font-size:13px;font-weight:700">?</button>
       <button class="tb-btn" id="tb-btn-theme" title="Toggle theme" style="padding:4px 8px;font-size:15px">☀</button>
     `;
@@ -12544,6 +13117,13 @@ window.DWBTopbar = (function() {
       btnSave.addEventListener('click', function() { window.DWBio.saveFlow(); });
     }
 
+    const btnSettings = document.getElementById('tb-btn-settings');
+    if (btnSettings) {
+      btnSettings.addEventListener('click', function() {
+        window.DWBSettings && window.DWBSettings.open();
+      });
+    }
+
     const btnHelp = document.getElementById('tb-btn-help');
     if (btnHelp) {
       btnHelp.addEventListener('click', function() {
@@ -12582,6 +13162,115 @@ window.DWBTopbar = (function() {
   }
 
   return { init: init, updateTitle: updateTitle, setDirty: setDirty };
+})();
+
+/* --- src\v2\shell\validation-lists.js --- */
+/* === DWBValidationLists: localStorage-backed validation list storage === */
+window.DWBValidationLists = (function() {
+  var _cache = null;
+  var _KEY = 'dwb2_validation_lists';
+
+  function _load() {
+    if (_cache !== null) return _cache;
+    try {
+      var raw = localStorage.getItem(_KEY);
+      _cache = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      _cache = [];
+    }
+    return _cache;
+  }
+
+  function _write() {
+    localStorage.setItem(_KEY, JSON.stringify(_cache));
+  }
+
+  function _uuid() {
+    return 'vl-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+  }
+
+  function getAll() {
+    return _load().slice();
+  }
+
+  function get(id) {
+    var lists = _load();
+    for (var i = 0; i < lists.length; i++) {
+      if (lists[i].id === id) return lists[i];
+    }
+    return null;
+  }
+
+  function save(list) {
+    _load();
+    var now = new Date().toISOString();
+    var id = list.id || _uuid();
+    var idx = -1;
+    for (var i = 0; i < _cache.length; i++) {
+      if (_cache[i].id === id) { idx = i; break; }
+    }
+    if (idx === -1) {
+      var newList = {
+        id: id,
+        name: String(list.name || '').trim(),
+        values: Array.isArray(list.values) ? list.values.slice() : [],
+        created: list.created || now,
+        modified: now
+      };
+      _cache.push(newList);
+      _write();
+      return newList;
+    }
+    _cache[idx] = {
+      id: id,
+      name: String(list.name || '').trim(),
+      values: Array.isArray(list.values) ? list.values.slice() : [],
+      created: _cache[idx].created,
+      modified: now
+    };
+    _write();
+    return _cache[idx];
+  }
+
+  function remove(id) {
+    _load();
+    _cache = _cache.filter(function(l) { return l.id !== id; });
+    _write();
+  }
+
+  function exportList(id) {
+    var list = get(id);
+    if (!list) return;
+    var data = JSON.stringify({ name: list.name, values: list.values }, null, 2);
+    var blob = new Blob([data], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = list.name.replace(/[^a-z0-9_-]/gi, '-').toLowerCase() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function importList(jsonString) {
+    var parsed;
+    try { parsed = JSON.parse(jsonString); } catch (e) { throw new Error('Invalid JSON'); }
+    if (!parsed || typeof parsed.name !== 'string' || !Array.isArray(parsed.values)) {
+      throw new Error('Import file must have "name" (string) and "values" (array)');
+    }
+    var name = parsed.name.trim();
+    if (!name) throw new Error('List name cannot be empty');
+    var values = parsed.values.map(function(v) { return String(v); });
+    var now = new Date().toISOString();
+    var list = { id: _uuid(), name: name, values: values, created: now, modified: now };
+    _load();
+    _cache.push(list);
+    _write();
+    return list;
+  }
+
+  return { getAll: getAll, get: get, save: save, remove: remove, exportList: exportList, importList: importList };
 })();
 
 /* --- src\v2\viz\viz-tab.js --- */

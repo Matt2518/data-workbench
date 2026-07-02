@@ -359,8 +359,8 @@ window.DWBNodes.DATA_VALIDATION = {
     var rules  = config.rules || [];
     var outCol = (config.outputColumn || 'validation_status').trim() || 'validation_status';
 
-    function _evalRule(rule, row) {
-      var cell  = String(row[rule.column] != null ? row[rule.column] : '');
+    function _evalRule(rule, nr) {
+      var cell  = String(nr[rule.column] != null ? nr[rule.column] : '');
       var param = String(rule.param || '');
       switch (rule.type) {
         case 'not_empty':
@@ -381,6 +381,26 @@ window.DWBNodes.DATA_VALIDATION = {
           try { return new RegExp(param).test(cell) ? null : 'Column "' + rule.column + '" must match pattern: ' + param; }
           catch (e) { return null; }
         }
+        case 'in_list': {
+          var ilist = window.DWBValidationLists ? window.DWBValidationLists.get(rule.listId || '') : null;
+          if (!ilist) {
+            if (rule.listId) console.warn('[DATA_VALIDATION] in_list: list "' + rule.listId + '" not found — always-pass');
+            return null;
+          }
+          var resolutions = rule.resolutions || {};
+          if (resolutions.hasOwnProperty(cell)) {
+            var resolved = resolutions[cell];
+            if (rule.applyResolutions !== false && resolved !== '') nr[rule.column] = resolved;
+            return null;
+          }
+          var cs = !!rule.caseSensitive;
+          var checkVal = cs ? cell : cell.toLowerCase();
+          var inList = ilist.values.some(function(v) {
+            var sv = String(v != null ? v : '');
+            return cs ? sv === cell : sv.toLowerCase() === checkVal;
+          });
+          return inList ? null : 'Column "' + rule.column + '" value not in list "' + ilist.name + '"';
+        }
         default: return null;
       }
     }
@@ -390,7 +410,7 @@ window.DWBNodes.DATA_VALIDATION = {
       var firstErr = null;
       for (var i = 0; i < rules.length; i++) {
         if (!rules[i].column) continue;
-        var err = _evalRule(rules[i], row);
+        var err = _evalRule(rules[i], nr);
         if (err) { firstErr = err; break; }
       }
       nr[outCol] = firstErr ? 'invalid: ' + firstErr : 'valid';
@@ -412,9 +432,11 @@ window.DWBNodes.DATA_VALIDATION = {
 
     var RULE_TYPES = [
       ['not_empty','Not empty'], ['is_number','Is number'], ['is_email','Is email'],
-      ['min_length','Min length'], ['max_length','Max length'], ['matches_pattern','Matches pattern']
+      ['min_length','Min length'], ['max_length','Max length'], ['matches_pattern','Matches pattern'],
+      ['in_list','In list']
     ];
     var NEEDS_PARAM = { min_length: 1, max_length: 1, matches_pattern: 1 };
+    var NEEDS_LIST  = { in_list: 1 };
 
     function _ruleTypeOpts(sel) {
       return RULE_TYPES.map(function(p) {
@@ -429,13 +451,46 @@ window.DWBNodes.DATA_VALIDATION = {
         wrap.innerHTML = '<div style="font-size:11px;color:var(--text-faint);padding:6px">No rules yet.</div>';
         return;
       }
+
       wrap.innerHTML = rules.map(function(r, i) {
         var np = NEEDS_PARAM[r.type];
+        var nl = NEEDS_LIST[r.type];
+
+        if (nl) {
+          var allLists = window.DWBValidationLists ? window.DWBValidationLists.getAll() : [];
+          var noLists  = !allLists.length;
+          var listOpts = noLists
+            ? '<option value="" disabled selected>No lists yet</option>'
+            : '<option value="">-- select list --</option>' + allLists.map(function(l) {
+                return '<option value="' + _lrEsc(l.id) + '"' + (r.listId === l.id ? ' selected' : '') + '>' +
+                  _lrEsc(l.name) + ' (' + l.values.length + ')</option>';
+              }).join('');
+          return '<div style="padding:5px 6px;border-bottom:1px solid var(--border)">' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:4px;align-items:center;margin-bottom:4px">' +
+              '<select class="lr-dv-col"  data-idx="' + i + '" style="font-size:12px">' + _lrColOptHtml(cols, r.column) + '</select>' +
+              '<select class="lr-dv-type" data-idx="' + i + '" style="font-size:12px">' + _ruleTypeOpts(r.type) + '</select>' +
+              '<button class="lr-dv-rm"   data-idx="' + i + '" style="padding:1px 6px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px;color:var(--danger)">&#x2715;</button>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">' +
+              '<select class="lr-dv-list" data-idx="' + i + '" style="flex:1;font-size:12px' + (noLists ? ';color:var(--text-faint)' : '') + '">' + listOpts + '</select>' +
+              '<button class="lr-dv-open-settings" data-idx="' + i + '" title="Manage lists" style="padding:2px 6px;background:none;border:1px solid ' + (noLists ? 'var(--accent)' : 'var(--border)') + ';border-radius:3px;cursor:pointer;font-size:12px;color:' + (noLists ? 'var(--accent)' : 'var(--text-muted)') + ';font-family:inherit">&#x2699;</button>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:12px">' +
+              '<label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text-muted);cursor:pointer">' +
+                '<input type="checkbox" class="lr-dv-cs"        data-idx="' + i + '"' + (r.caseSensitive ? ' checked' : '') + '> Case sensitive' +
+              '</label>' +
+              '<label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text-muted);cursor:pointer">' +
+                '<input type="checkbox" class="lr-dv-apply-res" data-idx="' + i + '"' + (r.applyResolutions !== false ? ' checked' : '') + '> Apply resolutions' +
+              '</label>' +
+            '</div>' +
+          '</div>';
+        }
+
         return '<div style="display:grid;grid-template-columns:1fr 1fr ' + (np ? '1fr ' : '') + 'auto;gap:4px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--border)">' +
-          '<select class="lr-dv-col" data-idx="' + i + '" style="font-size:12px">' + _lrColOptHtml(cols, r.column) + '</select>' +
-          '<select class="lr-dv-type" data-idx="' + i + '" style="font-size:12px">' + _ruleTypeOpts(r.type) + '</select>' +
+          '<select class="lr-dv-col"   data-idx="' + i + '" style="font-size:12px">' + _lrColOptHtml(cols, r.column) + '</select>' +
+          '<select class="lr-dv-type"  data-idx="' + i + '" style="font-size:12px">' + _ruleTypeOpts(r.type) + '</select>' +
           (np ? '<input type="text" class="lr-dv-param" data-idx="' + i + '" value="' + _lrEsc(r.param || '') + '" placeholder="' + (r.type === 'matches_pattern' ? 'regex' : 'number') + '" style="font-size:12px">' : '') +
-          '<button class="lr-dv-rm" data-idx="' + i + '" style="padding:1px 6px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px;color:var(--danger)">✕</button>' +
+          '<button class="lr-dv-rm"    data-idx="' + i + '" style="padding:1px 6px;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:11px;color:var(--danger)">&#x2715;</button>' +
         '</div>';
       }).join('');
 
@@ -447,9 +502,17 @@ window.DWBNodes.DATA_VALIDATION = {
       });
       wrap.querySelectorAll('.lr-dv-type').forEach(function(sel) {
         sel.addEventListener('change', function() {
-          rules[parseInt(sel.dataset.idx, 10)].type = sel.value;
+          var idx = parseInt(sel.dataset.idx, 10);
+          rules[idx].type = sel.value;
+          if (sel.value === 'in_list') {
+            if (!rules[idx].listId)                               rules[idx].listId = '';
+            if (!rules[idx].hasOwnProperty('caseSensitive'))     rules[idx].caseSensitive = false;
+            if (!rules[idx].hasOwnProperty('resolutions'))       rules[idx].resolutions = {};
+            if (!rules[idx].hasOwnProperty('applyResolutions'))  rules[idx].applyResolutions = true;
+          }
           onChange('rules', rules.slice());
           renderRules();
+          renderReview();
         });
       });
       wrap.querySelectorAll('.lr-dv-param').forEach(function(inp) {
@@ -458,11 +521,166 @@ window.DWBNodes.DATA_VALIDATION = {
           onChange('rules', rules.slice());
         });
       });
+      wrap.querySelectorAll('.lr-dv-list').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+          var idx = parseInt(sel.dataset.idx, 10);
+          rules[idx].listId = sel.value;
+          rules[idx].resolutions = {};
+          onChange('rules', rules.slice());
+          renderReview();
+        });
+      });
+      wrap.querySelectorAll('.lr-dv-open-settings').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          window.DWBSettings && window.DWBSettings.open('validation-lists');
+        });
+      });
+      wrap.querySelectorAll('.lr-dv-cs').forEach(function(chk) {
+        chk.addEventListener('change', function() {
+          var idx = parseInt(chk.dataset.idx, 10);
+          rules[idx].caseSensitive = chk.checked;
+          rules[idx].resolutions   = {};
+          onChange('rules', rules.slice());
+          renderReview();
+        });
+      });
+      wrap.querySelectorAll('.lr-dv-apply-res').forEach(function(chk) {
+        chk.addEventListener('change', function() {
+          rules[parseInt(chk.dataset.idx, 10)].applyResolutions = chk.checked;
+          onChange('rules', rules.slice());
+        });
+      });
       wrap.querySelectorAll('.lr-dv-rm').forEach(function(btn) {
         btn.addEventListener('click', function() {
           rules.splice(parseInt(btn.dataset.idx, 10), 1);
           onChange('rules', rules.slice());
           renderRules();
+          renderReview();
+        });
+      });
+    }
+
+    function renderReview() {
+      var wrap = div.querySelector('#lr-dv-review-wrap');
+      if (!wrap) return;
+
+      var inListRules = rules.filter(function(r) { return r.type === 'in_list'; });
+      if (!inListRules.length || !currentRows || !currentRows.length) {
+        wrap.style.display = 'none';
+        return;
+      }
+      wrap.style.display = '';
+
+      var selIdx = Math.min(parseInt(wrap.dataset.selIdx || '0', 10), inListRules.length - 1);
+      if (selIdx < 0) selIdx = 0;
+      var selRule = inListRules[selIdx];
+      var ilist   = selRule.listId && window.DWBValidationLists ? window.DWBValidationLists.get(selRule.listId) : null;
+
+      /* rule picker (shown only when multiple in_list rules exist) */
+      var rulePickHtml = '';
+      if (inListRules.length > 1) {
+        rulePickHtml = '<select id="lr-dv-rev-pick" style="font-size:11px;margin-left:6px">' +
+          inListRules.map(function(r, i) {
+            return '<option value="' + i + '"' + (i === selIdx ? ' selected' : '') + '>' + _lrEsc(r.column || 'Rule ' + (i + 1)) + '</option>';
+          }).join('') +
+        '</select>';
+      }
+
+      /* compute failures */
+      var failCounts = {};
+      if (ilist && selRule.column) {
+        var resolutions = selRule.resolutions || {};
+        var cs = !!selRule.caseSensitive;
+        currentRows.forEach(function(row) {
+          var val = String(row[selRule.column] != null ? row[selRule.column] : '');
+          if (resolutions.hasOwnProperty(val)) return;
+          var checkVal = cs ? val : val.toLowerCase();
+          var inList = ilist.values.some(function(v) {
+            var sv = String(v != null ? v : '');
+            return cs ? sv === val : sv.toLowerCase() === checkVal;
+          });
+          if (!inList) failCounts[val] = (failCounts[val] || 0) + 1;
+        });
+      }
+      var failEntries = Object.keys(failCounts).sort(function(a, b) { return failCounts[b] - failCounts[a]; });
+
+      var bodyHtml = '';
+      if (!ilist) {
+        bodyHtml = '<div style="font-size:11px;color:var(--text-faint);padding:4px 0">Select a list for this rule.</div>';
+      } else if (!selRule.column) {
+        bodyHtml = '<div style="font-size:11px;color:var(--text-faint);padding:4px 0">Select a column for this rule.</div>';
+      } else if (!failEntries.length) {
+        bodyHtml = '<div style="font-size:11px;color:var(--success);padding:4px 0">All values valid &#x2705;</div>';
+      } else {
+        var listVals = ilist.values;
+        bodyHtml = '<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">' +
+          failEntries.map(function(val) {
+            var count = failCounts[val];
+            var bestMatch = '';
+            var bestScore = -1;
+            listVals.forEach(function(lv) {
+              var s = _lrBigramSim(val, String(lv));
+              if (s > bestScore) { bestScore = s; bestMatch = String(lv); }
+            });
+            var valEsc = _lrEsc(val);
+            var opts =
+              '<option value="">&#x2014; Ignore &#x2014;</option>' +
+              listVals.map(function(lv) {
+                var lvStr = String(lv);
+                var isBest = lvStr === bestMatch && bestScore > 0.3;
+                return '<option value="' + _lrEsc(lvStr) + '"' + (isBest ? ' selected' : '') + '>' +
+                  _lrEsc(lvStr) + (isBest ? ' ✓' : '') + '</option>';
+              }).join('') +
+              '<option value="__ADD_TO_LIST__">+ Add to list</option>';
+            return '<div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid var(--border)">' +
+              '<div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + valEsc + '">' +
+                valEsc + ' <span style="color:var(--text-faint);font-size:10px">&#xD7;' + count + '</span>' +
+              '</div>' +
+              '<select class="lr-dv-rev-sel" data-val="' + valEsc + '" style="flex:1;font-size:11px;max-width:150px">' + opts + '</select>' +
+              '<button class="lr-dv-rev-apply" data-val="' + valEsc + '" style="padding:2px 7px;background:var(--accent);border:none;border-radius:3px;color:#fff;font-size:11px;cursor:pointer;font-family:inherit;flex-shrink:0">Apply</button>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+      }
+
+      wrap.innerHTML =
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);display:flex;align-items:center;margin-bottom:4px">' +
+          'Review Invalid Values' + rulePickHtml +
+        '</div>' +
+        bodyHtml;
+      wrap.dataset.selIdx = String(selIdx);
+
+      var revPick = wrap.querySelector('#lr-dv-rev-pick');
+      if (revPick) {
+        revPick.addEventListener('change', function() {
+          wrap.dataset.selIdx = revPick.value;
+          renderReview();
+        });
+      }
+
+      wrap.querySelectorAll('.lr-dv-rev-apply').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var val  = btn.dataset.val;
+          var sel  = null;
+          wrap.querySelectorAll('.lr-dv-rev-sel').forEach(function(s) {
+            if (s.dataset.val === val) sel = s;
+          });
+          if (!sel) return;
+          var chosen = sel.value;
+
+          if (chosen === '__ADD_TO_LIST__') {
+            if (ilist) {
+              window.DWBValidationLists.save({ id: ilist.id, name: ilist.name, values: ilist.values.concat([val]) });
+              onChange('rules', rules.slice());
+              renderReview();
+            }
+            return;
+          }
+
+          if (!selRule.resolutions) selRule.resolutions = {};
+          selRule.resolutions[val] = chosen;
+          onChange('rules', rules.slice());
+          renderReview();
         });
       });
     }
@@ -470,16 +688,19 @@ window.DWBNodes.DATA_VALIDATION = {
     div.innerHTML =
       '<div style="font-size:11px;font-weight:700;color:var(--text-muted)">Validation Rules</div>' +
       '<div id="lr-dv-rules" style="border:1px solid var(--border);border-radius:4px;overflow:hidden"></div>' +
-      '<button id="lr-dv-add" style="padding:4px 10px;background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit">＋ Add Rule</button>' +
+      '<button id="lr-dv-add" style="padding:4px 10px;background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit">&#xFF0B; Add Rule</button>' +
       '<div class="form-row"><label>Output Column</label>' +
-        '<input type="text" id="lr-dv-out" value="' + _lrEsc(config.outputColumn || 'validation_status') + '" style="width:100%"></div>';
+        '<input type="text" id="lr-dv-out" value="' + _lrEsc(config.outputColumn || 'validation_status') + '" style="width:100%"></div>' +
+      '<div id="lr-dv-review-wrap" style="border:1px solid var(--border);border-radius:4px;padding:6px 8px;display:none"></div>';
 
     renderRules();
+    renderReview();
 
     div.querySelector('#lr-dv-add').addEventListener('click', function() {
       rules.push({ column: cols[0] || '', type: 'not_empty', param: '' });
       onChange('rules', rules.slice());
       renderRules();
+      renderReview();
     });
     div.querySelector('#lr-dv-out').addEventListener('input', function(e) { onChange('outputColumn', e.target.value); });
 
